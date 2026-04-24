@@ -137,6 +137,7 @@ body::before{
 .form-box{animation:rise .6s ease forwards}
 .left-mid{animation:rise .6s ease .2s both}
 
+/* TEMA: Modern Minimal (claro) */
 body.light {
   --ink:#f5f2ed;--paper:#1a1710;--gold:#a06e1a;--gold-light:#c8922a;
   --line:rgba(160,110,26,0.2);--sub:#8a7d6a;--sub2:#5a4f3f;
@@ -148,6 +149,19 @@ body.light .tabs { border-color:var(--line); }
 body.light .tab { color:var(--sub2); }
 body.light .btn-magic { color:var(--paper); border-color:var(--line); }
 body.light body::before { opacity:0.3; }
+
+/* TEMA: Sage Instituto 31 (claro com sage+gold) */
+body.theme-sage {
+  --ink:#FAF7F2;--paper:#2C3E2D;--gold:#7A8C66;--gold-light:#9CAF88;
+  --line:rgba(122,140,102,0.22);--sub:#7A8970;--sub2:#5A6B4F;
+}
+body.theme-sage { background:var(--ink); }
+body.theme-sage .left { border-right-color:var(--line); }
+body.theme-sage .field input { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.theme-sage .tabs { border-color:var(--line); }
+body.theme-sage .tab { color:var(--sub2); }
+body.theme-sage .btn-magic { color:var(--paper); border-color:var(--line); }
+body.theme-sage body::before { opacity:0.4; }
 
 </style>
 </head>
@@ -331,14 +345,7 @@ document.addEventListener('keydown', e => {
   if (tabOp) loginOperador(); else loginMotorista();
 });
 
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
-}
-const _t = localStorage.getItem('fleetpay-theme');
-if (_t === 'light') { document.body.classList.add('light'); }
-
+// toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
 </script>
 </body>
 </html>

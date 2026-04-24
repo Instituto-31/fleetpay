@@ -204,4 +204,38 @@ const utils = {
   }
 };
 
-console.log('✅ FleetPay v2.0 — Supabase inicializado');
+// ── TEMAS ──
+// 3 paletas: 'default' (Black & Gold), 'sage' (Instituto 31), 'light' (Modern Minimal)
+// Aplicado via classe no body. Persistência em localStorage.
+const themes = {
+  list: [
+    { id: 'default', label: 'Black & Gold', icon: '🌙', vibe: 'Premium, escuro' },
+    { id: 'sage',    label: 'Sage Instituto 31', icon: '🌿', vibe: 'Calmo, claro' },
+    { id: 'light',   label: 'Modern Minimal', icon: '☀️', vibe: 'Limpo, moderno' }
+  ],
+  current() { return localStorage.getItem('fleetpay-theme') || 'default'; },
+  apply(id) {
+    document.body.classList.remove('theme-sage','theme-light','light');
+    if (id === 'sage') document.body.classList.add('theme-sage');
+    else if (id === 'light') document.body.classList.add('theme-light','light'); // 'light' por compat. com CSS antigo
+    localStorage.setItem('fleetpay-theme', id);
+    // Atualizar ícone no botão de tema, se existir
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
+  },
+  cycle() {
+    const ids = this.list.map(t => t.id);
+    const next = ids[(ids.indexOf(this.current()) + 1) % ids.length];
+    this.apply(next);
+    return next;
+  },
+  init() {
+    if (document.body) this.apply(this.current());
+    else document.addEventListener('DOMContentLoaded', () => this.apply(this.current()));
+  }
+};
+themes.init();
+// Compat: HTMLs antigos chamam toggleTheme() — mapear para cycle()
+function toggleTheme() { themes.cycle(); }
+
+console.log('✅ FleetPay v2.0 — Supabase + temas inicializados');

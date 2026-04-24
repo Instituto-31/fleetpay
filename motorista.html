@@ -175,6 +175,7 @@ body{font-family:var(--sans);background:var(--ink);color:var(--paper);min-height
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .pagamento-card{animation:rise .4s ease both}
 
+/* TEMA: Modern Minimal (claro) */
 body.light {
   --ink:#f5f2ed;--paper:#1a1710;--gold:#a06e1a;--gold-light:#c8922a;
   --line:rgba(160,110,26,0.2);--sub:#8a7d6a;--sub2:#5a4f3f;
@@ -186,6 +187,19 @@ body.light .pagamento-card { background:rgba(255,255,255,0.6); }
 body.light .bottom-nav { background:rgba(245,242,237,0.97); }
 body.light .detail-val { color:var(--paper); }
 body.light .btn-recibo { background:rgba(160,110,26,0.08); }
+
+/* TEMA: Sage Instituto 31 */
+body.theme-sage {
+  --ink:#FAF7F2;--paper:#2C3E2D;--gold:#7A8C66;--gold-light:#9CAF88;
+  --line:rgba(122,140,102,0.22);--sub:#7A8970;--sub2:#5A6B4F;
+}
+body.theme-sage { background:var(--ink); }
+body.theme-sage .header { background:rgba(250,247,242,0.97); }
+body.theme-sage .semana-atual { background:rgba(122,140,102,0.08); }
+body.theme-sage .pagamento-card { background:rgba(255,255,255,0.55); }
+body.theme-sage .bottom-nav { background:rgba(250,247,242,0.97); }
+body.theme-sage .detail-val { color:var(--paper); }
+body.theme-sage .btn-recibo { background:rgba(122,140,102,0.10); }
 
 </style>
 </head>
@@ -313,7 +327,7 @@ function renderApp() {
         <span class="nav-icon">💶</span>
         Recibos
       </button>
-      <button class="nav-item" onclick="alert('Em breve: perfil e documentos')">
+      <button class="nav-item" onclick="abrirPerfil()">
         <span class="nav-icon">👤</span>
         Perfil
       </button>
@@ -441,13 +455,55 @@ function filtrar(mes, btn) {
 }
 
 
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+// toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
+
+// Modal de Perfil — seletor de tema + info motorista
+function abrirPerfil() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  const atual = themes.current();
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--serif);font-size:22px;font-weight:300">O meu perfil</div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:24px">
+        <div style="margin-bottom:24px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Conta</div>
+          <div style="font-size:14px;color:var(--paper)">${motorista?.nome || '—'}</div>
+          <div style="font-size:12px;color:var(--sub2);margin-top:2px">${currentUser?.email || ''}</div>
+          ${motorista?.empresas?.nome ? `<div style="font-size:12px;color:var(--sub2);margin-top:2px">🏢 ${motorista.empresas.nome}</div>` : ''}
+        </div>
+
+        <div style="margin-bottom:24px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Tema da app</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${themes.list.map(t => `
+              <button onclick="themes.apply('${t.id}'); document.querySelectorAll('[data-theme-id]').forEach(b=>b.style.borderColor=b.dataset.themeId==='${t.id}'?'var(--gold)':'var(--line)')"
+                data-theme-id="${t.id}"
+                style="text-align:left;padding:12px 14px;background:transparent;border:1px solid ${t.id===atual?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:12px;transition:border-color .2s">
+                <span style="font-size:20px">${t.icon}</span>
+                <span style="flex:1">
+                  <div style="font-size:13px;font-weight:500">${t.label}</div>
+                  <div style="font-size:11px;color:var(--sub2);margin-top:2px">${t.vibe}</div>
+                </span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
+          style="width:100%;padding:12px;background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);border-radius:3px;color:var(--red);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
+          Terminar sessão
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
-const _t = localStorage.getItem('fleetpay-theme');
-if (_t === 'light') { document.body.classList.add('light'); }
 
 // Iniciar
 init();

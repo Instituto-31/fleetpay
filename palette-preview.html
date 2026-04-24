@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>FleetPay — Comparador de paletas</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#1a1a1a;color:#fff;padding:32px;min-height:100vh}
+h1{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;margin-bottom:8px;letter-spacing:-.5px}
+.intro{color:#999;font-size:14px;margin-bottom:32px;max-width:700px;line-height:1.6}
+.intro b{color:#fff}
+
+/* PALETTE CARDS */
+.palette{
+  background:var(--bg);color:var(--fg);
+  margin-bottom:32px;border-radius:8px;overflow:hidden;
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 8px 32px rgba(0,0,0,0.3);
+}
+.p-header{
+  padding:20px 28px;
+  background:var(--bg-2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.p-name{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:400;letter-spacing:-.3px}
+.p-name em{font-style:italic;color:var(--accent)}
+.p-vibe{font-family:'Geist Mono',monospace;font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase}
+
+.p-body{padding:32px;display:grid;grid-template-columns:300px 1fr;gap:32px}
+
+/* LEFT: cor swatches */
+.swatches{display:flex;flex-direction:column;gap:8px}
+.swatch{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:4px;background:var(--bg-2);border:1px solid var(--border)}
+.s-color{width:32px;height:32px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);flex-shrink:0}
+.s-info{flex:1;min-width:0}
+.s-name{font-size:12px;font-weight:500}
+.s-hex{font-family:'Geist Mono',monospace;font-size:10px;color:var(--sub)}
+
+/* RIGHT: componentes-amostra */
+.demo{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.demo-full{grid-column:1/-1}
+
+/* KPI card */
+.kpi{
+  background:var(--bg-2);border:1px solid var(--border);
+  border-radius:6px;padding:20px;
+}
+.kpi-label{font-family:'Geist Mono',monospace;font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--accent);letter-spacing:-1px;line-height:1}
+.kpi-sub{font-size:11px;color:var(--sub);margin-top:6px}
+
+/* Botões */
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  padding:10px 18px;border-radius:3px;font-size:11px;font-weight:500;
+  letter-spacing:1px;text-transform:uppercase;font-family:'Outfit',sans-serif;
+  cursor:pointer;border:none;transition:all .2s;
+}
+.btn-primary{background:var(--accent);color:var(--bg)}
+.btn-primary:hover{background:var(--accent-2)}
+.btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--fg);border-color:var(--accent)}
+.btn-danger{background:rgba(224,82,82,0.15);color:#e05252;border:1px solid rgba(224,82,82,0.3)}
+
+/* Badges */
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;
+  font-size:10px;font-family:'Geist Mono',monospace;letter-spacing:.5px;
+}
+.badge-ok{background:var(--ok-bg);color:var(--ok)}
+.badge-warn{background:var(--warn-bg);color:var(--warn)}
+.badge-err{background:rgba(224,82,82,0.1);color:#e05252}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+/* Mini tabela */
+.table{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:6px;overflow:hidden;
+  font-size:12px;
+}
+.table-row{display:grid;grid-template-columns:2fr 1fr 1fr 80px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center}
+.table-row:last-child{border-bottom:none}
+.table-row.header{background:rgba(0,0,0,0.15);font-family:'Geist Mono',monospace;font-size:9px;color:var(--sub);letter-spacing:1px;text-transform:uppercase}
+.table-name{font-weight:500;color:var(--fg)}
+.table-val{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--accent)}
+
+/* Header bar simulado */
+.app-bar{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
+  padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+}
+.bar-logo{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400}
+.bar-logo em{font-style:italic;color:var(--accent)}
+.bar-nav{display:flex;gap:18px}
+.bar-link{font-size:12px;color:var(--sub);cursor:pointer;font-weight:500}
+.bar-link.active{color:var(--accent)}
+
+/* PICK BUTTON */
+.pick-row{padding:16px 28px;background:var(--bg-2);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.pick-pros{font-size:12px;color:var(--sub);max-width:60%;line-height:1.6}
+.pick-pros b{color:var(--fg)}
+.pick-btn{
+  padding:10px 22px;background:var(--accent);color:var(--bg);
+  border:none;border-radius:3px;font-size:11px;font-weight:600;
+  letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+  font-family:'Outfit',sans-serif;
+}
+
+/* ─────────── PALETA 1: Atual (Black & Gold) ─────────── */
+.p1{
+  --bg:#0a0905;--bg-2:rgba(255,255,255,0.03);--fg:#f7f4ef;
+  --accent:#c8922a;--accent-2:#e8b86d;
+  --border:rgba(200,146,42,0.15);--sub:#a09484;
+  --ok:#27c93f;--ok-bg:rgba(39,201,63,0.1);
+  --warn:#e8943a;--warn-bg:rgba(232,148,58,0.1);
+}
+
+/* ─────────── PALETA 2: Sage + Gold (Instituto 31) ─────────── */
+.p2{
+  --bg:#FAF7F2;--bg-2:#F0EBE0;--fg:#2C3E2D;
+  --accent:#7A8C66;--accent-2:#9CAF88;
+  --border:rgba(122,140,102,0.2);--sub:#6B7A5F;
+  --ok:#5A8A4F;--ok-bg:rgba(90,138,79,0.15);
+  --warn:#C4965A;--warn-bg:rgba(196,150,90,0.15);
+}
+
+/* ─────────── PALETA 3: Tech Pro (Fintech blue) ─────────── */
+.p3{
+  --bg:#0F1419;--bg-2:rgba(255,255,255,0.04);--fg:#E6EDF3;
+  --accent:#4FB3D9;--accent-2:#7BC8E0;
+  --border:rgba(79,179,217,0.2);--sub:#7D8590;
+  --ok:#3FB950;--ok-bg:rgba(63,185,80,0.15);
+  --warn:#D29922;--warn-bg:rgba(210,153,34,0.15);
+}
+
+/* ─────────── PALETA 4: Forest Premium (Audi feel) ─────────── */
+.p4{
+  --bg:#1A2820;--bg-2:rgba(212,165,116,0.05);--fg:#F0E8D8;
+  --accent:#D4A574;--accent-2:#E8C495;
+  --border:rgba(212,165,116,0.18);--sub:#8A9888;
+  --ok:#6FAF6F;--ok-bg:rgba(111,175,111,0.12);
+  --warn:#D4A574;--warn-bg:rgba(212,165,116,0.12);
+}
+
+/* ─────────── PALETA 5: Warm Mediterranean ─────────── */
+.p5{
+  --bg:#FFF8F0;--bg-2:#F5EBDC;--fg:#3D2817;
+  --accent:#C36F4F;--accent-2:#D9885F;
+  --border:rgba(195,111,79,0.2);--sub:#7A5C45;
+  --ok:#7A9461;--ok-bg:rgba(122,148,97,0.18);
+  --warn:#D9A55E;--warn-bg:rgba(217,165,94,0.2);
+}
+
+/* ─────────── PALETA 6: Modern Minimal (Linear-style) ─────────── */
+.p6{
+  --bg:#FAFAFA;--bg-2:#FFFFFF;--fg:#0A0A0A;
+  --accent:#5E6AD2;--accent-2:#7C84DD;
+  --border:rgba(0,0,0,0.08);--sub:#666;
+  --ok:#22C55E;--ok-bg:rgba(34,197,94,0.1);
+  --warn:#F59E0B;--warn-bg:rgba(245,158,11,0.1);
+}
+
+@media (max-width:900px){
+  .p-body{grid-template-columns:1fr}
+  .demo{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<h1>FleetPay — <em style="color:#c8922a;font-style:italic">Paletas</em></h1>
+<p class="intro">
+  6 propostas de paleta aplicadas aos componentes reais da app. <b>Compara</b> e diz-me o número da que preferes.
+  Cada paleta mostra: header, KPI, botões, badges, tabela. Ao escolheres uma, aplico-a aos 3 HTMLs (login, admin, motorista).
+</p>
+
+<!-- ─── 1. ATUAL ─── -->
+<div class="palette p1">
+  <div class="p-header">
+    <div class="p-name">1. Black <em>& Gold</em></div>
+    <div class="p-vibe">Atual · Hotel boutique · Luxury</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#0a0905"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#0a0905</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#f7f4ef"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#f7f4ef</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#c8922a"></div><div class="s-info"><div class="s-name">Accent</div><div class="s-hex">#c8922a</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> distinto, premium, memorável. <b>Contras:</b> menos "instituto formação", mais "hotel/jóia". Texto dourado em fundo escuro pode cansar em sessões longas.</div>
+    <button class="pick-btn" onclick="escolher(1)">Escolher</button>
+  </div>
+</div>
+
+<!-- ─── 2. SAGE + GOLD ─── -->
+<div class="palette p2">
+  <div class="p-header">
+    <div class="p-name">2. Sage <em>+ Gold</em></div>
+    <div class="p-vibe">Instituto 31 · Calmo · Formação</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#FAF7F2"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#FAF7F2</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#2C3E2D"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#2C3E2D</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#7A8C66"></div><div class="s-info"><div class="s-name">Accent (sage)</div><div class="s-hex">#7A8C66</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#C4965A"></div><div class="s-info"><div class="s-name">Warn (gold)</div><div class="s-hex">#C4965A</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> alinha com brand do Instituto 31 (emails sage+gold), confortável para uso diário, "instituto sério". <b>Contras:</b> menos "tech", mais terno/clássico.</div>
+    <button class="pick-btn" onclick="escolher(2)">Escolher</button>
+  </div>
+</div>
+
+<!-- ─── 3. TECH PRO ─── -->
+<div class="palette p3">
+  <div class="p-header">
+    <div class="p-name">3. Tech <em>Pro</em></div>
+    <div class="p-vibe">Fintech · SaaS sério · Confiança</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#0F1419"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#0F1419</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#E6EDF3"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#E6EDF3</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#4FB3D9"></div><div class="s-info"><div class="s-name">Accent</div><div class="s-hex">#4FB3D9</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> ar de fintech sério (Wise, Revolut, Linear), bom para vender SaaS, "moderno". <b>Contras:</b> parece com tudo o resto, sem identidade própria.</div>
+    <button class="pick-btn" onclick="escolher(3)">Escolher</button>
+  </div>
+</div>
+
+<!-- ─── 4. FOREST PREMIUM ─── -->
+<div class="palette p4">
+  <div class="p-header">
+    <div class="p-name">4. Forest <em>Premium</em></div>
+    <div class="p-vibe">Audi · Verde escuro · Champanhe</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#1A2820"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#1A2820</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#F0E8D8"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#F0E8D8</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#D4A574"></div><div class="s-info"><div class="s-name">Accent (champanhe)</div><div class="s-hex">#D4A574</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> sofisticado, distinto, "carro premium". Bom para frota TVDE de gama alta. <b>Contras:</b> mais escuro/pesado, pode parecer fechado.</div>
+    <button class="pick-btn" onclick="escolher(4)">Escolher</button>
+  </div>
+</div>
+
+<!-- ─── 5. WARM MEDITERRANEAN ─── -->
+<div class="palette p5">
+  <div class="p-header">
+    <div class="p-name">5. Warm <em>Mediterranean</em></div>
+    <div class="p-vibe">Terracota · Acolhedor · Distinto</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#FFF8F0"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#FFF8F0</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#3D2817"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#3D2817</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#C36F4F"></div><div class="s-info"><div class="s-name">Accent (terracota)</div><div class="s-hex">#C36F4F</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> muito distinto, acolhedor, "português". Bom para diferenciar de concorrência fria. <b>Contras:</b> menos corporativo, pode parecer pouco "fintech".</div>
+    <button class="pick-btn" onclick="escolher(5)">Escolher</button>
+  </div>
+</div>
+
+<!-- ─── 6. MODERN MINIMAL ─── -->
+<div class="palette p6">
+  <div class="p-header">
+    <div class="p-name">6. Modern <em>Minimal</em></div>
+    <div class="p-vibe">Linear · Notion · Limpo</div>
+  </div>
+  <div class="p-body">
+    <div class="swatches">
+      <div class="swatch"><div class="s-color" style="background:#FAFAFA"></div><div class="s-info"><div class="s-name">Fundo</div><div class="s-hex">#FAFAFA</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#0A0A0A"></div><div class="s-info"><div class="s-name">Texto</div><div class="s-hex">#0A0A0A</div></div></div>
+      <div class="swatch"><div class="s-color" style="background:#5E6AD2"></div><div class="s-info"><div class="s-name">Accent (índigo)</div><div class="s-hex">#5E6AD2</div></div></div>
+    </div>
+    <div class="demo">
+      <div class="app-bar demo-full"><div class="bar-logo">Fleet<em>Pay</em></div><div class="bar-nav"><span class="bar-link active">Dashboard</span><span class="bar-link">Pagamentos</span><span class="bar-link">CSV</span></div></div>
+      <div class="kpi"><div class="kpi-label">Receita semana</div><div class="kpi-val">€ 12 480</div><div class="kpi-sub">+8% vs semana anterior</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas ativos</div><div class="kpi-val">23</div><div class="kpi-sub">2 novos esta semana</div></div>
+      <div class="btns demo-full"><button class="btn btn-primary">Confirmar</button><button class="btn btn-ghost">Cancelar</button><button class="btn btn-danger">Eliminar</button></div>
+      <div class="badges demo-full"><span class="badge badge-ok"><span class="badge-dot"></span>Pago</span><span class="badge badge-warn"><span class="badge-dot"></span>Pendente</span><span class="badge badge-err"><span class="badge-dot"></span>Expirado</span></div>
+      <div class="table demo-full"><div class="table-row header"><div>Motorista</div><div>Uber</div><div>Bolt</div><div>Total</div></div><div class="table-row"><div class="table-name">João Silva</div><div>€ 480</div><div>€ 220</div><div class="table-val">€ 700</div></div><div class="table-row"><div class="table-name">Maria Costa</div><div>€ 320</div><div>€ 180</div><div class="table-val">€ 500</div></div></div>
+    </div>
+  </div>
+  <div class="pick-row">
+    <div class="pick-pros"><b>Prós:</b> muito limpo, moderno, "produto SaaS premium". Funciona bem em qualquer ecrã. <b>Contras:</b> sem alma, pode parecer genérico.</div>
+    <button class="pick-btn" onclick="escolher(6)">Escolher</button>
+  </div>
+</div>
+
+<script>
+function escolher(n) {
+  const nomes = {1:'Black & Gold (atual)', 2:'Sage + Gold (Instituto 31)', 3:'Tech Pro', 4:'Forest Premium', 5:'Warm Mediterranean', 6:'Modern Minimal'};
+  alert(`Escolheste a paleta ${n}: ${nomes[n]}\n\nVolta ao Claude Code e diz "paleta ${n}" para eu aplicar a todos os HTMLs.`);
+}
+</script>
+
+</body>
+</html>

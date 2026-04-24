@@ -311,6 +311,35 @@ body.light .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
 body.light .btn-ghost { color:var(--sub2); border-color:var(--line); }
 body.light .btn-ghost:hover { color:var(--paper); }
 
+/* ─── TEMA: Sage Instituto 31 ─── */
+body.theme-sage {
+  --ink:#FAF7F2;--paper:#2C3E2D;--gold:#7A8C66;--gold-light:#9CAF88;
+  --line:rgba(122,140,102,0.20);--sub:#7A8970;--sub2:#5A6B4F;
+  --green:#5A8A4F;--red:#B85450;--orange:#C4965A;
+}
+body.theme-sage { background:var(--ink); color:var(--paper); }
+body.theme-sage .sidebar { background:rgba(255,255,255,0.55); border-right:1px solid var(--line); }
+body.theme-sage .topbar { background:rgba(250,247,242,0.95); }
+body.theme-sage .main { background:#F0EBE0; }
+body.theme-sage .kpi { background:rgba(255,255,255,0.8); }
+body.theme-sage .table-wrap { background:rgba(255,255,255,0.8); }
+body.theme-sage table th { background:rgba(0,0,0,0.04); }
+body.theme-sage tr:hover td { background:rgba(0,0,0,0.02); }
+body.theme-sage .field input,
+body.theme-sage .field select,
+body.theme-sage .field textarea { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.theme-sage .modal { background:#F0EBE0; }
+body.theme-sage .upload-zone { border-color:rgba(122,140,102,0.30); }
+body.theme-sage .upload-zone:hover { background:rgba(122,140,102,0.06); }
+body.theme-sage .nav-item:hover { background:rgba(0,0,0,0.04); }
+body.theme-sage .nav-item.active { background:rgba(122,140,102,0.12); }
+body.theme-sage .user-chip { background:rgba(0,0,0,0.05); }
+body.theme-sage .alerta-exp { background:rgba(184,84,80,0.08); }
+body.theme-sage .alerta-aviso { background:rgba(196,150,90,0.10); }
+body.theme-sage .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.theme-sage .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-sage .btn-ghost:hover { color:var(--paper); }
+
 </style>
 </head>
 <body>
@@ -1558,8 +1587,29 @@ function modalContrato() { toast('Módulo de contratos em desenvolvimento 🚧')
 // ── CONFIG ──
 function renderConfig() {
   document.getElementById('topbar-actions').innerHTML = '';
+  const atual = themes.current();
   document.getElementById('content').innerHTML = `
     <div style="max-width:560px">
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header"><div class="table-title">🎨 Aparência</div></div>
+        <div style="padding:24px">
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Escolhe o tema. A escolha fica guardada no teu browser.</p>
+          <div style="display:grid;grid-template-columns:1fr;gap:10px">
+            ${themes.list.map(t => `
+              <button onclick="themes.apply('${t.id}'); renderConfig()"
+                style="text-align:left;padding:14px 16px;background:transparent;border:1px solid ${t.id===atual?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:14px;transition:border-color .2s">
+                <span style="font-size:22px">${t.icon}</span>
+                <span style="flex:1">
+                  <div style="font-size:14px;font-weight:500">${t.label}</div>
+                  <div style="font-size:11px;color:var(--sub2);margin-top:2px">${t.vibe}</div>
+                </span>
+                ${t.id===atual ? '<span style="font-size:10px;color:var(--gold);font-family:var(--mono);letter-spacing:1px">ATIVO</span>' : ''}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
       <div class="table-wrap" style="margin-bottom:24px">
         <div class="table-header"><div class="table-title">Configurações globais</div></div>
         <div style="padding:24px">
@@ -1603,24 +1653,9 @@ async function guardarConfigBolt() {
 }
 
 
-// ── TEMA CLARO/ESCURO ──
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
-}
-
-// Aplicar tema guardado
-(function() {
-  const saved = localStorage.getItem('fleetpay-theme');
-  if (saved === 'light') {
-    document.body.classList.add('light');
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('theme-btn');
-      if (btn) btn.textContent = '☀️';
-    });
-  }
-})();
+// toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
+// Para escolher um tema específico: themes.apply('default'|'sage'|'light')
+// O botão 🌙 no header faz cycle(), e a página Config tem o seletor visual.
 
 // ── START ──
 init();
