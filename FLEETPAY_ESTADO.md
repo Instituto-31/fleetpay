@@ -16,8 +16,8 @@
 - **Frontend:** HTML/JS estático (sem build)
 - **Base de dados:** Supabase (PostgreSQL + RLS)
 - **Auth:** Supabase Auth (password operador + magic link motorista)
-- **Hosting:** GitHub Pages (planeado)
-- **Versionamento:** Git local (`master`, ainda sem remote)
+- **Hosting:** ✅ **GitHub Pages — LIVE em https://instituto-31.github.io/fleetpay/**
+- **Repo:** https://github.com/Instituto-31/fleetpay (branch `master`)
 
 ---
 
