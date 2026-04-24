@@ -282,17 +282,39 @@ CREATE TRIGGER tr_veiculos_ts BEFORE UPDATE ON veiculos FOR EACH ROW EXECUTE FUN
 CREATE TRIGGER tr_pagamentos_ts BEFORE UPDATE ON pagamentos FOR EACH ROW EXECUTE FUNCTION atualizar_timestamp();
 
 -- ============================================================
--- TRIGGER — criar perfil automaticamente após registo
+-- TRIGGER — criar perfil + associar a motorista pré-existente
 -- ============================================================
+-- Quando alguém faz signup (magic link motorista ou password operador),
+-- procuramos um motorista pré-criado pelo operador com o mesmo email.
+-- Se existir, ligamos perfil <-> motorista automaticamente.
+-- Senão, o perfil fica "órfão" e o motorista.html mostrará "Sem acesso".
 CREATE OR REPLACE FUNCTION criar_perfil_novo_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  mot RECORD;
 BEGIN
-  INSERT INTO perfis (id, email, role)
-  VALUES (NEW.id, NEW.email, 'motorista');
+  -- Procurar motorista pré-criado pelo operador com este email
+  SELECT id, empresa_id INTO mot
+  FROM motoristas
+  WHERE email = NEW.email AND perfil_id IS NULL
+  LIMIT 1;
+
+  IF FOUND THEN
+    -- Liga perfil à empresa do motorista
+    INSERT INTO perfis (id, email, role, empresa_id)
+    VALUES (NEW.id, NEW.email, 'motorista', mot.empresa_id);
+    -- Liga motorista ao perfil recém-criado
+    UPDATE motoristas SET perfil_id = NEW.id WHERE id = mot.id;
+  ELSE
+    -- Sem motorista pré-criado: perfil "órfão" (motorista.html mostra "Sem acesso")
+    INSERT INTO perfis (id, email, role)
+    VALUES (NEW.id, NEW.email, 'motorista');
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS tr_novo_user_perfil ON auth.users;
 CREATE TRIGGER tr_novo_user_perfil
 AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION criar_perfil_novo_user();
