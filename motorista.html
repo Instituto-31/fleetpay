@@ -331,7 +331,7 @@ function renderApp() {
         <span class="nav-icon">👤</span>
         Perfil
       </button>
-      <button class="nav-item" onclick="alert('Em breve: veículo e documentos')">
+      <button class="nav-item" onclick="abrirViatura()">
         <span class="nav-icon">🚗</span>
         Viatura
       </button>
@@ -503,6 +503,133 @@ function abrirPerfil() {
     </div>
   `;
   document.body.appendChild(overlay);
+}
+
+// Modal Viatura — mostra veículo atribuído + documentos
+async function abrirViatura() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  // Loading
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;padding:48px;text-align:center">
+      <div class="spinner-lg" style="margin:0 auto 16px"></div>
+      <p style="color:var(--sub2);font-size:13px">A carregar viatura...</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Buscar veículo do motorista
+  const { data: veiculo } = await db.from('veiculos')
+    .select('*')
+    .eq('motorista_id', motorista.id)
+    .neq('estado', 'inativo')
+    .single();
+
+  // Calcular estado de cada documento
+  const hoje = new Date().toISOString().split('T')[0];
+  const em30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const docStatus = (val) => {
+    if (!val) return { label: '—', cor: 'var(--sub)' };
+    if (val < hoje) return { label: 'Expirado', cor: 'var(--red)' };
+    if (val <= em30) return { label: 'A expirar', cor: 'var(--orange)' };
+    return { label: 'OK', cor: 'var(--green)' };
+  };
+
+  if (!veiculo) {
+    overlay.innerHTML = `
+      <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;text-align:center">
+        <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+          <div style="font-family:var(--serif);font-size:22px;font-weight:300">A minha viatura</div>
+          <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div style="padding:48px 24px">
+          <div style="font-size:48px;margin-bottom:16px">🚗</div>
+          <div style="font-family:var(--serif);font-size:20px;color:var(--sub2);margin-bottom:8px">Sem viatura atribuída</div>
+          <p style="font-size:13px;color:var(--sub2);line-height:1.6">Fala com o teu operador para te atribuir uma viatura.</p>
+        </div>
+      </div>
+    `;
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+    return;
+  }
+
+  const seguro = docStatus(veiculo.seguro_validade);
+  const inspe = docStatus(veiculo.inspecao_validade);
+  const ext = docStatus(veiculo.extintor_validade);
+
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--serif);font-size:22px;font-weight:300">A minha viatura</div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:24px">
+        <!-- Hero -->
+        <div style="text-align:center;padding:20px;background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:6px;margin-bottom:24px">
+          <div style="font-size:48px;margin-bottom:8px">${veiculo.tipo === 'electrico' ? '⚡' : veiculo.tipo === 'hibrido' ? '🔋' : '🚗'}</div>
+          <div style="font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:2px;color:var(--gold);margin-bottom:6px">${veiculo.matricula}</div>
+          <div style="font-size:14px;color:var(--paper)">${veiculo.marca || ''} ${veiculo.modelo || ''} ${veiculo.ano ? `· ${veiculo.ano}` : ''}</div>
+          ${veiculo.cor ? `<div style="font-size:11px;color:var(--sub2);margin-top:4px">${veiculo.cor}</div>` : ''}
+        </div>
+
+        <!-- Documentos -->
+        <div style="margin-bottom:20px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Documentos</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:4px">
+              <div>
+                <div style="font-size:13px;color:var(--paper)">Seguro</div>
+                <div style="font-size:11px;color:var(--sub2);margin-top:2px">${veiculo.seguro_validade ? new Date(veiculo.seguro_validade+'T00:00:00').toLocaleDateString('pt-PT') : 'sem data'}</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:10px;color:${seguro.cor};letter-spacing:1px">${seguro.label}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:4px">
+              <div>
+                <div style="font-size:13px;color:var(--paper)">Inspeção</div>
+                <div style="font-size:11px;color:var(--sub2);margin-top:2px">${veiculo.inspecao_validade ? new Date(veiculo.inspecao_validade+'T00:00:00').toLocaleDateString('pt-PT') : 'sem data'}</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:10px;color:${inspe.cor};letter-spacing:1px">${inspe.label}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:4px">
+              <div>
+                <div style="font-size:13px;color:var(--paper)">Extintor</div>
+                <div style="font-size:11px;color:var(--sub2);margin-top:2px">${veiculo.extintor_validade ? new Date(veiculo.extintor_validade+'T00:00:00').toLocaleDateString('pt-PT') : 'sem data'}</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:10px;color:${ext.cor};letter-spacing:1px">${ext.label}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manutenção -->
+        ${(veiculo.km_atuais || veiculo.proxima_revisao_data || veiculo.proxima_revisao_km) ? `
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Manutenção</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            ${veiculo.km_atuais ? `
+              <div style="padding:12px 14px;border:1px solid var(--line);border-radius:4px">
+                <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Km atuais</div>
+                <div style="font-size:15px;color:var(--paper);margin-top:4px">${veiculo.km_atuais.toLocaleString('pt-PT')} km</div>
+              </div>` : ''}
+            ${veiculo.proxima_revisao_km ? `
+              <div style="padding:12px 14px;border:1px solid var(--line);border-radius:4px">
+                <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Próxima revisão</div>
+                <div style="font-size:15px;color:var(--paper);margin-top:4px">${veiculo.proxima_revisao_km.toLocaleString('pt-PT')} km</div>
+              </div>` : ''}
+            ${veiculo.proxima_revisao_data ? `
+              <div style="padding:12px 14px;border:1px solid var(--line);border-radius:4px;grid-column:${veiculo.km_atuais && veiculo.proxima_revisao_km ? '1/-1' : 'auto'}">
+                <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Data revisão</div>
+                <div style="font-size:15px;color:var(--paper);margin-top:4px">${new Date(veiculo.proxima_revisao_data+'T00:00:00').toLocaleDateString('pt-PT')}</div>
+              </div>` : ''}
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  // Reattach close handler (innerHTML reset overlay onclick)
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
 }
 
 // Iniciar
