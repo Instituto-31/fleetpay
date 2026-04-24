@@ -1274,9 +1274,14 @@ async function convidarMotorista(id) {
   if (!m?.email) { toast('Motorista sem email','error'); return; }
   if (!confirm(`Enviar convite de acesso a ${m.nome} (${m.email})?`)) return;
 
-  // Criar user no Supabase Auth via magic link
-  const { error } = await db.auth.signInWithOtp({ email: m.email, options: { emailRedirectTo: window.location.origin+'/motorista.html' } });
-  if (error) { toast('Erro ao enviar convite','error'); return; }
+  // URL absoluta correta (funciona em subpastas tipo /fleetpay/)
+  const redirectTo = new URL('motorista.html', window.location.href).href;
+  const { error } = await db.auth.signInWithOtp({ email: m.email, options: { emailRedirectTo: redirectTo } });
+  if (error) {
+    console.error('Convite:', error);
+    toast(`Erro: ${error.message || 'desconhecido'}`,'error');
+    return;
+  }
   toast(`✅ Convite enviado para ${m.email}`);
 }
 

@@ -29,7 +29,8 @@ const auth = {
 
   // Login com magic link (para motoristas)
   async loginMagicLink(email) {
-    const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/motorista.html' } });
+    const redirectTo = new URL('motorista.html', window.location.href).href;
+    const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
     if (error) throw error;
   },
 

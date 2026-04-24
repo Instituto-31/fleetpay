@@ -312,9 +312,11 @@ async function loginMotorista() {
 
   setLoading(true); hideMsg();
   try {
+    // URL absoluta correta (funciona em subpastas tipo /fleetpay/)
+    const redirectTo = new URL('motorista.html', window.location.href).href;
     const { error } = await db.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + '/motorista.html' }
+      options: { emailRedirectTo: redirectTo }
     });
     if (error) throw error;
     document.getElementById('form-motorista').style.display = 'none';
