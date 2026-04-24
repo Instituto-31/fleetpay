@@ -345,7 +345,38 @@ document.addEventListener('keydown', e => {
   if (tabOp) loginOperador(); else loginMotorista();
 });
 
-// toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
+// ── LOGIN: tema limitado ──
+// O helper `themes` vem de fleetpay-config.js, mas no login restringimos
+// para apenas dark↔light. Sage só fica disponível depois de entrar
+// (em Perfil/Config). A preferência guardada do utilizador (incluindo
+// 'sage') é preservada — só não é mostrada visualmente nesta página.
+(function loginThemeOverride() {
+  // Se o tema guardado for 'sage', mostrar default visualmente
+  if (themes.current() === 'sage') {
+    document.body.classList.remove('theme-sage');
+  }
+  // Substituir toggleTheme: só alterna dark↔light no login
+  window.toggleTheme = function() {
+    const isLight = document.body.classList.contains('light');
+    if (isLight) {
+      document.body.classList.remove('light','theme-light');
+      localStorage.setItem('fleetpay-theme', 'default');
+    } else {
+      document.body.classList.remove('theme-sage');
+      document.body.classList.add('light','theme-light');
+      localStorage.setItem('fleetpay-theme', 'light');
+    }
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = document.body.classList.contains('light') ? '☀️' : '🌙';
+  };
+  // Corrigir ícone inicial do botão
+  const fixIcon = () => {
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = document.body.classList.contains('light') ? '☀️' : '🌙';
+  };
+  if (document.getElementById('theme-btn')) fixIcon();
+  else document.addEventListener('DOMContentLoaded', fixIcon);
+})();
 </script>
 </body>
 </html>
