@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetPay — Painel Operador</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#6b6456;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Geist Mono',monospace;--sans:'Outfit',sans-serif;
+  --green:#27c93f;--red:#e05252;--orange:#e8943a;
+  --sidebar:220px;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--ink);color:var(--paper);overflow:hidden}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:var(--sidebar) 1fr;height:100vh}
+
+/* SIDEBAR */
+.sidebar{
+  background:rgba(0,0,0,0.4);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.sidebar-logo{
+  padding:24px 20px;border-bottom:1px solid var(--line);
+  font-family:var(--serif);font-size:20px;font-weight:400;
+}
+.sidebar-logo em{font-style:italic;color:var(--gold)}
+.sidebar-empresa{
+  padding:12px 20px;font-size:11px;color:var(--sub);
+  font-family:var(--mono);letter-spacing:.5px;border-bottom:1px solid var(--line);
+}
+
+.nav-section{padding:16px 0 8px}
+.nav-label{
+  padding:4px 20px;font-family:var(--mono);font-size:9px;
+  color:var(--sub);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 20px;cursor:pointer;
+  font-size:13px;color:var(--sub2);
+  background:none;border:none;width:100%;text-align:left;
+  transition:color .15s,background .15s;font-family:var(--sans);
+}
+.nav-item:hover{color:var(--paper);background:rgba(255,255,255,0.03)}
+.nav-item.active{color:var(--gold);background:rgba(200,146,42,0.06)}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.nav-badge{
+  margin-left:auto;background:var(--red);color:#fff;
+  font-size:9px;padding:2px 6px;border-radius:100px;font-family:var(--mono);
+}
+
+.sidebar-bottom{margin-top:auto;padding:16px;border-top:1px solid var(--line)}
+.user-chip{
+  display:flex;align-items:center;gap:10px;
+  padding:10px;border-radius:4px;background:rgba(255,255,255,0.03);
+}
+.user-avatar{
+  width:32px;height:32px;border-radius:50%;
+  background:rgba(200,146,42,0.2);border:1px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:600;color:var(--gold);font-family:var(--mono);
+  flex-shrink:0;
+}
+.user-info-name{font-size:12px;font-weight:500;color:var(--paper)}
+.user-info-role{font-size:10px;color:var(--sub);font-family:var(--mono)}
+.btn-logout{
+  margin-top:8px;width:100%;padding:8px;
+  background:transparent;border:1px solid var(--line);border-radius:3px;
+  color:var(--sub);font-size:11px;font-family:var(--sans);cursor:pointer;
+  transition:all .2s;letter-spacing:.5px;
+}
+.btn-logout:hover{border-color:var(--red);color:var(--red)}
+
+/* MAIN CONTENT */
+.main{display:flex;flex-direction:column;overflow:hidden}
+.topbar{
+  padding:16px 32px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,0.2);flex-shrink:0;
+}
+.page-title{font-family:var(--serif);font-size:22px;font-weight:300;letter-spacing:-.3px}
+.topbar-actions{display:flex;gap:10px}
+
+.content{flex:1;overflow-y:auto;padding:32px}
+
+/* BOTÕES */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;border-radius:3px;font-size:11px;font-weight:500;
+  letter-spacing:1px;text-transform:uppercase;font-family:var(--sans);
+  cursor:pointer;border:none;transition:all .2s;
+}
+.btn-gold{background:var(--gold);color:var(--ink)}
+.btn-gold:hover{background:var(--gold-light)}
+.btn-ghost{background:transparent;color:var(--sub2);border:1px solid var(--line)}
+.btn-ghost:hover{color:var(--paper);border-color:rgba(255,255,255,0.2)}
+.btn-sm{padding:6px 12px;font-size:10px}
+.btn-danger{background:rgba(224,82,82,0.1);color:var(--red);border:1px solid rgba(224,82,82,0.2)}
+
+/* CARDS KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+.kpi{
+  background:rgba(255,255,255,0.02);border:1px solid var(--line);
+  border-radius:4px;padding:20px;
+}
+.kpi-label{font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.kpi-val{font-family:var(--serif);font-size:30px;font-weight:300;color:var(--gold);letter-spacing:-1px}
+.kpi-sub{font-size:11px;color:var(--sub);margin-top:4px}
+
+/* TABELA */
+.table-wrap{background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.table-header{
+  padding:16px 20px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.table-title{font-size:14px;font-weight:500;color:var(--paper)}
+.table-sub{font-size:12px;color:var(--sub2)}
+
+table{width:100%;border-collapse:collapse}
+th{
+  font-family:var(--mono);font-size:9px;color:var(--sub);
+  letter-spacing:1.5px;text-transform:uppercase;
+  text-align:left;padding:10px 16px;border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,0.2);
+}
+td{
+  font-size:13px;color:var(--sub2);padding:12px 16px;
+  border-bottom:1px solid rgba(200,146,42,0.06);
+}
+td:first-child{color:var(--paper);font-weight:500}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+td.gold{color:var(--gold);font-family:var(--serif);font-size:15px}
+td.green{color:var(--green)}
+td.red{color:var(--red)}
+td.orange{color:var(--orange)}
+
+/* BADGE ESTADO */
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:100px;font-size:10px;font-family:var(--mono);
+}
+.badge-green{background:rgba(39,201,63,0.1);color:var(--green);border:1px solid rgba(39,201,63,0.2)}
+.badge-orange{background:rgba(232,148,58,0.1);color:var(--orange);border:1px solid rgba(232,148,58,0.2)}
+.badge-red{background:rgba(224,82,82,0.1);color:var(--red);border:1px solid rgba(224,82,82,0.2)}
+.badge-dot{width:4px;height:4px;border-radius:50%;background:currentColor}
+
+/* FORM MODAL */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.8);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{
+  background:#111008;border:1px solid var(--line);border-radius:6px;
+  width:560px;max-height:85vh;overflow-y:auto;
+  transform:translateY(20px);transition:transform .2s;
+}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{
+  padding:20px 24px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-family:var(--serif);font-size:20px;font-weight:300}
+.modal-close{
+  background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer;
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+}
+.modal-close:hover{color:var(--paper)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+
+/* FORM FIELDS */
+.field{margin-bottom:16px}
+.field label{display:block;font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.field input,.field select,.field textarea{
+  width:100%;padding:10px 14px;
+  background:rgba(255,255,255,0.04);border:1px solid var(--line);
+  border-radius:3px;color:var(--paper);font-size:13px;font-family:var(--sans);
+  outline:none;transition:border-color .2s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold)}
+.field input::placeholder{color:var(--sub)}
+.field select option{background:#1a1810;color:var(--paper)}
+.field textarea{resize:vertical;min-height:80px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* CSV UPLOAD */
+.upload-zone{
+  border:2px dashed var(--line);border-radius:4px;padding:32px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(200,146,42,0.04)}
+.upload-icon{font-size:32px;margin-bottom:12px}
+.upload-title{font-size:14px;color:var(--sub2);margin-bottom:4px}
+.upload-sub{font-size:12px;color:var(--sub)}
+.upload-zone input[type=file]{display:none}
+
+/* ALERTAS */
+.alerta-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 16px;border-radius:3px;margin-bottom:8px;
+}
+.alerta-exp{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.2)}
+.alerta-aviso{background:rgba(232,148,58,0.08);border:1px solid rgba(232,148,58,0.2)}
+.alerta-icon{font-size:18px}
+.alerta-info{flex:1}
+.alerta-nome{font-size:13px;font-weight:500;color:var(--paper)}
+.alerta-desc{font-size:11px;color:var(--sub2);margin-top:2px}
+.alerta-data{font-family:var(--mono);font-size:10px}
+
+/* SEMANA SELECTOR */
+.semana-nav{display:flex;align-items:center;gap:12px}
+.semana-nav button{
+  background:none;border:1px solid var(--line);border-radius:3px;
+  color:var(--sub2);padding:6px 10px;cursor:pointer;font-size:14px;
+  transition:all .2s;
+}
+.semana-nav button:hover{border-color:var(--gold);color:var(--gold)}
+.semana-label{font-family:var(--mono);font-size:12px;color:var(--paper);min-width:180px;text-align:center}
+
+/* LOADING */
+.spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row{text-align:center;padding:40px;color:var(--sub)}
+
+/* TOAST */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  padding:12px 20px;border-radius:4px;font-size:13px;
+  animation:slideIn .3s ease;
+}
+.toast-success{background:#1a3d1f;border:1px solid rgba(39,201,63,0.3);color:var(--green)}
+.toast-error{background:#3d1a1a;border:1px solid rgba(224,82,82,0.3);color:var(--red)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:60px;color:var(--sub)}
+.empty-state-icon{font-size:40px;margin-bottom:12px}
+.empty-state-text{font-family:var(--serif);font-size:18px;color:var(--sub2);margin-bottom:6px}
+.empty-state-sub{font-size:12px}
+
+/* PROGRESSO */
+.progress-bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:var(--gold);transition:width .3s}
+
+/* TABS */
+.tabs-nav{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:24px}
+.tab-btn{
+  padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--sub2);font-size:12px;font-family:var(--sans);cursor:pointer;
+  transition:all .2s;letter-spacing:.5px;margin-bottom:-1px;
+}
+.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab-btn:hover{color:var(--paper)}
+
+/* SEARCH */
+.search-bar{
+  padding:8px 14px;background:rgba(255,255,255,0.04);
+  border:1px solid var(--line);border-radius:3px;
+  color:var(--paper);font-size:13px;font-family:var(--sans);outline:none;
+  transition:border-color .2s;width:220px;
+}
+.search-bar:focus{border-color:var(--gold)}
+.search-bar::placeholder{color:var(--sub)}
+
+/* SECÇÃO VIA VERDE / PRIO RESUMO */
+.matricula-card{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border:1px solid var(--line);border-radius:3px;margin-bottom:8px;
+}
+.matricula-label{font-family:var(--mono);font-size:12px;color:var(--paper)}
+.matricula-motorista{font-size:11px;color:var(--sub2);margin-top:2px}
+.matricula-valor{font-family:var(--serif);font-size:18px;color:var(--gold)}
+
+/* LIGHT MODE */
+body.light {
+  --ink:#f5f2ed;--paper:#1a1710;--gold:#a06e1a;--gold-light:#c8922a;
+  --line:rgba(160,110,26,0.15);--sub:#8a7d6a;--sub2:#5a4f3f;
+  --green:#1a8a2a;--red:#c03030;--orange:#b86a1a;
+}
+body.light { background:var(--ink); color:var(--paper); }
+body.light .sidebar { background:rgba(255,255,255,0.7); border-right:1px solid var(--line); }
+body.light .topbar { background:rgba(245,242,237,0.95); }
+body.light .main { background:#ede9e2; }
+body.light .kpi { background:rgba(255,255,255,0.8); }
+body.light .table-wrap { background:rgba(255,255,255,0.8); }
+body.light table th { background:rgba(0,0,0,0.04); }
+body.light tr:hover td { background:rgba(0,0,0,0.02); }
+body.light .field input,
+body.light .field select,
+body.light .field textarea { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.light .modal { background:#f0ece4; }
+body.light .upload-zone { border-color:rgba(160,110,26,0.25); }
+body.light .upload-zone:hover { background:rgba(160,110,26,0.06); }
+body.light .nav-item:hover { background:rgba(0,0,0,0.04); }
+body.light .nav-item.active { background:rgba(160,110,26,0.1); }
+body.light .user-chip { background:rgba(0,0,0,0.05); }
+body.light .alerta-exp { background:rgba(192,48,48,0.07); }
+body.light .alerta-aviso { background:rgba(184,106,26,0.07); }
+body.light .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.light .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.light .btn-ghost:hover { color:var(--paper); }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo" style="display:flex;align-items:center">Fleet<em>Pay</em><button id="theme-btn" onclick="toggleTheme()" title="Alternar tema" style="background:none;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:5px 8px;cursor:pointer;font-size:13px;transition:all .2s;margin-left:auto" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--sub2)'">🌙</button></div>
+    <div class="sidebar-empresa" id="empresa-nome">Instituto 31</div>
+
+    <nav>
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <button class="nav-item active" onclick="showPage('dashboard')">
+          <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" onclick="showPage('pagamentos')">
+          <span class="nav-icon">💶</span> Pagamentos
+        </button>
+        <button class="nav-item" onclick="showPage('historico')">
+          <span class="nav-icon">🗂️</span> Histórico
+        </button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Gestão</div>
+        <button class="nav-item" onclick="showPage('motoristas')">
+          <span class="nav-icon">👤</span> Motoristas
+        </button>
+        <button class="nav-item" onclick="showPage('frota')">
+          <span class="nav-icon">🚗</span> Frota
+        </button>
+        <button class="nav-item" onclick="showPage('contratos')">
+          <span class="nav-icon">📄</span> Contratos
+        </button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Importação</div>
+        <button class="nav-item" onclick="showPage('csv')">
+          <span class="nav-icon">📂</span> Carregar CSV
+        </button>
+        <button class="nav-item" onclick="showPage('prio')">
+          <span class="nav-icon">⚡</span> PRIO
+        </button>
+        <button class="nav-item" onclick="showPage('viaverde')">
+          <span class="nav-icon">🛣️</span> Via Verde
+        </button>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Sistema</div>
+        <button class="nav-item" onclick="showPage('alertas')" id="nav-alertas">
+          <span class="nav-icon">🔔</span> Alertas
+          <span class="nav-badge" id="badge-alertas" style="display:none">0</span>
+        </button>
+        <button class="nav-item" onclick="showPage('config')">
+          <span class="nav-icon">⚙️</span> Configurações
+        </button>
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="user-chip">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div>
+          <div class="user-info-name" id="user-nome">...</div>
+          <div class="user-info-role">Operador</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Terminar sessão</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="page-title" id="page-title">Dashboard</div>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </div>
+    <div class="content" id="content">
+      <div class="loading-row"><div class="spinner"></div></div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Modal</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── CONFIG ──
+const SUPABASE_URL = 'https://udqddasbfqbeeaxtnsoj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── ESTADO GLOBAL ──
+let currentUser = null, perfil = null, empresa = null;
+let motoristas = [], veiculos = [], pagamentos = [], alertas = [];
+let semanaAtual = getSegundaFeira(new Date());
+let currentPage = 'dashboard';
+
+// ── UTILITÁRIOS ──
+const fmt = v => new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).format(v||0);
+const fmtD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '—';
+const fmtDshort = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}) : '—';
+
+function getSegundaFeira(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+  dt.setDate(diff);
+  return dt.toISOString().split('T')[0];
+}
+function getDomingo(segunda) {
+  const dt = new Date(segunda+'T00:00:00');
+  dt.setDate(dt.getDate() + 6);
+  return dt.toISOString().split('T')[0];
+}
+function semanaLabel(s) {
+  return `${fmtDshort(s)} — ${fmtDshort(getDomingo(s))}`;
+}
+function toast(msg, tipo='success') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+function openModal(title, body, footer='') {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-footer').innerHTML = footer;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ── INIT ──
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) { window.location.href = 'login.html'; return; }
+  currentUser = session.user;
+
+  const { data: p } = await db.from('perfis').select('*, empresas(*)').eq('id', currentUser.id).single();
+  if (!p || p.role === 'motorista') { window.location.href = 'motorista.html'; return; }
+
+  perfil = p;
+  empresa = p.empresas;
+
+  document.getElementById('user-nome').textContent = perfil.nome || currentUser.email.split('@')[0];
+  document.getElementById('user-avatar').textContent = (perfil.nome || currentUser.email)[0].toUpperCase();
+  document.getElementById('empresa-nome').textContent = empresa?.nome || 'FleetPay';
+
+  await carregarDados();
+  showPage('dashboard');
+}
+
+async function carregarDados() {
+  const eid = empresa?.id;
+  if (!eid) return;
+
+  const [mRes, vRes, pRes] = await Promise.all([
+    db.from('motoristas').select('*').eq('empresa_id', eid).eq('ativo', true).order('nome'),
+    db.from('veiculos').select('*').eq('empresa_id', eid).order('matricula'),
+    db.from('pagamentos').select('*, motoristas(nome,email,whatsapp,iban)').eq('empresa_id', eid).order('semana_inicio', {ascending:false}).limit(200)
+  ]);
+
+  motoristas = mRes.data || [];
+  veiculos = vRes.data || [];
+  pagamentos = pRes.data || [];
+
+  // Alertas
+  await calcularAlertas();
+}
+
+async function calcularAlertas() {
+  const hoje = new Date().toISOString().split('T')[0];
+  const em30 = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+  alertas = [];
+
+  motoristas.forEach(m => {
+    [['Licença TVDE', m.licenca_tvde_validade],['Carta Condução', m.carta_conducao_validade],
+     ['Cartão Cidadão', m.cartao_cidadao_validade],['Reg. Criminal', m.registo_criminal_validade]
+    ].forEach(([t,v]) => {
+      if (v && v <= em30) alertas.push({tipo:t, nome:m.nome, validade:v, expirado:v<hoje, categoria:'motorista'});
+    });
+  });
+
+  veiculos.forEach(v => {
+    [['Seguro', v.seguro_validade],['Inspeção', v.inspecao_validade],['Extintor', v.extintor_validade]
+    ].forEach(([t,val]) => {
+      if (val && val <= em30) alertas.push({tipo:t, nome:v.matricula, validade:val, expirado:val<hoje, categoria:'veiculo'});
+    });
+  });
+
+  const badge = document.getElementById('badge-alertas');
+  if (alertas.length > 0) {
+    badge.textContent = alertas.length;
+    badge.style.display = '';
+  } else badge.style.display = 'none';
+}
+
+async function logout() {
+  await db.auth.signOut();
+  window.location.href = 'login.html';
+}
+
+// ── NAVEGAÇÃO ──
+function showPage(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => {
+    if (el.getAttribute('onclick')?.includes(`'${page}'`)) el.classList.add('active');
+  });
+
+  const titles = {
+    dashboard:'Dashboard', pagamentos:'Pagamentos', historico:'Histórico',
+    motoristas:'Motoristas', frota:'Frota', contratos:'Contratos',
+    csv:'Carregar CSV', prio:'Carregamentos PRIO', viaverde:'Via Verde',
+    alertas:'Alertas', config:'Configurações'
+  };
+  document.getElementById('page-title').textContent = titles[page] || page;
+
+  const pages = {
+    dashboard: renderDashboard,
+    pagamentos: renderPagamentos,
+    historico: renderHistorico,
+    motoristas: renderMotoristas,
+    frota: renderFrota,
+    csv: renderCSV,
+    prio: renderPrio,
+    viaverde: renderViaVerde,
+    alertas: renderAlertas,
+    config: renderConfig,
+    contratos: renderContratos,
+  };
+  (pages[page] || (() => {}))();
+}
+
+// ── DASHBOARD ──
+function renderDashboard() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  const semPags = pagamentos.filter(p => p.semana_inicio === semanaAtual);
+  const totalPagar = semPags.reduce((s,p) => s + (p.valor_final||0), 0);
+  const totalBruto = semPags.reduce((s,p) => s + (p.uber_bruto||0) + (p.bolt_bruto||0), 0);
+  const pagos = semPags.filter(p=>p.estado==='pago').length;
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Motoristas ativos</div>
+        <div class="kpi-val">${motoristas.length}</div>
+        <div class="kpi-sub">esta empresa</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Total bruto semana</div>
+        <div class="kpi-val">${fmt(totalBruto)}</div>
+        <div class="kpi-sub">${semanaLabel(semanaAtual)}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">A pagar esta semana</div>
+        <div class="kpi-val">${fmt(totalPagar)}</div>
+        <div class="kpi-sub">${semPags.length} motoristas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Pagamentos concluídos</div>
+        <div class="kpi-val">${pagos}/${semPags.length}</div>
+        <div class="kpi-sub">esta semana</div>
+      </div>
+    </div>
+
+    ${alertas.length > 0 ? `
+    <div class="table-wrap" style="margin-bottom:24px">
+      <div class="table-header">
+        <div>
+          <div class="table-title">🔔 Alertas ativos</div>
+          <div class="table-sub">${alertas.filter(a=>a.expirado).length} expirados · ${alertas.filter(a=>!a.expirado).length} a expirar</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('alertas')">Ver todos</button>
+      </div>
+      <div style="padding:16px">
+        ${alertas.slice(0,4).map(a => `
+          <div class="alerta-item ${a.expirado ? 'alerta-exp' : 'alerta-aviso'}">
+            <div class="alerta-icon">${a.categoria === 'motorista' ? '👤' : '🚗'}</div>
+            <div class="alerta-info">
+              <div class="alerta-nome">${a.nome}</div>
+              <div class="alerta-desc">${a.tipo}</div>
+            </div>
+            <div class="alerta-data" style="color:${a.expirado ? 'var(--red)' : 'var(--orange)'}">
+              ${a.expirado ? '⚠️ EXPIRADO' : fmtD(a.validade)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Semana atual — ${semanaLabel(semanaAtual)}</div>
+          <div class="table-sub">${semPags.length} registos</div>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="showPage('pagamentos')">Gerir pagamentos →</button>
+      </div>
+      ${semPags.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-text">Sem pagamentos esta semana</div>
+          <div class="empty-state-sub">Carrega os CSVs da Uber e Bolt para começar</div>
+          <button class="btn btn-gold" style="margin-top:16px" onclick="showPage('csv')">📂 Carregar CSV</button>
+        </div>` : `
+      <table>
+        <thead><tr>
+          <th>Motorista</th><th>Uber líq.</th><th>Bolt líq.</th><th>IVA cobrar</th><th>Despesas</th><th>A receber</th><th>Estado</th>
+        </tr></thead>
+        <tbody>
+          ${semPags.map(p => `
+          <tr>
+            <td>${p.motoristas?.nome || '—'}</td>
+            <td>${fmt(p.uber_liquido)}</td>
+            <td>${fmt(p.bolt_liquido)}</td>
+            <td class="gold">${fmt(p.iva_cobrar)}</td>
+            <td class="red">-${fmt(p.total_despesas)}</td>
+            <td class="gold">${fmt(p.valor_final)}</td>
+            <td><span class="badge ${p.estado==='pago'?'badge-green':'badge-orange'}"><span class="badge-dot"></span>${p.estado==='pago'?'Pago':'Pendente'}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+// ── PAGAMENTOS ──
+function renderPagamentos() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <div class="semana-nav">
+      <button onclick="mudarSemana(-1)">◀</button>
+      <div class="semana-label" id="semana-label-top">${semanaLabel(semanaAtual)}</div>
+      <button onclick="mudarSemana(1)">▶</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="showPage('csv')">📂 CSV</button>
+    <button class="btn btn-gold btn-sm" onclick="aplicarPrioViaVerde()">⚡ PRIO + Via Verde</button>
+  `;
+  renderTabelaPagamentos();
+}
+
+function mudarSemana(dir) {
+  const dt = new Date(semanaAtual+'T00:00:00');
+  dt.setDate(dt.getDate() + dir * 7);
+  semanaAtual = dt.toISOString().split('T')[0];
+  document.getElementById('semana-label-top').textContent = semanaLabel(semanaAtual);
+  renderTabelaPagamentos();
+}
+
+function renderTabelaPagamentos() {
+  const semPags = pagamentos.filter(p => p.semana_inicio === semanaAtual);
+  const totalFinal = semPags.reduce((s,p)=>s+(p.valor_final||0),0);
+  const totalBruto = semPags.reduce((s,p)=>s+(p.uber_bruto||0)+(p.bolt_bruto||0),0);
+  const totalDespesas = semPags.reduce((s,p)=>s+(p.total_despesas||0),0);
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="kpi-label">Total bruto</div><div class="kpi-val">${fmt(totalBruto)}</div></div>
+      <div class="kpi"><div class="kpi-label">Total despesas</div><div class="kpi-val" style="color:var(--red)">${fmt(totalDespesas)}</div></div>
+      <div class="kpi"><div class="kpi-label">Total a pagar</div><div class="kpi-val">${fmt(totalFinal)}</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div>
+          <div class="table-title">${semanaLabel(semanaAtual)}</div>
+          <div class="table-sub">${semPags.length} motoristas · ${semPags.filter(p=>p.estado==='pago').length} pagos</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="marcarTodosPagos()">✅ Marcar todos pagos</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">⬇️ CSV</button>
+        </div>
+      </div>
+      ${semPags.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-text">Sem pagamentos para esta semana</div>
+          <div class="empty-state-sub">Carrega os CSVs da Uber e Bolt</div>
+          <button class="btn btn-gold" style="margin-top:16px" onclick="showPage('csv')">📂 Carregar CSV</button>
+        </div>` : `
+      <table>
+        <thead><tr>
+          <th>Motorista</th>
+          <th>Uber bruto</th><th>Uber líq.</th>
+          <th>Bolt líq.</th>
+          <th>IVA cobrar</th>
+          <th>Slot</th><th>Aluguer</th><th>PRIO</th><th>Via Verde</th>
+          <th>A receber</th>
+          <th>Estado</th>
+          <th>Ações</th>
+        </tr></thead>
+        <tbody id="tbody-pagamentos">
+          ${semPags.map(p => renderLinhaPagamento(p)).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:rgba(200,146,42,0.04)">
+            <td style="color:var(--sub);font-family:var(--mono);font-size:10px">TOTAIS</td>
+            <td class="gold">${fmt(semPags.reduce((s,p)=>s+(p.uber_bruto||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.uber_liquido||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.bolt_liquido||0),0))}</td>
+            <td class="gold">${fmt(semPags.reduce((s,p)=>s+(p.iva_cobrar||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.slot_valor||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.aluguer_valor||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.prio_valor||0),0))}</td>
+            <td>${fmt(semPags.reduce((s,p)=>s+(p.viaverde_valor||0),0))}</td>
+            <td class="gold" style="font-family:var(--serif);font-size:16px">${fmt(totalFinal)}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>`}
+    </div>
+  `;
+}
+
+function renderLinhaPagamento(p) {
+  return `
+    <tr id="row-${p.id}">
+      <td>${p.motoristas?.nome || '—'}</td>
+      <td>${fmt(p.uber_bruto)}</td>
+      <td>${fmt(p.uber_liquido)}</td>
+      <td>${fmt(p.bolt_liquido)}</td>
+      <td class="gold">${fmt(p.iva_cobrar)}</td>
+      <td>${fmt(p.slot_valor)}</td>
+      <td>${fmt(p.aluguer_valor)}</td>
+      <td>${fmt(p.prio_valor)}</td>
+      <td>${fmt(p.viaverde_valor)}</td>
+      <td class="gold">${fmt(p.valor_final)}</td>
+      <td><span class="badge ${p.estado==='pago'?'badge-green':'badge-orange'}"><span class="badge-dot"></span>${p.estado==='pago'?'Pago':'Pendente'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick='editarPagamento(${JSON.stringify(p.id)})'>✏️</button>
+          ${p.estado!=='pago' ? `<button class="btn btn-ghost btn-sm" onclick='marcarPago("${p.id}")'>✅</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick='enviarRecibo(${JSON.stringify(p)})'>📤</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+async function marcarPago(id) {
+  const ref = prompt('Referência da transferência (opcional):') || '';
+  const { error } = await db.from('pagamentos').update({
+    estado:'pago', data_pagamento: new Date().toISOString(), referencia_transferencia: ref
+  }).eq('id', id);
+  if (error) { toast('Erro ao marcar pago', 'error'); return; }
+  toast('✅ Marcado como pago!');
+  await carregarDados();
+  renderTabelaPagamentos();
+}
+
+async function marcarTodosPagos() {
+  const semPags = pagamentos.filter(p => p.semana_inicio === semanaAtual && p.estado !== 'pago');
+  if (!semPags.length) { toast('Todos já estão pagos!'); return; }
+  if (!confirm(`Marcar ${semPags.length} motoristas como pagos?`)) return;
+  const ids = semPags.map(p=>p.id);
+  const { error } = await db.from('pagamentos').update({estado:'pago',data_pagamento:new Date().toISOString()}).in('id',ids);
+  if (error) { toast('Erro', 'error'); return; }
+  toast(`✅ ${semPags.length} pagamentos marcados!`);
+  await carregarDados();
+  renderTabelaPagamentos();
+}
+
+function editarPagamento(id) {
+  const p = pagamentos.find(x=>x.id===id);
+  if (!p) return;
+  openModal(`Editar — ${p.motoristas?.nome}`, `
+    <div class="field-row">
+      <div class="field"><label>Uber Bruto (€)</label><input type="number" id="e-uber-bruto" value="${p.uber_bruto||0}" step="0.01"></div>
+      <div class="field"><label>IVA Uber (%)</label><input type="number" id="e-iva-pct" value="${p.uber_iva_pct||23}" step="0.1"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Bolt Líquido (€)</label><input type="number" id="e-bolt-liq" value="${p.bolt_liquido||0}" step="0.01"></div>
+      <div class="field"><label>IVA Bolt (€)</label><input type="number" id="e-bolt-iva" value="${p.bolt_iva||0}" step="0.01"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Slot (€)</label><input type="number" id="e-slot" value="${p.slot_valor||0}" step="0.01"></div>
+      <div class="field"><label>Aluguer (€)</label><input type="number" id="e-aluguer" value="${p.aluguer_valor||0}" step="0.01"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>PRIO (€)</label><input type="number" id="e-prio" value="${p.prio_valor||0}" step="0.01"></div>
+      <div class="field"><label>Via Verde (€)</label><input type="number" id="e-vv" value="${p.viaverde_valor||0}" step="0.01"></div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="guardarPagamento('${id}')">Guardar</button>
+  `);
+}
+
+async function guardarPagamento(id) {
+  const uberBruto = parseFloat(document.getElementById('e-uber-bruto').value)||0;
+  const ivaPct = parseFloat(document.getElementById('e-iva-pct').value)||23;
+  const boltLiq = parseFloat(document.getElementById('e-bolt-liq').value)||0;
+  const boltIva = parseFloat(document.getElementById('e-bolt-iva').value)||0;
+  const slot = parseFloat(document.getElementById('e-slot').value)||0;
+  const aluguer = parseFloat(document.getElementById('e-aluguer').value)||0;
+  const prio = parseFloat(document.getElementById('e-prio').value)||0;
+  const vv = parseFloat(document.getElementById('e-vv').value)||0;
+
+  const uberIva = uberBruto * (ivaPct/100);
+  const uberLiq = uberBruto - uberIva;
+  const ivaCobrar = uberIva + boltIva;
+  const rendLiq = uberLiq + boltLiq + ivaCobrar;
+  const totalDesp = slot + aluguer + prio + vv;
+  const valorFinal = rendLiq - slot - aluguer - prio - vv;
+
+  const { error } = await db.from('pagamentos').update({
+    uber_bruto:uberBruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq,
+    bolt_liquido:boltLiq, bolt_iva:boltIva,
+    iva_cobrar:ivaCobrar, rendimento_liquido:rendLiq,
+    slot_valor:slot, aluguer_valor:aluguer, prio_valor:prio, viaverde_valor:vv,
+    total_despesas:totalDesp, valor_final:valorFinal
+  }).eq('id', id);
+
+  if (error) { toast('Erro ao guardar', 'error'); return; }
+  toast('✅ Pagamento atualizado!');
+  closeModal();
+  await carregarDados();
+  renderTabelaPagamentos();
+}
+
+function enviarRecibo(p) {
+  const nome = p.motoristas?.nome || '—';
+  const whatsapp = p.motoristas?.whatsapp || '';
+  const email = p.motoristas?.email || '';
+  const texto = `Olá ${nome.split(' ')[0]}! 👋\n\nRecibo semana ${fmtD(p.semana_inicio)} — ${fmtD(getDomingo(p.semana_inicio))}:\n• Uber líq.: ${fmt(p.uber_liquido)}\n• Bolt líq.: ${fmt(p.bolt_liquido)}\n• IVA cobrar: ${fmt(p.iva_cobrar)}\n• Despesas: -${fmt(p.total_despesas)}\n\n✅ *Total a receber: ${fmt(p.valor_final)}*\n\nBom trabalho! 🚗`;
+
+  openModal(`Enviar recibo — ${nome}`, `
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="setEnvioTab('whatsapp',this)">💬 WhatsApp</button>
+      <button class="tab-btn" onclick="setEnvioTab('email',this)">✉️ Email</button>
+    </div>
+    <div id="envio-whatsapp">
+      <div class="field"><label>Número WhatsApp</label><input id="wa-num" value="${whatsapp}" placeholder="351912345678"></div>
+      <div class="field"><label>Mensagem</label><textarea id="wa-msg" style="height:140px">${texto}</textarea></div>
+    </div>
+    <div id="envio-email" style="display:none">
+      <div class="field"><label>Email</label><input id="em-addr" value="${email}" type="email"></div>
+      <div class="field"><label>Assunto</label><input id="em-sub" value="Recibo semana ${fmtD(p.semana_inicio)}"></div>
+      <div class="field"><label>Mensagem</label><textarea id="em-msg" style="height:140px">${texto}</textarea></div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="enviarAgora()">Enviar</button>
+  `);
+}
+
+function setEnvioTab(tab, el) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('envio-whatsapp').style.display = tab==='whatsapp' ? '' : 'none';
+  document.getElementById('envio-email').style.display = tab==='email' ? '' : 'none';
+}
+
+function enviarAgora() {
+  const waVisible = document.getElementById('envio-whatsapp').style.display !== 'none';
+  if (waVisible) {
+    const num = document.getElementById('wa-num').value.replace(/\D/g,'');
+    const msg = encodeURIComponent(document.getElementById('wa-msg').value);
+    window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
+  } else {
+    const addr = document.getElementById('em-addr').value;
+    const sub = document.getElementById('em-sub').value;
+    const msg = document.getElementById('em-msg').value;
+    window.open(`mailto:${addr}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(msg)}`, '_blank');
+  }
+  closeModal();
+}
+
+// ── CSV UPLOAD ──
+function renderCSV() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px">
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">📁 CSV Uber</div></div>
+        <div style="padding:20px">
+          <div class="upload-zone" onclick="document.getElementById('uber-file').click()" id="uber-zone">
+            <input type="file" id="uber-file" accept=".csv" onchange="processUber(this.files[0])">
+            <div class="upload-icon">📊</div>
+            <div class="upload-title">Arrasta o CSV da Uber</div>
+            <div class="upload-sub">Uber Fleet → Pagamentos → Por viagem</div>
+          </div>
+          <div id="uber-preview"></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">📁 CSV Bolt</div></div>
+        <div style="padding:20px">
+          <div class="upload-zone" onclick="document.getElementById('bolt-file').click()" id="bolt-zone">
+            <input type="file" id="bolt-file" accept=".csv" onchange="processBolt(this.files[0])">
+            <div class="upload-icon">🔵</div>
+            <div class="upload-title">Arrasta o CSV da Bolt</div>
+            <div class="upload-sub">Bolt Driver Portal → Relatório de ganhos</div>
+          </div>
+          <div id="bolt-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap" id="csv-preview-wrap" style="display:none">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Pré-visualização</div>
+          <div class="table-sub" id="csv-preview-sub"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('csv-preview-wrap').style.display='none'">Cancelar</button>
+          <button class="btn btn-gold btn-sm" onclick="confirmarCSV()">✅ Confirmar e guardar</button>
+        </div>
+      </div>
+      <div id="csv-preview-body"></div>
+    </div>
+  `;
+
+  // Drag & drop
+  ['uber-zone','bolt-zone'].forEach(id => {
+    const z = document.getElementById(id);
+    z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('drag'); });
+    z.addEventListener('dragleave', () => z.classList.remove('drag'));
+    z.addEventListener('drop', e => {
+      e.preventDefault(); z.classList.remove('drag');
+      const file = e.dataTransfer.files[0];
+      if (id === 'uber-zone') processUber(file); else processBolt(file);
+    });
+  });
+}
+
+let csvDados = [];
+
+function parseCSV(text) {
+  const lines = text.split('\n').filter(l=>l.trim());
+  const headers = lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v=>v.trim().replace(/"/g,''));
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]||'');
+    return obj;
+  });
+}
+
+function findMotorista(nome) {
+  if (!nome) return null;
+  const n = nome.toLowerCase().trim();
+  return motoristas.find(m => m.nome.toLowerCase().includes(n) || n.includes(m.nome.toLowerCase().split(' ')[0].toLowerCase()));
+}
+
+let uberData = [], boltData = [];
+
+function processUber(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parseCSV(e.target.result);
+    // Agrupar por motorista
+    const grouped = {};
+    rows.forEach(r => {
+      const nome = r['driver name'] || r['nome'] || r['motorista'] || '';
+      if (!nome) return;
+      if (!grouped[nome]) grouped[nome] = {nome, bruto:0};
+      grouped[nome].bruto += parseFloat(r['fare amount'] || r['valor'] || r['amount'] || 0);
+    });
+    uberData = Object.values(grouped);
+    document.getElementById('uber-preview').innerHTML = `
+      <p style="color:var(--green);font-size:12px;margin-top:12px">✅ ${uberData.length} motoristas encontrados</p>
+    `;
+    mostrarPreviewCSV();
+  };
+  reader.readAsText(file);
+}
+
+function processBolt(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parseCSV(e.target.result);
+    const grouped = {};
+    rows.forEach(r => {
+      const nome = r['driver name'] || r['nome'] || r['motorista'] || r['driver'] || '';
+      if (!nome) return;
+      if (!grouped[nome]) grouped[nome] = {nome, liquido:0, iva:0, taxa:0};
+      grouped[nome].liquido += parseFloat(r['earnings'] || r['liquido'] || r['net'] || 0);
+      grouped[nome].iva += parseFloat(r['vat'] || r['iva'] || 0);
+      grouped[nome].taxa += parseFloat(r['commission'] || r['taxa'] || 0);
+    });
+    boltData = Object.values(grouped);
+    document.getElementById('bolt-preview').innerHTML = `
+      <p style="color:var(--green);font-size:12px;margin-top:12px">✅ ${boltData.length} motoristas encontrados</p>
+    `;
+    mostrarPreviewCSV();
+  };
+  reader.readAsText(file);
+}
+
+function mostrarPreviewCSV() {
+  if (!uberData.length && !boltData.length) return;
+
+  const todos = [...new Set([...uberData.map(u=>u.nome), ...boltData.map(b=>b.nome)])];
+  const ivaPct = empresa?.iva_uber_pct || 23;
+
+  csvDados = todos.map(nome => {
+    const u = uberData.find(x=>x.nome===nome) || {bruto:0};
+    const b = boltData.find(x=>x.nome===nome) || {liquido:0, iva:0, taxa:0};
+    const mot = findMotorista(nome);
+    const uberIva = u.bruto * (ivaPct/100);
+    const uberLiq = u.bruto - uberIva;
+    const ivaCobrar = uberIva + (b.iva||0);
+    const slot = mot?.slot_semanal || 0;
+    const aluguer = mot?.aluguer_semanal || 0;
+    const valorFinal = uberLiq + b.liquido + ivaCobrar - slot - aluguer;
+    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:uberLiq+b.liquido+ivaCobrar, valor_final:valorFinal };
+  });
+
+  document.getElementById('csv-preview-sub').textContent = `${csvDados.length} motoristas · semana ${semanaLabel(semanaAtual)}`;
+  document.getElementById('csv-preview-body').innerHTML = `
+    <table>
+      <thead><tr><th>Motorista</th><th>Associado</th><th>Uber bruto</th><th>Uber líq.</th><th>Bolt líq.</th><th>IVA cobrar</th><th>Slot</th><th>A receber</th></tr></thead>
+      <tbody>
+        ${csvDados.map(d=>`
+        <tr>
+          <td>${d.nome}</td>
+          <td>${d.motorista ? `<span class="badge badge-green"><span class="badge-dot"></span>${d.motorista.nome}</span>` : `<span class="badge badge-red"><span class="badge-dot"></span>Não encontrado</span>`}</td>
+          <td>${fmt(d.uber_bruto)}</td>
+          <td>${fmt(d.uber_liquido)}</td>
+          <td>${fmt(d.bolt_liquido)}</td>
+          <td class="gold">${fmt(d.iva_cobrar)}</td>
+          <td>${fmt(d.slot_valor)}</td>
+          <td class="gold">${fmt(d.valor_final)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('csv-preview-wrap').style.display = '';
+}
+
+async function confirmarCSV() {
+  const eid = empresa?.id;
+  const domingo = getDomingo(semanaAtual);
+  let ok = 0, erros = 0;
+
+  for (const d of csvDados) {
+    if (!d.motorista) { erros++; continue; }
+    const payload = {
+      empresa_id: eid, motorista_id: d.motorista.id,
+      semana_inicio: semanaAtual, semana_fim: domingo,
+      origem: 'csv',
+      uber_bruto:d.uber_bruto, uber_iva_pct:d.uber_iva_pct, uber_iva_valor:d.uber_iva_valor, uber_liquido:d.uber_liquido,
+      bolt_liquido:d.bolt_liquido, bolt_iva:d.bolt_iva, bolt_taxa:d.bolt_taxa,
+      iva_cobrar:d.iva_cobrar, rendimento_liquido:d.rendimento_liquido,
+      slot_valor:d.slot_valor, aluguer_valor:d.aluguer_valor,
+      prio_valor:0, viaverde_valor:0,
+      total_despesas:d.total_despesas, valor_final:d.valor_final, estado:'pendente'
+    };
+    const { error } = await db.from('pagamentos').upsert(payload, {onConflict:'empresa_id,motorista_id,semana_inicio'});
+    if (error) erros++; else ok++;
+  }
+
+  toast(`✅ ${ok} pagamentos guardados${erros>0?` · ${erros} erros`:''}`);
+  uberData = []; boltData = []; csvDados = [];
+  await carregarDados();
+  showPage('pagamentos');
+}
+
+async function aplicarPrioViaVerde() {
+  const semPags = pagamentos.filter(p=>p.semana_inicio===semanaAtual);
+  if (!semPags.length) { toast('Sem pagamentos para esta semana','error'); return; }
+
+  // Buscar PRIO e ViaVerde desta semana
+  const [prioRes, vvRes] = await Promise.all([
+    db.from('prio_carregamentos').select('*').eq('empresa_id',empresa.id).eq('semana_inicio',semanaAtual),
+    db.from('viaverde_portagens').select('*').eq('empresa_id',empresa.id).eq('semana_inicio',semanaAtual)
+  ]);
+
+  const prioData = prioRes.data || [];
+  const vvData = vvRes.data || [];
+
+  let atualizados = 0;
+  for (const p of semPags) {
+    const prio = prioData.filter(x=>x.motorista_id===p.motorista_id).reduce((s,x)=>s+(x.valor||0),0);
+    const vv = vvData.filter(x=>x.motorista_id===p.motorista_id).reduce((s,x)=>s+(x.valor||0),0);
+    if (prio === p.prio_valor && vv === p.viaverde_valor) continue;
+    const totalDesp = (p.slot_valor||0) + (p.aluguer_valor||0) + prio + vv;
+    const valorFinal = (p.rendimento_liquido||0) - (p.slot_valor||0) - (p.aluguer_valor||0) - prio - vv;
+    await db.from('pagamentos').update({prio_valor:prio, viaverde_valor:vv, total_despesas:totalDesp, valor_final:valorFinal}).eq('id',p.id);
+    atualizados++;
+  }
+
+  toast(`⚡ ${atualizados} pagamentos atualizados com PRIO + Via Verde`);
+  await carregarDados();
+  renderTabelaPagamentos();
+}
+
+// ── MOTORISTAS ──
+function renderMotoristas() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <input class="search-bar" placeholder="🔍 Pesquisar motorista..." oninput="filtrarMotoristas(this.value)">
+    <button class="btn btn-gold btn-sm" onclick="modalMotorista()">+ Motorista</button>
+  `;
+
+  document.getElementById('content').innerHTML = `
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">Motoristas (${motoristas.length})</div>
+      </div>
+      <table id="tabela-motoristas">
+        <thead><tr>
+          <th>Nome</th><th>Email</th><th>Telefone</th><th>NIF</th>
+          <th>Slot/sem</th><th>Estado docs</th><th>Ações</th>
+        </tr></thead>
+        <tbody>
+          ${motoristas.map(m => renderLinhaMotorista(m)).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderLinhaMotorista(m) {
+  const hoje = new Date().toISOString().split('T')[0];
+  const em30 = new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0];
+  const docs = [m.licenca_tvde_validade, m.carta_conducao_validade, m.cartao_cidadao_validade, m.registo_criminal_validade];
+  const exp = docs.filter(d=>d&&d<hoje).length;
+  const aviso = docs.filter(d=>d&&d>=hoje&&d<=em30).length;
+  const estadoDoc = exp>0 ? `<span class="badge badge-red"><span class="badge-dot"></span>${exp} expirados</span>` :
+    aviso>0 ? `<span class="badge badge-orange"><span class="badge-dot"></span>${aviso} a expirar</span>` :
+    `<span class="badge badge-green"><span class="badge-dot"></span>OK</span>`;
+
+  return `
+    <tr>
+      <td>${m.nome}</td>
+      <td style="color:var(--sub2)">${m.email||'—'}</td>
+      <td style="color:var(--sub2)">${m.telefone||'—'}</td>
+      <td style="color:var(--sub2);font-family:var(--mono);font-size:11px">${m.nif||'—'}</td>
+      <td class="gold">${fmt(m.slot_semanal)}</td>
+      <td>${estadoDoc}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="modalMotorista('${m.id}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="convidarMotorista('${m.id}')">📧 Convidar</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function filtrarMotoristas(q) {
+  const rows = document.querySelectorAll('#tabela-motoristas tbody tr');
+  rows.forEach(r => r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none');
+}
+
+function modalMotorista(id=null) {
+  const m = id ? motoristas.find(x=>x.id===id) : {};
+  openModal(id ? 'Editar Motorista' : 'Novo Motorista', `
+    <div class="field-row">
+      <div class="field"><label>Nome completo *</label><input id="m-nome" value="${m.nome||''}"></div>
+      <div class="field"><label>Email</label><input type="email" id="m-email" value="${m.email||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Telefone</label><input id="m-tel" value="${m.telefone||''}"></div>
+      <div class="field"><label>WhatsApp</label><input id="m-wa" value="${m.whatsapp||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>NIF</label><input id="m-nif" value="${m.nif||''}"></div>
+      <div class="field"><label>IBAN</label><input id="m-iban" value="${m.iban||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Slot semanal (€)</label><input type="number" id="m-slot" value="${m.slot_semanal||0}" step="0.01"></div>
+      <div class="field"><label>Aluguer semanal (€)</label><input type="number" id="m-aluguer" value="${m.aluguer_semanal||0}" step="0.01"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>IVA (%)</label><input type="number" id="m-iva" value="${m.iva_pct||23}" step="0.1"></div>
+      <div class="field"><label>Licença TVDE validade</label><input type="date" id="m-tvde" value="${m.licenca_tvde_validade||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Carta Condução validade</label><input type="date" id="m-carta" value="${m.carta_conducao_validade||''}"></div>
+      <div class="field"><label>Cartão Cidadão validade</label><input type="date" id="m-cc" value="${m.cartao_cidadao_validade||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Reg. Criminal validade</label><input type="date" id="m-rc" value="${m.registo_criminal_validade||''}"></div>
+      <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="guardarMotorista(${id?`'${id}'`:null})">Guardar</button>
+  `);
+}
+
+async function guardarMotorista(id) {
+  const payload = {
+    empresa_id: empresa.id,
+    nome: document.getElementById('m-nome').value,
+    email: document.getElementById('m-email').value,
+    telefone: document.getElementById('m-tel').value,
+    whatsapp: document.getElementById('m-wa').value,
+    nif: document.getElementById('m-nif').value,
+    iban: document.getElementById('m-iban').value,
+    slot_semanal: parseFloat(document.getElementById('m-slot').value)||0,
+    aluguer_semanal: parseFloat(document.getElementById('m-aluguer').value)||0,
+    iva_pct: parseFloat(document.getElementById('m-iva').value)||23,
+    licenca_tvde_validade: document.getElementById('m-tvde').value||null,
+    carta_conducao_validade: document.getElementById('m-carta').value||null,
+    cartao_cidadao_validade: document.getElementById('m-cc').value||null,
+    registo_criminal_validade: document.getElementById('m-rc').value||null,
+    notas: document.getElementById('m-notas').value,
+  };
+  if (!payload.nome) { toast('Nome obrigatório','error'); return; }
+
+  const { error } = id
+    ? await db.from('motoristas').update(payload).eq('id',id)
+    : await db.from('motoristas').insert(payload);
+
+  if (error) { toast('Erro ao guardar','error'); console.error(error); return; }
+  toast('✅ Motorista guardado!');
+  closeModal();
+  await carregarDados();
+  renderMotoristas();
+}
+
+async function convidarMotorista(id) {
+  const m = motoristas.find(x=>x.id===id);
+  if (!m?.email) { toast('Motorista sem email','error'); return; }
+  if (!confirm(`Enviar convite de acesso a ${m.nome} (${m.email})?`)) return;
+
+  // Criar user no Supabase Auth via magic link
+  const { error } = await db.auth.signInWithOtp({ email: m.email, options: { emailRedirectTo: window.location.origin+'/motorista.html' } });
+  if (error) { toast('Erro ao enviar convite','error'); return; }
+  toast(`✅ Convite enviado para ${m.email}`);
+}
+
+// ── FROTA ──
+function renderFrota() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-gold btn-sm" onclick="modalVeiculo()">+ Viatura</button>
+  `;
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi"><div class="kpi-label">Total viaturas</div><div class="kpi-val">${veiculos.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Ativas</div><div class="kpi-val" style="color:var(--green)">${veiculos.filter(v=>v.estado==='ativo').length}</div></div>
+      <div class="kpi"><div class="kpi-label">Em manutenção</div><div class="kpi-val" style="color:var(--orange)">${veiculos.filter(v=>v.estado==='manutencao').length}</div></div>
+      <div class="kpi"><div class="kpi-label">Inativas</div><div class="kpi-val" style="color:var(--sub)">${veiculos.filter(v=>v.estado==='inativo').length}</div></div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Frota</div></div>
+      ${veiculos.length===0 ? `<div class="empty-state"><div class="empty-state-icon">🚗</div><div class="empty-state-text">Sem viaturas</div><button class="btn btn-gold" style="margin-top:16px" onclick="modalVeiculo()">+ Adicionar viatura</button></div>` : `
+      <table>
+        <thead><tr><th>Matrícula</th><th>Marca/Modelo</th><th>Tipo</th><th>Motorista</th><th>Seguro</th><th>Inspeção</th><th>Km</th><th>Estado</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${veiculos.map(v => {
+            const mot = motoristas.find(m=>m.id===v.motorista_id);
+            const hoje = new Date().toISOString().split('T')[0];
+            const segClass = !v.seguro_validade ? '' : v.seguro_validade<hoje ? 'red' : '';
+            const inpClass = !v.inspecao_validade ? '' : v.inspecao_validade<hoje ? 'red' : '';
+            return `<tr>
+              <td style="font-family:var(--mono)">${v.matricula}</td>
+              <td>${v.marca||''} ${v.modelo||''}</td>
+              <td><span class="badge badge-green"><span class="badge-dot"></span>${v.tipo}</span></td>
+              <td>${mot?.nome||'—'}</td>
+              <td class="${segClass}">${fmtD(v.seguro_validade)}</td>
+              <td class="${inpClass}">${fmtD(v.inspecao_validade)}</td>
+              <td style="font-family:var(--mono);font-size:11px">${v.km_atuais?.toLocaleString('pt-PT')||'—'}</td>
+              <td><span class="badge ${v.estado==='ativo'?'badge-green':v.estado==='manutencao'?'badge-orange':'badge-red'}"><span class="badge-dot"></span>${v.estado}</span></td>
+              <td><button class="btn btn-ghost btn-sm" onclick="modalVeiculo('${v.id}')">✏️</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+function modalVeiculo(id=null) {
+  const v = id ? veiculos.find(x=>x.id===id) : {};
+  openModal(id?'Editar Viatura':'Nova Viatura', `
+    <div class="field-row">
+      <div class="field"><label>Matrícula *</label><input id="v-mat" value="${v.matricula||''}"></div>
+      <div class="field"><label>Estado</label>
+        <select id="v-est">
+          <option value="ativo" ${v.estado==='ativo'?'selected':''}>Ativo</option>
+          <option value="manutencao" ${v.estado==='manutencao'?'selected':''}>Em Manutenção</option>
+          <option value="inativo" ${v.estado==='inativo'?'selected':''}>Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Marca</label><input id="v-marca" value="${v.marca||''}"></div>
+      <div class="field"><label>Modelo</label><input id="v-modelo" value="${v.modelo||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Ano</label><input type="number" id="v-ano" value="${v.ano||''}"></div>
+      <div class="field"><label>Tipo</label>
+        <select id="v-tipo">
+          <option value="electrico" ${v.tipo==='electrico'?'selected':''}>Elétrico</option>
+          <option value="hibrido" ${v.tipo==='hibrido'?'selected':''}>Híbrido</option>
+          <option value="combustao" ${v.tipo==='combustao'?'selected':''}>Combustão</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Motorista atual</label>
+      <select id="v-motorista">
+        <option value="">— Nenhum —</option>
+        ${motoristas.map(m=>`<option value="${m.id}" ${v.motorista_id===m.id?'selected':''}>${m.nome}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Seguro validade</label><input type="date" id="v-seg" value="${v.seguro_validade||''}"></div>
+      <div class="field"><label>Inspeção validade</label><input type="date" id="v-inp" value="${v.inspecao_validade||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Extintor validade</label><input type="date" id="v-ext" value="${v.extintor_validade||''}"></div>
+      <div class="field"><label>Km atuais</label><input type="number" id="v-km" value="${v.km_atuais||0}"></div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="guardarVeiculo(${id?`'${id}'`:null})">Guardar</button>
+  `);
+}
+
+async function guardarVeiculo(id) {
+  const payload = {
+    empresa_id: empresa.id,
+    matricula: document.getElementById('v-mat').value.toUpperCase(),
+    estado: document.getElementById('v-est').value,
+    marca: document.getElementById('v-marca').value,
+    modelo: document.getElementById('v-modelo').value,
+    ano: parseInt(document.getElementById('v-ano').value)||null,
+    tipo: document.getElementById('v-tipo').value,
+    motorista_id: document.getElementById('v-motorista').value||null,
+    seguro_validade: document.getElementById('v-seg').value||null,
+    inspecao_validade: document.getElementById('v-inp').value||null,
+    extintor_validade: document.getElementById('v-ext').value||null,
+    km_atuais: parseInt(document.getElementById('v-km').value)||0,
+  };
+  if (!payload.matricula) { toast('Matrícula obrigatória','error'); return; }
+  const { error } = id
+    ? await db.from('veiculos').update(payload).eq('id',id)
+    : await db.from('veiculos').insert(payload);
+  if (error) { toast('Erro ao guardar','error'); return; }
+  toast('✅ Viatura guardada!');
+  closeModal();
+  await carregarDados();
+  renderFrota();
+}
+
+// ── PRIO ──
+function renderPrio() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div class="table-wrap" style="margin-bottom:24px">
+      <div class="table-header"><div class="table-title">⚡ Carregar CSV PRIO</div></div>
+      <div style="padding:20px">
+        <div class="upload-zone" onclick="document.getElementById('prio-file').click()">
+          <input type="file" id="prio-file" accept=".csv" onchange="processPrio(this.files[0])">
+          <div class="upload-icon">⚡</div>
+          <div class="upload-title">Arrasta o CSV da PRIO</div>
+          <div class="upload-sub">Transações_Detalhadas.csv</div>
+        </div>
+        <div id="prio-preview" style="margin-top:16px"></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="prio-resumo-wrap"></div>
+  `;
+  carregarResumoPrio();
+}
+
+async function carregarResumoPrio() {
+  const { data } = await db.from('prio_carregamentos').select('*, motoristas(nome)').eq('empresa_id',empresa.id).eq('semana_inicio',semanaAtual).order('data');
+  const wrap = document.getElementById('prio-resumo-wrap');
+  if (!wrap) return;
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚡</div><div class="empty-state-text">Sem carregamentos esta semana</div></div>'; return; }
+  const byMot = {};
+  data.forEach(r => { const n = r.motoristas?.nome||r.matricula; if(!byMot[n]) byMot[n]={nome:n,total:0,count:0}; byMot[n].total+=r.valor; byMot[n].count++; });
+  wrap.innerHTML = `<div class="table-header"><div class="table-title">Resumo PRIO — ${semanaLabel(semanaAtual)}</div></div><div style="padding:16px">${Object.values(byMot).map(x=>`<div class="matricula-card"><div><div class="matricula-label">${x.nome}</div><div class="matricula-motorista">${x.count} carregamentos</div></div><div class="matricula-valor">${fmt(x.total)}</div></div>`).join('')}</div>`;
+}
+
+function processPrio(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const rows = parseCSV(e.target.result);
+    const carregamentos = [];
+    rows.forEach(r => {
+      const matricula = r['matrícula'] || r['matricula'] || r['plate'] || r['viatura'] || '';
+      const valor = parseFloat(r['valor'] || r['amount'] || r['montante'] || 0);
+      const data = r['data'] || r['date'] || '';
+      if (!matricula || !valor) return;
+      const veiculo = veiculos.find(v=>v.matricula.replace('-','').toUpperCase()===matricula.replace('-','').toUpperCase());
+      carregamentos.push({ empresa_id:empresa.id, motorista_id:veiculo?.motorista_id||null, matricula, data:data||new Date().toISOString().split('T')[0], valor, semana_inicio:semanaAtual });
+    });
+    if (!carregamentos.length) { toast('Nenhum carregamento encontrado','error'); return; }
+    const { error } = await db.from('prio_carregamentos').insert(carregamentos);
+    if (error) { toast('Erro ao guardar PRIO','error'); return; }
+    toast(`⚡ ${carregamentos.length} carregamentos importados!`);
+    carregarResumoPrio();
+  };
+  reader.readAsText(file, 'latin1');
+}
+
+// ── VIA VERDE ──
+function renderViaVerde() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div class="table-wrap" style="margin-bottom:24px">
+      <div class="table-header"><div class="table-title">🛣️ Carregar Via Verde</div></div>
+      <div style="padding:20px">
+        <div class="upload-zone" onclick="document.getElementById('vv-file').click()">
+          <input type="file" id="vv-file" accept=".csv,.xlsx" onchange="processViaVerde(this.files[0])">
+          <div class="upload-icon">🛣️</div>
+          <div class="upload-title">Arrasta o ficheiro Via Verde</div>
+          <div class="upload-sub">Movimento_*.xlsx ou .csv</div>
+        </div>
+        <div id="vv-preview" style="margin-top:16px"></div>
+      </div>
+    </div>
+    <div class="table-wrap" id="vv-resumo-wrap"></div>
+  `;
+  carregarResumoVV();
+}
+
+async function carregarResumoVV() {
+  const { data } = await db.from('viaverde_portagens').select('*, motoristas(nome)').eq('empresa_id',empresa.id).eq('semana_inicio',semanaAtual).order('data');
+  const wrap = document.getElementById('vv-resumo-wrap');
+  if (!wrap) return;
+  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛣️</div><div class="empty-state-text">Sem portagens esta semana</div></div>'; return; }
+  const byMot = {};
+  data.forEach(r => { const n = r.motoristas?.nome||r.matricula; if(!byMot[n]) byMot[n]={nome:n,total:0,count:0}; byMot[n].total+=r.valor; byMot[n].count++; });
+  wrap.innerHTML = `<div class="table-header"><div class="table-title">Resumo Via Verde — ${semanaLabel(semanaAtual)}</div></div><div style="padding:16px">${Object.values(byMot).map(x=>`<div class="matricula-card"><div><div class="matricula-label">${x.nome}</div><div class="matricula-motorista">${x.count} portagens</div></div><div class="matricula-valor">${fmt(x.total)}</div></div>`).join('')}</div>`;
+}
+
+function processViaVerde(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const rows = parseCSV(e.target.result);
+    const portagens = [];
+    rows.forEach(r => {
+      const matricula = r['matrícula'] || r['matricula'] || r['plate'] || r['viatura'] || '';
+      const valor = parseFloat((r['valor'] || r['amount'] || r['montante'] || '0').replace(',','.'));
+      const data = r['data'] || r['date'] || '';
+      if (!matricula || !valor) return;
+      const veiculo = veiculos.find(v=>v.matricula.replace('-','').toUpperCase()===matricula.replace('-','').toUpperCase());
+      portagens.push({ empresa_id:empresa.id, motorista_id:veiculo?.motorista_id||null, matricula, data:data||new Date().toISOString().split('T')[0], valor, descricao:r['descricao']||r['local']||'', semana_inicio:semanaAtual });
+    });
+    if (!portagens.length) { toast('Nenhuma portagem encontrada','error'); return; }
+    const { error } = await db.from('viaverde_portagens').insert(portagens);
+    if (error) { toast('Erro ao guardar Via Verde','error'); return; }
+    toast(`🛣️ ${portagens.length} portagens importadas!`);
+    carregarResumoVV();
+  };
+  reader.readAsText(file, 'latin1');
+}
+
+// ── ALERTAS ──
+function renderAlertas() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+      <div class="kpi"><div class="kpi-label">Total alertas</div><div class="kpi-val">${alertas.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Expirados</div><div class="kpi-val" style="color:var(--red)">${alertas.filter(a=>a.expirado).length}</div></div>
+      <div class="kpi"><div class="kpi-label">A expirar (30 dias)</div><div class="kpi-val" style="color:var(--orange)">${alertas.filter(a=>!a.expirado).length}</div></div>
+    </div>
+    ${alertas.length===0 ? `<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">Sem alertas ativos</div><div class="empty-state-sub">Todos os documentos estão em dia!</div></div>` : `
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Documentos a expirar</div></div>
+      <div style="padding:16px">
+        ${alertas.map(a=>`
+          <div class="alerta-item ${a.expirado?'alerta-exp':'alerta-aviso'}">
+            <div class="alerta-icon">${a.categoria==='motorista'?'👤':'🚗'}</div>
+            <div class="alerta-info">
+              <div class="alerta-nome">${a.nome}</div>
+              <div class="alerta-desc">${a.tipo}</div>
+            </div>
+            <div class="alerta-data" style="color:${a.expirado?'var(--red)':'var(--orange)'}">
+              ${a.expirado?'⚠️ EXPIRADO':fmtD(a.validade)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`}
+  `;
+}
+
+// ── HISTÓRICO ──
+function renderHistorico() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="exportarHistorico()">⬇️ Exportar CSV</button>`;
+  const meses = [...new Set(pagamentos.map(p=>p.semana_inicio?.slice(0,7)))].slice(0,12);
+
+  document.getElementById('content').innerHTML = `
+    <div class="table-wrap">
+      <div class="table-header"><div class="table-title">Histórico de pagamentos</div><div class="table-sub">${pagamentos.length} registos</div></div>
+      <table>
+        <thead><tr><th>Semana</th><th>Motorista</th><th>Uber líq.</th><th>Bolt líq.</th><th>A receber</th><th>Estado</th><th>Data pagamento</th></tr></thead>
+        <tbody>
+          ${pagamentos.slice(0,100).map(p=>`
+          <tr>
+            <td style="font-family:var(--mono);font-size:11px">${fmtD(p.semana_inicio)}</td>
+            <td>${p.motoristas?.nome||'—'}</td>
+            <td>${fmt(p.uber_liquido)}</td>
+            <td>${fmt(p.bolt_liquido)}</td>
+            <td class="gold">${fmt(p.valor_final)}</td>
+            <td><span class="badge ${p.estado==='pago'?'badge-green':'badge-orange'}"><span class="badge-dot"></span>${p.estado==='pago'?'Pago':'Pendente'}</span></td>
+            <td style="color:var(--sub2);font-size:11px">${p.data_pagamento?fmtD(p.data_pagamento.split('T')[0]):'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function exportarCSV() {
+  const semPags = pagamentos.filter(p=>p.semana_inicio===semanaAtual);
+  const linhas = [['Motorista','Uber Bruto','Uber Liq','Bolt Liq','IVA Cobrar','Slot','Aluguer','PRIO','Via Verde','A Receber','Estado']];
+  semPags.forEach(p=>linhas.push([p.motoristas?.nome||'',p.uber_bruto,p.uber_liquido,p.bolt_liquido,p.iva_cobrar,p.slot_valor,p.aluguer_valor,p.prio_valor,p.viaverde_valor,p.valor_final,p.estado]));
+  const csv = linhas.map(l=>l.join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`fleetpay_${semanaAtual}.csv`; a.click();
+}
+
+function exportarHistorico() {
+  const linhas = [['Semana','Motorista','Uber Bruto','Uber Liq','Bolt Liq','IVA Cobrar','A Receber','Estado','Data Pagamento']];
+  pagamentos.forEach(p=>linhas.push([p.semana_inicio,p.motoristas?.nome||'',p.uber_bruto,p.uber_liquido,p.bolt_liquido,p.iva_cobrar,p.valor_final,p.estado,p.data_pagamento||'']));
+  const csv = linhas.map(l=>l.join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`fleetpay_historico.csv`; a.click();
+}
+
+// ── CONTRATOS ──
+function renderContratos() {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold btn-sm" onclick="modalContrato()">+ Contrato</button>`;
+  document.getElementById('content').innerHTML = `<div class="empty-state"><div class="empty-state-icon">📄</div><div class="empty-state-text">Módulo de contratos</div><div class="empty-state-sub">Em breve: geração automática de contratos Word/PDF</div></div>`;
+}
+
+function modalContrato() { toast('Módulo de contratos em desenvolvimento 🚧'); }
+
+// ── CONFIG ──
+function renderConfig() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:560px">
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header"><div class="table-title">Configurações globais</div></div>
+        <div style="padding:24px">
+          <div class="field"><label>IVA Uber global (%)</label><input type="number" id="cfg-iva" value="${empresa?.iva_uber_pct||23}" step="0.1"></div>
+          <div class="field"><label>Slot semanal padrão (€)</label><input type="number" id="cfg-slot" value="${empresa?.slot_semanal_default||0}" step="0.01"></div>
+          <button class="btn btn-gold" onclick="guardarConfig()">Guardar configurações</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">Integração Bolt API</div></div>
+        <div style="padding:24px">
+          <div class="field"><label>Bolt Client ID</label><input id="cfg-bolt-id" value="${empresa?.bolt_client_id||''}" placeholder="Client ID do portal Bolt"></div>
+          <div class="field"><label>Bolt Client Secret</label><input type="password" id="cfg-bolt-secret" value="${empresa?.bolt_client_secret||''}" placeholder="Secret do portal Bolt"></div>
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials</p>
+          <button class="btn btn-gold" onclick="guardarConfigBolt()">Guardar Bolt API</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function guardarConfig() {
+  const { error } = await db.from('empresas').update({
+    iva_uber_pct: parseFloat(document.getElementById('cfg-iva').value)||23,
+    slot_semanal_default: parseFloat(document.getElementById('cfg-slot').value)||0,
+  }).eq('id', empresa.id);
+  if (error) { toast('Erro ao guardar','error'); return; }
+  toast('✅ Configurações guardadas!');
+  await carregarDados();
+}
+
+async function guardarConfigBolt() {
+  const { error } = await db.from('empresas').update({
+    bolt_client_id: document.getElementById('cfg-bolt-id').value,
+    bolt_client_secret: document.getElementById('cfg-bolt-secret').value,
+    bolt_api_ativo: !!document.getElementById('cfg-bolt-id').value,
+  }).eq('id', empresa.id);
+  if (error) { toast('Erro ao guardar','error'); return; }
+  toast('✅ Bolt API configurada!');
+}
+
+
+// ── TEMA CLARO/ESCURO ──
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+}
+
+// Aplicar tema guardado
+(function() {
+  const saved = localStorage.getItem('fleetpay-theme');
+  if (saved === 'light') {
+    document.body.classList.add('light');
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = '☀️';
+    });
+  }
+})();
+
+// ── START ──
+init();
+</script>
+</body>
+</html>

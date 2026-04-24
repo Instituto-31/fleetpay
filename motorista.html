@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetPay — Os meus recibos</title>
+<meta name="theme-color" content="#0a0905">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#6b6456;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Geist Mono',monospace;--sans:'Outfit',sans-serif;
+  --green:#27c93f;--red:#e05252;--orange:#e8943a;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--ink);color:var(--paper);min-height:100vh;padding-bottom:80px}
+
+/* HEADER */
+.header{
+  position:sticky;top:0;z-index:100;
+  padding:20px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,9,5,0.95);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.logo{font-family:var(--serif);font-size:20px;font-weight:400}
+.logo em{font-style:italic;color:var(--gold)}
+.user-info{display:flex;align-items:center;gap:12px}
+.user-name{font-size:13px;color:var(--sub2)}
+.btn-logout{
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;
+  color:var(--sub);background:none;border:1px solid var(--line);
+  padding:6px 12px;border-radius:2px;cursor:pointer;
+  transition:color .2s,border-color .2s;
+}
+.btn-logout:hover{color:var(--red);border-color:var(--red)}
+
+/* MAIN */
+.main{max-width:640px;margin:0 auto;padding:32px 24px}
+
+/* RESUMO SEMANA ATUAL */
+.semana-atual{
+  background:rgba(200,146,42,0.06);
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:28px;
+  margin-bottom:32px;
+  position:relative;
+  overflow:hidden;
+}
+.semana-atual::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+}
+.semana-tag{font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.semana-periodo{font-family:var(--serif);font-size:22px;font-weight:300;margin-bottom:20px;letter-spacing:-.3px}
+.semana-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.s-metric{}
+.s-metric-label{font-family:var(--mono);font-size:8px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
+.s-metric-val{font-family:var(--serif);font-size:26px;font-weight:300;color:var(--gold);letter-spacing:-.5px}
+.semana-estado{
+  display:inline-flex;align-items:center;gap:6px;
+  margin-top:20px;padding:6px 14px;border-radius:100px;
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;
+}
+.estado-pago{background:rgba(39,201,63,0.1);color:var(--green);border:1px solid rgba(39,201,63,0.2)}
+.estado-pendente{background:rgba(232,148,58,0.1);color:var(--orange);border:1px solid rgba(232,148,58,0.2)}
+.estado-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+/* SECÇÃO HISTÓRICO */
+.section-title{
+  display:flex;align-items:center;gap:12px;margin-bottom:20px;
+}
+.section-title-line{width:20px;height:1px;background:var(--gold)}
+.section-title-text{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase}
+
+/* CARD DE PAGAMENTO */
+.pagamento-card{
+  border:1px solid var(--line);border-radius:4px;
+  margin-bottom:12px;overflow:hidden;
+  transition:border-color .2s;cursor:pointer;
+}
+.pagamento-card:hover{border-color:rgba(200,146,42,0.4)}
+.pagamento-card-header{
+  padding:16px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.pagamento-periodo{font-size:14px;font-weight:500;color:var(--paper)}
+.pagamento-valor{font-family:var(--serif);font-size:22px;font-weight:300;color:var(--gold)}
+.pagamento-card-body{
+  padding:0 20px 16px;
+  display:none;
+  border-top:1px solid var(--line);
+}
+.pagamento-card.open .pagamento-card-body{display:block;padding-top:16px}
+.pagamento-card.open{border-color:rgba(200,146,42,0.4)}
+
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.detail-item{}
+.detail-label{font-family:var(--mono);font-size:8px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.detail-val{font-size:14px;color:var(--paper)}
+.detail-val.gold{color:var(--gold)}
+.detail-val.neg{color:var(--red)}
+
+.detalhe-sep{height:1px;background:var(--line);margin:12px 0}
+
+.btn-recibo{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:10px;
+  background:rgba(200,146,42,0.08);
+  border:1px solid var(--line);border-radius:3px;
+  color:var(--gold);font-size:11px;font-weight:500;letter-spacing:1px;
+  text-transform:uppercase;font-family:var(--sans);cursor:pointer;
+  transition:background .2s;
+  text-decoration:none;
+}
+.btn-recibo:hover{background:rgba(200,146,42,0.15)}
+
+/* EMPTY STATE */
+.empty{
+  text-align:center;padding:60px 24px;
+  color:var(--sub);
+}
+.empty-icon{font-size:48px;margin-bottom:16px}
+.empty-text{font-family:var(--serif);font-size:20px;font-weight:300;margin-bottom:8px;color:var(--sub2)}
+.empty-sub{font-size:13px}
+
+/* LOADING */
+.loading-state{text-align:center;padding:60px 24px}
+.spinner-lg{width:32px;height:32px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* BOTTOM NAV (mobile) */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(10,9,5,0.97);backdrop-filter:blur(20px);
+  border-top:1px solid var(--line);
+  display:flex;z-index:100;
+}
+.nav-item{
+  flex:1;padding:14px 8px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  background:none;border:none;cursor:pointer;color:var(--sub);
+  font-family:var(--sans);font-size:10px;letter-spacing:.5px;
+  transition:color .2s;
+}
+.nav-item.active,.nav-item:hover{color:var(--gold)}
+.nav-icon{font-size:20px;line-height:1}
+
+/* Filtro meses */
+.filtro-meses{
+  display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;
+  margin-bottom:24px;scrollbar-width:none;
+}
+.filtro-meses::-webkit-scrollbar{display:none}
+.filtro-btn{
+  flex-shrink:0;padding:6px 14px;
+  background:transparent;border:1px solid var(--line);border-radius:100px;
+  color:var(--sub2);font-size:11px;font-family:var(--sans);cursor:pointer;
+  transition:all .2s;white-space:nowrap;
+}
+.filtro-btn.active{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+
+/* Sem acesso */
+.sem-acesso{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:48px 24px;
+}
+
+/* Animações */
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.pagamento-card{animation:rise .4s ease both}
+
+body.light {
+  --ink:#f5f2ed;--paper:#1a1710;--gold:#a06e1a;--gold-light:#c8922a;
+  --line:rgba(160,110,26,0.2);--sub:#8a7d6a;--sub2:#5a4f3f;
+}
+body.light { background:var(--ink); }
+body.light .header { background:rgba(245,242,237,0.97); }
+body.light .semana-atual { background:rgba(160,110,26,0.06); }
+body.light .pagamento-card { background:rgba(255,255,255,0.6); }
+body.light .bottom-nav { background:rgba(245,242,237,0.97); }
+body.light .detail-val { color:var(--paper); }
+body.light .btn-recibo { background:rgba(160,110,26,0.08); }
+
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Carregando -->
+  <div class="loading-state" id="loading-state">
+    <div class="spinner-lg"></div>
+    <p style="color:var(--sub2);font-size:13px">A carregar os teus dados...</p>
+  </div>
+</div>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://udqddasbfqbeeaxtnsoj.supabase.co';
+// SUBSTITUI PELA TUA ANON KEY COMPLETA:
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let motorista = null;
+let pagamentos = [];
+let filtroMes = null;
+
+const fmt = (v) => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(v||0);
+const fmtData = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT', {day:'2-digit',month:'short'}) : '—';
+const fmtMes = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT', {month:'long',year:'numeric'}) : '';
+
+async function init() {
+  // Verificar sessão
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) {
+    window.location.href = 'login.html';
+    return;
+  }
+  currentUser = session.user;
+
+  // Buscar perfil
+  const { data: perfil } = await db.from('perfis').select('role, nome').eq('id', currentUser.id).single();
+
+  // Se for operador, redirecionar
+  if (perfil?.role === 'operador' || perfil?.role === 'superadmin') {
+    window.location.href = 'admin.html';
+    return;
+  }
+
+  // Buscar dados do motorista
+  const { data: mot } = await db.from('motoristas')
+    .select('*, empresas(nome)')
+    .eq('perfil_id', currentUser.id)
+    .single();
+
+  if (!mot) {
+    // Motorista sem dados associados
+    renderSemAcesso(perfil?.nome || currentUser.email);
+    return;
+  }
+
+  motorista = mot;
+
+  // Buscar pagamentos
+  const { data: pags } = await db.from('pagamentos')
+    .select('*')
+    .eq('motorista_id', motorista.id)
+    .order('semana_inicio', { ascending: false });
+
+  pagamentos = pags || [];
+  renderApp();
+}
+
+function renderSemAcesso(nome) {
+  document.getElementById('app').innerHTML = `
+    <div class="sem-acesso">
+      <div style="font-size:64px;margin-bottom:24px">🚗</div>
+      <div style="font-family:var(--serif);font-size:28px;font-weight:300;margin-bottom:12px">Olá, ${nome}!</div>
+      <p style="color:var(--sub2);font-size:14px;line-height:1.7;max-width:300px">
+        A tua conta ainda não foi associada a uma empresa.<br>
+        Fala com o teu operador para ativares o acesso.
+      </p>
+      <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
+        style="margin-top:32px;padding:12px 28px;background:var(--gold);color:var(--ink);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
+        Sair
+      </button>
+    </div>
+  `;
+}
+
+function renderApp() {
+  const nome = motorista.nome || currentUser.email;
+  const ultimosPags = [...pagamentos].slice(0, 12);
+  const meses = [...new Set(pagamentos.map(p => p.semana_inicio?.slice(0,7)))].slice(0,6);
+
+  // Última semana
+  const ultimo = pagamentos[0];
+
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="logo">Fleet<em>Pay</em></div>
+      <div class="user-info">
+        <span class="user-name">${nome.split(' ')[0]}</span>
+        <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:5px 8px;cursor:pointer;font-size:13px">🌙</button><button class="btn-logout" onclick="db.auth.signOut().then(()=>window.location.href='login.html')">Sair</button>
+      </div>
+    </div>
+
+    <div class="main">
+      ${ultimo ? renderSemanaAtual(ultimo) : ''}
+
+      <div class="section-title">
+        <span class="section-title-line"></span>
+        <span class="section-title-text">Histórico</span>
+      </div>
+
+      ${meses.length > 1 ? `
+      <div class="filtro-meses" id="filtro-meses">
+        <button class="filtro-btn active" onclick="filtrar(null, this)">Todos</button>
+        ${meses.map(m => `<button class="filtro-btn" onclick="filtrar('${m}', this)">${fmtMes(m+'-01')}</button>`).join('')}
+      </div>` : ''}
+
+      <div id="lista-pagamentos">
+        ${pagamentos.length === 0 ? renderEmpty() : pagamentos.map((p,i) => renderCard(p, i)).join('')}
+      </div>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item active">
+        <span class="nav-icon">💶</span>
+        Recibos
+      </button>
+      <button class="nav-item" onclick="alert('Em breve: perfil e documentos')">
+        <span class="nav-icon">👤</span>
+        Perfil
+      </button>
+      <button class="nav-item" onclick="alert('Em breve: veículo e documentos')">
+        <span class="nav-icon">🚗</span>
+        Viatura
+      </button>
+    </div>
+  `;
+}
+
+function renderSemanaAtual(p) {
+  const estadoClass = p.estado === 'pago' ? 'estado-pago' : 'estado-pendente';
+  const estadoLabel = p.estado === 'pago' ? '✓ Pago' : '⏳ Pendente';
+  return `
+    <div class="semana-atual">
+      <div class="semana-tag">Última semana processada</div>
+      <div class="semana-periodo">${fmtData(p.semana_inicio)} — ${fmtData(p.semana_fim)}</div>
+      <div class="semana-metrics">
+        <div class="s-metric">
+          <div class="s-metric-label">Uber</div>
+          <div class="s-metric-val">${fmt(p.uber_liquido)}</div>
+        </div>
+        <div class="s-metric">
+          <div class="s-metric-label">Bolt</div>
+          <div class="s-metric-val">${fmt(p.bolt_liquido)}</div>
+        </div>
+        <div class="s-metric">
+          <div class="s-metric-label">A receber</div>
+          <div class="s-metric-val">${fmt(p.valor_final)}</div>
+        </div>
+      </div>
+      <span class="semana-estado ${estadoClass}">
+        <span class="estado-dot"></span>${estadoLabel}
+      </span>
+    </div>
+  `;
+}
+
+function renderCard(p, i) {
+  const estadoClass = p.estado === 'pago' ? 'estado-pago' : 'estado-pendente';
+  const estadoLabel = p.estado === 'pago' ? '✓ Pago' : '⏳ Pendente';
+  return `
+    <div class="pagamento-card" style="animation-delay:${i*0.05}s" onclick="toggleCard(this)">
+      <div class="pagamento-card-header">
+        <div>
+          <div class="pagamento-periodo">${fmtData(p.semana_inicio)} – ${fmtData(p.semana_fim)}</div>
+          <span class="semana-estado ${estadoClass}" style="margin-top:6px;display:inline-flex">
+            <span class="estado-dot"></span>${estadoLabel}
+          </span>
+        </div>
+        <div class="pagamento-valor">${fmt(p.valor_final)}</div>
+      </div>
+      <div class="pagamento-card-body">
+        <div class="detail-grid">
+          <div class="detail-item">
+            <div class="detail-label">Uber Bruto</div>
+            <div class="detail-val">${fmt(p.uber_bruto)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Uber Líquido</div>
+            <div class="detail-val">${fmt(p.uber_liquido)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Bolt Líquido</div>
+            <div class="detail-val">${fmt(p.bolt_liquido)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">IVA a cobrar</div>
+            <div class="detail-val gold">${fmt(p.iva_cobrar)}</div>
+          </div>
+        </div>
+        ${(p.slot_valor||p.aluguer_valor||p.prio_valor||p.viaverde_valor) ? `
+        <div class="detalhe-sep"></div>
+        <div class="detail-grid">
+          ${p.slot_valor ? `<div class="detail-item"><div class="detail-label">Slot</div><div class="detail-val neg">-${fmt(p.slot_valor)}</div></div>` : ''}
+          ${p.aluguer_valor ? `<div class="detail-item"><div class="detail-label">Aluguer</div><div class="detail-val neg">-${fmt(p.aluguer_valor)}</div></div>` : ''}
+          ${p.prio_valor ? `<div class="detail-item"><div class="detail-label">PRIO</div><div class="detail-val neg">-${fmt(p.prio_valor)}</div></div>` : ''}
+          ${p.viaverde_valor ? `<div class="detail-item"><div class="detail-label">Via Verde</div><div class="detail-val neg">-${fmt(p.viaverde_valor)}</div></div>` : ''}
+        </div>` : ''}
+        <div class="detalhe-sep"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase">Total a receber</span>
+          <span style="font-family:var(--serif);font-size:22px;color:var(--gold)">${fmt(p.valor_final)}</span>
+        </div>
+        ${p.recibo_pdf_url ? `
+        <a class="btn-recibo" href="${p.recibo_pdf_url}" target="_blank">
+          📄 Ver recibo PDF
+        </a>` : `
+        <button class="btn-recibo" disabled style="opacity:.4;cursor:not-allowed">
+          📄 Recibo não disponível
+        </button>`}
+      </div>
+    </div>
+  `;
+}
+
+function renderEmpty() {
+  return `
+    <div class="empty">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">Sem pagamentos</div>
+      <p class="empty-sub">Os teus recibos aparecerão aqui quando forem processados.</p>
+    </div>
+  `;
+}
+
+function toggleCard(el) {
+  // Fechar outros
+  document.querySelectorAll('.pagamento-card.open').forEach(c => { if(c!==el) c.classList.remove('open'); });
+  el.classList.toggle('open');
+}
+
+function filtrar(mes, btn) {
+  document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filtroMes = mes;
+
+  const lista = mes
+    ? pagamentos.filter(p => p.semana_inicio?.startsWith(mes))
+    : pagamentos;
+
+  document.getElementById('lista-pagamentos').innerHTML =
+    lista.length === 0 ? renderEmpty() : lista.map((p,i) => renderCard(p,i)).join('');
+}
+
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+}
+const _t = localStorage.getItem('fleetpay-theme');
+if (_t === 'light') { document.body.classList.add('light'); }
+
+// Iniciar
+init();
+</script>
+</body>
+</html>

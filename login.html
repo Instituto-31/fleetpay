@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetPay — Acesso</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#6b6456;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Geist Mono',monospace;--sans:'Outfit',sans-serif;
+  --red:#e05252;--green:#27c93f;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--ink);color:var(--paper);overflow:hidden}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 0%,transparent 100%);
+  pointer-events:none;z-index:0;
+}
+
+.wrap{
+  height:100vh;display:grid;grid-template-columns:1fr 1fr;
+  position:relative;z-index:1;
+}
+
+/* LEFT — branding */
+.left{
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:60px;border-right:1px solid var(--line);
+}
+.logo{font-family:var(--serif);font-size:28px;font-weight:400;letter-spacing:.5px}
+.logo em{font-style:italic;color:var(--gold)}
+
+.left-mid{flex:1;display:flex;flex-direction:column;justify-content:center}
+.left-tag{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.left-tag-line{width:28px;height:1px;background:var(--gold)}
+.left-tag-text{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase}
+.left-h{font-family:var(--serif);font-size:clamp(42px,4vw,64px);font-weight:300;line-height:1.08;letter-spacing:-1.5px;margin-bottom:24px}
+.left-h em{font-style:italic;color:var(--gold)}
+.left-p{font-size:15px;color:var(--sub2);line-height:1.8;font-weight:300;max-width:360px}
+
+.stats{display:flex;gap:48px}
+.stat-val{font-family:var(--serif);font-size:36px;font-weight:300;color:var(--gold);letter-spacing:-1px}
+.stat-label{font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px}
+
+/* RIGHT — form */
+.right{
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:60px;
+}
+
+.form-box{width:100%;max-width:380px}
+.form-title{font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:-.5px;margin-bottom:8px}
+.form-sub{font-size:13px;color:var(--sub2);margin-bottom:40px}
+
+.tabs{display:flex;gap:0;margin-bottom:32px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.tab{flex:1;padding:10px;font-size:11px;font-weight:500;letter-spacing:1px;text-transform:uppercase;cursor:pointer;background:transparent;border:none;color:var(--sub2);font-family:var(--sans);transition:all .2s}
+.tab.active{background:var(--gold);color:var(--ink)}
+
+.field{margin-bottom:20px}
+.field label{display:block;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.field input{
+  width:100%;padding:13px 16px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--line);
+  border-radius:3px;
+  color:var(--paper);
+  font-size:14px;
+  font-family:var(--sans);
+  outline:none;
+  transition:border-color .2s;
+}
+.field input:focus{border-color:var(--gold)}
+.field input::placeholder{color:var(--sub)}
+
+.btn-submit{
+  width:100%;padding:14px;
+  background:var(--gold);color:var(--ink);
+  border:none;border-radius:3px;
+  font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;
+  transition:background .2s;
+  margin-top:8px;
+}
+.btn-submit:hover{background:var(--gold-light)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed}
+
+.divider{display:flex;align-items:center;gap:16px;margin:24px 0}
+.divider-line{flex:1;height:1px;background:var(--line)}
+.divider-text{font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px}
+
+.btn-magic{
+  width:100%;padding:13px;
+  background:transparent;color:var(--paper);
+  border:1px solid var(--line);border-radius:3px;
+  font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;
+  transition:border-color .2s,color .2s;
+}
+.btn-magic:hover{border-color:var(--gold-light);color:var(--gold-light)}
+
+.msg{
+  margin-top:20px;padding:12px 16px;border-radius:3px;
+  font-size:13px;display:none;
+}
+.msg.error{background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);color:var(--red)}
+.msg.success{background:rgba(39,201,63,0.1);border:1px solid rgba(39,201,63,0.3);color:var(--green)}
+.msg.show{display:block}
+
+.footer-note{
+  margin-top:32px;text-align:center;
+  font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px;
+}
+.footer-note a{color:var(--gold);text-decoration:none}
+
+/* Painel de motorista — magic link enviado */
+.magic-sent{display:none;text-align:center;padding:24px 0}
+.magic-sent.show{display:block}
+.magic-icon{font-size:48px;margin-bottom:16px}
+.magic-title{font-family:var(--serif);font-size:24px;font-weight:300;margin-bottom:8px}
+.magic-sub{font-size:13px;color:var(--sub2);line-height:1.7}
+
+/* Loading */
+.loading{display:none;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--sub2);margin-top:16px}
+.loading.show{display:flex}
+.spinner{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Animações */
+@keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.form-box{animation:rise .6s ease forwards}
+.left-mid{animation:rise .6s ease .2s both}
+
+body.light {
+  --ink:#f5f2ed;--paper:#1a1710;--gold:#a06e1a;--gold-light:#c8922a;
+  --line:rgba(160,110,26,0.2);--sub:#8a7d6a;--sub2:#5a4f3f;
+}
+body.light { background:var(--ink); }
+body.light .left { border-right-color:var(--line); }
+body.light .field input { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.light .tabs { border-color:var(--line); }
+body.light .tab { color:var(--sub2); }
+body.light .btn-magic { color:var(--paper); border-color:var(--line); }
+body.light body::before { opacity:0.3; }
+
+</style>
+</head>
+<body>
+
+
+<button onclick="toggleTheme()" id="theme-btn" style="position:fixed;top:20px;right:24px;z-index:999;background:none;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:6px 10px;cursor:pointer;font-size:14px">🌙</button>
+
+<div class="wrap">
+  <!-- ESQUERDA: branding -->
+  <div class="left">
+    <div class="logo">Fleet<em>Pay</em></div>
+
+    <div class="left-mid">
+      <div class="left-tag">
+        <span class="left-tag-line"></span>
+        <span class="left-tag-text">Gestão TVDE · Portugal</span>
+      </div>
+      <h1 class="left-h">A plataforma que<br>a tua frota<br><em>merece.</em></h1>
+      <p class="left-p">Pagamentos automáticos, PRIO, Via Verde, documentos e muito mais — tudo num só lugar.</p>
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="stat-val" id="stat-motoristas">—</div>
+        <div class="stat-label">Motoristas</div>
+      </div>
+      <div>
+        <div class="stat-val" id="stat-pagamentos">—</div>
+        <div class="stat-label">Pagamentos/sem</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIREITA: formulário -->
+  <div class="right">
+    <div class="form-box">
+      <h2 class="form-title">Bem-vindo</h2>
+      <p class="form-sub">Acede à tua conta FleetPay</p>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <button class="tab active" onclick="setTab('operador')">Operador</button>
+        <button class="tab" onclick="setTab('motorista')">Motorista</button>
+      </div>
+
+      <!-- FORM OPERADOR -->
+      <div id="form-operador">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="op-email" placeholder="operador@empresa.pt" autocomplete="email">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="op-pass" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn-submit" onclick="loginOperador()">Entrar</button>
+
+        <div class="divider">
+          <span class="divider-line"></span>
+          <span class="divider-text">ou</span>
+          <span class="divider-line"></span>
+        </div>
+
+        <button class="btn-magic" onclick="setTab('motorista')">
+          Sou motorista →
+        </button>
+      </div>
+
+      <!-- FORM MOTORISTA (magic link) -->
+      <div id="form-motorista" style="display:none">
+        <div class="field">
+          <label>O teu email</label>
+          <input type="email" id="mot-email" placeholder="motorista@email.pt" autocomplete="email">
+        </div>
+        <button class="btn-submit" onclick="loginMotorista()">Receber link de acesso</button>
+        <p style="font-size:12px;color:var(--sub2);margin-top:12px;line-height:1.6">
+          Receberás um link por email. Não precisas de password.
+        </p>
+      </div>
+
+      <!-- Magic link enviado -->
+      <div class="magic-sent" id="magic-sent">
+        <div class="magic-icon">📧</div>
+        <div class="magic-title">Email enviado!</div>
+        <p class="magic-sub">Verifica o teu email e clica no link para aceder aos teus recibos.</p>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span>A entrar...</span>
+      </div>
+
+      <div class="msg" id="msg"></div>
+
+      <p class="footer-note">
+        Ao entrar, aceitas os <a href="#">Termos de Serviço</a><br>
+        © 2025 FleetPay · Feito em Portugal 🇵🇹
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+}
+const _t = localStorage.getItem('fleetpay-theme');
+if (_t === 'light') { document.body.classList.add('light'); }
+
+</script>
+<script>
+const SUPABASE_URL = 'https://udqddasbfqbeeaxtnsoj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Verificar se já está logado
+db.auth.getSession().then(({ data: { session } }) => {
+  if (session) redirectByRole();
+});
+
+function setTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='operador')||(i===1&&tab==='motorista')));
+  document.getElementById('form-operador').style.display = tab === 'operador' ? '' : 'none';
+  document.getElementById('form-motorista').style.display = tab === 'motorista' ? '' : 'none';
+  document.getElementById('magic-sent').classList.remove('show');
+  hideMsg();
+}
+
+function showMsg(texto, tipo='error') {
+  const el = document.getElementById('msg');
+  el.textContent = texto;
+  el.className = `msg ${tipo} show`;
+}
+function hideMsg() { document.getElementById('msg').className = 'msg'; }
+function setLoading(v) { document.getElementById('loading').classList.toggle('show', v); }
+
+async function loginOperador() {
+  const email = document.getElementById('op-email').value.trim();
+  const pass = document.getElementById('op-pass').value;
+  if (!email || !pass) { showMsg('Preenche email e password.'); return; }
+
+  setLoading(true); hideMsg();
+  try {
+    const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    await redirectByRole();
+  } catch(e) {
+    showMsg(e.message === 'Invalid login credentials' ? 'Email ou password incorretos.' : e.message);
+  } finally { setLoading(false); }
+}
+
+async function loginMotorista() {
+  const email = document.getElementById('mot-email').value.trim();
+  if (!email) { showMsg('Insere o teu email.'); return; }
+
+  setLoading(true); hideMsg();
+  try {
+    const { error } = await db.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + '/motorista.html' }
+    });
+    if (error) throw error;
+    document.getElementById('form-motorista').style.display = 'none';
+    document.getElementById('magic-sent').classList.add('show');
+  } catch(e) {
+    showMsg('Erro ao enviar email. Tenta novamente.');
+  } finally { setLoading(false); }
+}
+
+async function redirectByRole() {
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return;
+
+  const { data: perfil } = await db.from('perfis').select('role').eq('id', user.id).single();
+  if (!perfil) { window.location.href = 'motorista.html'; return; }
+
+  if (perfil.role === 'superadmin' || perfil.role === 'operador') {
+    window.location.href = 'admin.html';
+  } else {
+    window.location.href = 'motorista.html';
+  }
+}
+
+// Enter para submeter
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const tabOp = document.getElementById('form-operador').style.display !== 'none';
+  if (tabOp) loginOperador(); else loginMotorista();
+});
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+}
+const _t = localStorage.getItem('fleetpay-theme');
+if (_t === 'light') { document.body.classList.add('light'); }
+
+</script>
+</body>
+</html>
