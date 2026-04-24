@@ -1,88 +1,68 @@
 # 🚗 FleetPay — Estado do Projeto
-*Atualizado: Abril 2025*
+*Atualizado: 2026-04-24*
 
 ---
 
 ## Credenciais Supabase
 - **Project ID:** udqddasbfqbeeaxtnsoj
 - **Project URL:** https://udqddasbfqbeeaxtnsoj.supabase.co
-- **Anon Key:** eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ
 - **Organização:** Instituto-31's Org
 - **Empresa demo ID:** a1b2c3d4-e5f6-7890-abcd-ef1234567890
+- **Anon Key:** centralizada em `fleetpay-config.js` (alterar só num sítio)
 
 ---
 
 ## Stack
-- **Frontend:** HTML/JS (existente v18 + novo)
-- **Base de dados:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth
-- **Hosting:** GitHub Pages (instituto-31.github.io)
+- **Frontend:** HTML/JS estático (sem build)
+- **Base de dados:** Supabase (PostgreSQL + RLS)
+- **Auth:** Supabase Auth (password operador + magic link motorista)
+- **Hosting:** GitHub Pages (planeado)
+- **Versionamento:** Git local (`master`, ainda sem remote)
 
 ---
 
-## Ficheiros Criados
-| Ficheiro | Estado | Descrição |
-|----------|--------|-----------|
-| fleetpay_schema.sql | ✅ Executado no Supabase | Schema completo BD |
-| login.html | ✅ Pronto | Página de login operador + motorista |
-| motorista.html | ✅ Pronto | App motorista (ver recibos) |
-| fleetpay-config.js | ✅ Pronto | Config Supabase centralizada |
-| admin.html | ⏳ Por fazer | Painel operador (migração v18) |
+## Ficheiros
+| Ficheiro | Estado | Notas |
+|----------|--------|-------|
+| `fleetpay_schema.sql` | ✅ Aplicado | 10 tabelas + RLS |
+| `fleetpay-config.js` | ✅ Em uso | Config Supabase + helpers `auth.*` e `fleetDB.*` (helpers ainda não consumidos pelos HTMLs) |
+| `login.html` | ✅ Funcional | Operador (password) + motorista (magic link), dark/light mode |
+| `motorista.html` | ✅ Funcional | Recibos, expandir cards, filtro meses, dark mode. Pendente: páginas Perfil + Viatura (são alerts) |
+| `admin.html` | ✅ Funcional | 10 páginas: dashboard/KPIs, pagamentos (CRUD + marcar pago + exportar), CSV Uber+Bolt+PRIO+Via Verde (parse + preview + guardar), motoristas (CRUD + convidar), frota (CRUD), alertas, histórico. Pendente: módulo Contratos (placeholder "Em breve") |
 
 ---
 
-## Estado Atual
-- ✅ Schema SQL criado e executado no Supabase
-- ✅ Tabelas: empresas, perfis, motoristas, veiculos, pagamentos, prio, viaverde, contratos
-- ✅ RLS (Row Level Security) configurado
-- ✅ Empresa Instituto 31 inserida como demo
-- ⚠️ Trigger de criação de perfil com problema — a resolver
-- ⏳ Criar utilizador operador (coordenacao@instituto31.pt)
-- ⏳ Criar admin.html
+## Funcionalidades reais (admin.html)
+- **Dashboard** — KPIs + alertas + atalhos
+- **Pagamentos** — semana selector, editar valores, marcar pago/todos pagos, exportar CSV
+- **Enviar recibo** — abre `wa.me/<num>?text=...` ou `mailto:` com mensagem pré-preenchida
+- **CSV Upload** — drag & drop Uber + Bolt, parse, preview, confirmar e gravar
+- **PRIO + Via Verde** — upload CSV separado, resumo por matrícula, aplicação automática a pagamentos
+- **Motoristas** — adicionar/editar, convidar via email, validade docs (TVDE, carta, CC, registo criminal)
+- **Frota** — adicionar/editar viaturas, validade docs (seguro, inspeção, extintor)
+- **Alertas** — agregação automática de docs a expirar em 30 dias
+- **Histórico** — lista pagamentos antigos + exportar CSV
+- **Dark/Light mode** — persiste em `localStorage`
 
 ---
 
-## Próximo Passo — Resolver trigger
-Correr este SQL no Supabase SQL Editor:
-```sql
-DROP TRIGGER IF EXISTS tr_novo_user_perfil ON auth.users;
-DROP FUNCTION IF EXISTS criar_perfil_novo_user() CASCADE;
-
-CREATE OR REPLACE FUNCTION criar_perfil_novo_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-BEGIN
-  BEGIN
-    INSERT INTO public.perfis (id, email, role)
-    VALUES (NEW.id, NEW.email, 'motorista')
-    ON CONFLICT (id) DO NOTHING;
-  EXCEPTION WHEN OTHERS THEN
-    NULL;
-  END;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER tr_novo_user_perfil
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE criar_perfil_novo_user();
-```
+## Pendentes / TODO real
+- [ ] **Contratos** — `admin.html:1557` é placeholder. Falta geração de Word/PDF.
+- [ ] **App motorista** — botões "Perfil" e "Viatura" são `alert("Em breve")`.
+- [ ] **Recibos PDF** — campo `recibo_pdf_url` esperado mas sem upload implementado.
+- [ ] **Aplicar paleta Instituto 31** (sage + gold dos emails)? — atualmente usa dourado #c8922a sobre preto, mais "luxury" que "instituto".
+- [ ] **Deploy GitHub Pages** — repo dedicado ou pasta no `instituto-31.github.io`.
+- [ ] **Comprar domínio** (`fleetpay.pt`?) e apontar via CNAME.
+- [ ] **Multi-tenant SaaS** — onboarding de novas empresas.
+- [ ] **Integração Bolt + Uber API** — substituir CSV.
 
 ---
 
-## Roadmap
-- **Fase 1** ✅ Schema Supabase
-- **Fase 2** 🔄 Auth + Login (em curso)
-- **Fase 3** ⏳ App motorista completa
-- **Fase 4** ⏳ Painel operador (admin.html)
-- **Fase 5** ⏳ Multi-tenant SaaS
-- **Fase 6** ⏳ API Bolt + Uber
-
----
-
-## App Original
-- URL: https://instituto-31.github.io/tvde-i31/TVDE_Instituto31_v18%20(26).html
-- Landing page: fleetpay-landing.html (local)
+## Fixes aplicados (2026-04-24)
+- Bug em `login.html`: tag `<script src="...supabase">` tinha código JS dentro (era ignorado pelo browser) → separado em duas tags.
+- `SUPABASE_URL`/`SUPABASE_KEY` duplicado em 3 HTMLs → centralizado em `fleetpay-config.js`. Trocar a chave passa a ser uma única edição.
+- Comentário enganador `// SUBSTITUI PELA TUA ANON KEY COMPLETA` removido (a chave já estava lá).
+- Inicializado git local + commit inicial.
 
 ---
 
@@ -92,3 +72,8 @@ CREATE TRIGGER tr_novo_user_perfil
 | Grátis | €0 | até 3 |
 | Pro | €29/mês | até 15 |
 | Enterprise | €59/mês | ilimitados |
+
+---
+
+## App Original (referência)
+- URL: https://instituto-31.github.io/tvde-i31/TVDE_Instituto31_v18%20(26).html

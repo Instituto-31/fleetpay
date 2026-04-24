@@ -406,14 +406,10 @@ body.light .btn-ghost:hover { color:var(--paper); }
   </div>
 </div>
 
-<!-- Supabase -->
+<!-- Supabase + config central -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
 <script>
-// ── CONFIG ──
-const SUPABASE_URL = 'https://udqddasbfqbeeaxtnsoj.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── ESTADO GLOBAL ──
 let currentUser = null, perfil = null, empresa = null;

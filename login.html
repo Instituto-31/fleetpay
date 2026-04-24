@@ -251,23 +251,10 @@ body.light body::before { opacity:0.3; }
   </div>
 </div>
 
-<!-- Supabase SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem('fleetpay-theme', isLight ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
-}
-const _t = localStorage.getItem('fleetpay-theme');
-if (_t === 'light') { document.body.classList.add('light'); }
-
-</script>
+<!-- Supabase SDK + config central -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
 <script>
-const SUPABASE_URL = 'https://udqddasbfqbeeaxtnsoj.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkcWRkYXNiZnFiZWVheHRuc29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMzQ1NzAsImV4cCI6MjA5MjYxMDU3MH0.bFr5wrwwJOyNLI8-3NyGZ18SxcnDHgmJ01z8TXU4yhQ';
-
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Verificar se já está logado
 db.auth.getSession().then(({ data: { session } }) => {
