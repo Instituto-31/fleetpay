@@ -189,7 +189,8 @@ td.orange{color:var(--orange)}
 }
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold)}
 .field input::placeholder{color:var(--sub)}
-.field select option{background:#1a1810;color:var(--paper)}
+.field select option{background:var(--ink);color:var(--paper)}
+body.light .field select option,body.theme-sage .field select option{background:var(--ink);color:var(--paper)}
 .field textarea{resize:vertical;min-height:80px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
