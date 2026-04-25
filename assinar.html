@@ -43,17 +43,38 @@ body{padding-bottom:200px}
 .documento{
   background:#fff;
   border:1px solid var(--line);border-radius:6px;
-  padding:48px 56px;margin-bottom:24px;
-  font-family:'Times New Roman',Georgia,serif;
-  font-size:11pt;line-height:1.55;color:#000;
+  padding:56px 64px;margin-bottom:24px;
+  font-family:'Calibri','Segoe UI',sans-serif;
+  font-size:11pt;line-height:1.6;color:#1a1a1a;
   box-shadow:0 4px 24px rgba(0,0,0,0.06);
   word-wrap:break-word;
 }
-.documento p{margin-bottom:8pt}
-.documento h1,.documento h2,.documento h3{font-family:Arial,sans-serif;margin:14pt 0 6pt;color:#000}
-.documento table{border-collapse:collapse;width:100%;margin:6pt 0}
-.documento td,.documento th{border:1px solid #ccc;padding:4pt 6pt;font-size:10pt}
-.documento strong{font-weight:bold}
+.documento p{margin-bottom:10pt;text-align:justify;hyphens:auto}
+.documento p:empty{display:none}
+.documento h1{font-size:18pt;font-weight:700;margin:18pt 0 10pt;color:#000;letter-spacing:.3pt;line-height:1.25}
+.documento h2{font-size:14pt;font-weight:700;margin:16pt 0 8pt;color:#000;letter-spacing:.2pt;line-height:1.3;padding-bottom:4pt;border-bottom:1.5px solid #c8922a}
+.documento h3{font-size:12pt;font-weight:700;margin:14pt 0 6pt;color:#000;text-transform:uppercase;letter-spacing:.5pt}
+.documento h4,.documento h5{font-size:11pt;font-weight:700;margin:10pt 0 4pt;color:#000}
+.documento table{
+  border-collapse:collapse;width:100%;margin:10pt 0;
+  font-size:10.5pt;
+}
+.documento td,.documento th{
+  border:1px solid #ddd;padding:8pt 10pt;
+  vertical-align:top;
+}
+.documento th{background:#f5f1e8;font-weight:700;text-align:left}
+.documento tr:nth-child(even) td{background:#fafafa}
+.documento strong{font-weight:700;color:#000}
+.documento em{font-style:italic;color:#444}
+.documento ul,.documento ol{margin:8pt 0 8pt 24pt}
+.documento li{margin-bottom:4pt}
+.documento a{color:#c8922a;text-decoration:none}
+/* Linhas horizontais geradas no Word (parágrafo com border) */
+.documento hr{border:none;border-top:1.5px solid #c8922a;margin:16pt 0;width:60%}
+/* Suporte para texto centrado/alinhado do Word */
+.documento [style*="text-align:center"],.documento [style*="text-align: center"]{text-align:center !important}
+.documento [style*="text-align:right"],.documento [style*="text-align: right"]{text-align:right !important}
 
 /* Loading + estados */
 .estado-card{
@@ -294,9 +315,25 @@ async function renderContrato() {
   zip.file('word/document.xml', xml);
   const docxBlob = await zip.generateAsync({type:'blob'});
 
-  // 3. Converter .docx → HTML usando mammoth
+  // 3. Converter .docx → HTML usando mammoth (com style mapping para preservar layout)
   const arrayBuffer = await docxBlob.arrayBuffer();
-  const result = await mammoth.convertToHtml({arrayBuffer});
+  const result = await mammoth.convertToHtml({
+    arrayBuffer,
+    styleMap: [
+      "p[style-name='Title'] => h1:fresh",
+      "p[style-name='Subtitle'] => h2:fresh",
+      "p[style-name='Heading 1'] => h2:fresh",
+      "p[style-name='Heading 2'] => h3:fresh",
+      "p[style-name='Heading 3'] => h4:fresh",
+      "p[style-name='Quote'] => blockquote",
+      "r[style-name='Strong'] => strong",
+      "r[style-name='Emphasis'] => em",
+      "p[style-name='Centered'] => p.center:fresh",
+      "table => table.contract-table"
+    ],
+    includeDefaultStyleMap: true,
+    includeEmbeddedStyleMap: true
+  });
 
   // 4. Mostrar HTML no documento
   document.getElementById('wrap').innerHTML = `
