@@ -437,6 +437,7 @@ body.theme-sage .btn-ghost:hover { color:var(--paper); }
 
 <!-- Supabase + config central -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="fleetpay-config.js"></script>
 <script>
 
@@ -1582,12 +1583,353 @@ function exportarHistorico() {
 }
 
 // ── CONTRATOS ──
-function renderContratos() {
-  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-gold btn-sm" onclick="modalContrato()">+ Contrato</button>`;
-  document.getElementById('content').innerHTML = `<div class="empty-state"><div class="empty-state-icon">📄</div><div class="empty-state-text">Módulo de contratos</div><div class="empty-state-sub">Em breve: geração automática de contratos Word/PDF</div></div>`;
+let contratosTab = 'gerar';
+let contratosTemplates = [];
+
+async function renderContratos() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div class="tabs-nav">
+      <button class="tab-btn ${contratosTab==='gerar'?'active':''}" onclick="setContratosTab('gerar')">📄 Gerar contrato</button>
+      <button class="tab-btn ${contratosTab==='templates'?'active':''}" onclick="setContratosTab('templates')">📁 Templates</button>
+    </div>
+    <div id="contratos-body"><div class="loading-row"><div class="spinner"></div> A carregar...</div></div>
+  `;
+  await carregarTemplates();
+  renderContratosTab();
 }
 
-function modalContrato() { toast('Módulo de contratos em desenvolvimento 🚧'); }
+function setContratosTab(tab) { contratosTab = tab; renderContratos(); }
+
+async function carregarTemplates() {
+  const { data, error } = await db.from('contratos_templates')
+    .select('*').eq('empresa_id', empresa.id).order('ordem').order('nome');
+  if (error) { console.error(error); contratosTemplates = []; return; }
+  contratosTemplates = data || [];
+}
+
+function renderContratosTab() {
+  const body = document.getElementById('contratos-body');
+  if (!body) return;
+  if (contratosTab === 'gerar') body.innerHTML = renderGerarContrato();
+  else body.innerHTML = renderTemplatesList();
+}
+
+function renderGerarContrato() {
+  const ativos = contratosTemplates.filter(t => t.ativo);
+  if (!ativos.length) {
+    return `<div class="empty-state">
+      <div class="empty-state-icon">📄</div>
+      <div class="empty-state-text">Sem templates ainda</div>
+      <div class="empty-state-sub">Carrega o teu primeiro template no separador "Templates"</div>
+      <button class="btn btn-gold" style="margin-top:16px" onclick="setContratosTab('templates')">📁 Ir para Templates</button>
+    </div>`;
+  }
+  return `
+    <div style="max-width:680px">
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header"><div class="table-title">Selecionar motorista e template</div></div>
+        <div style="padding:24px">
+          <div class="field"><label>Motorista</label>
+            <select id="cont-motorista" onchange="preencherDadosMotorista()">
+              <option value="">— selecionar —</option>
+              ${motoristas.map(m => `<option value="${m.id}">${m.nome} — ${m.email||'sem email'}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Template</label>
+            <select id="cont-template" onchange="atualizarFormPlaceholders()">
+              <option value="">— selecionar —</option>
+              ${ativos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="cont-placeholders-wrap" style="display:none">
+        <div class="table-wrap" style="margin-bottom:24px">
+          <div class="table-header">
+            <div>
+              <div class="table-title">Dados do contrato</div>
+              <div class="table-sub">Os campos foram pré-preenchidos com dados da BD. Confirma/altera antes de gerar.</div>
+            </div>
+          </div>
+          <div id="cont-form-fields" style="padding:20px"></div>
+          <div style="padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-ghost" onclick="document.getElementById('cont-placeholders-wrap').style.display='none'">Cancelar</button>
+            <button class="btn btn-gold" onclick="downloadContrato()">⬇️ Download .docx</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function preencherDadosMotorista() {
+  atualizarFormPlaceholders();
+}
+
+function atualizarFormPlaceholders() {
+  const tplId = document.getElementById('cont-template').value;
+  const motId = document.getElementById('cont-motorista').value;
+  const wrap = document.getElementById('cont-placeholders-wrap');
+  if (!tplId || !motId) { wrap.style.display = 'none'; return; }
+
+  const tpl = contratosTemplates.find(t => t.id === tplId);
+  const mot = motoristas.find(m => m.id === motId);
+  if (!tpl || !mot) return;
+
+  // Buscar veículo do motorista (assume primeiro veículo ativo)
+  const veiculo = veiculos.find(v => v.motorista_id === mot.id && v.estado !== 'inativo') || {};
+
+  // Mapear placeholders → valores conhecidos
+  const hoje = new Date().toLocaleDateString('pt-PT');
+  const auto = {
+    'MOTORISTA_NOME': mot.nome || '',
+    'MOTORISTA_NIF': mot.nif || '',
+    'MOTORISTA_MORADA': mot.morada || '',
+    'MOTORISTA_EMAIL': mot.email || '',
+    'MOTORISTA_DOC_ID': mot.doc_id || '',
+    'MOTORISTA_DOC_VALIDADE': mot.doc_validade ? new Date(mot.doc_validade+'T00:00:00').toLocaleDateString('pt-PT') : '',
+    'MOTORISTA_LICENCA_TVDE': mot.licenca_tvde || '',
+    'MOTORISTA_IBAN': mot.iban || '',
+    'MOTORISTA_CMTVDE': mot.cmtvde || '',
+    'VEICULO_MATRICULA': veiculo.matricula || '',
+    'VEICULO_MARCA': veiculo.marca || '',
+    'VEICULO_MODELO': veiculo.modelo || '',
+    'VEICULO_ANO': veiculo.ano || '',
+    'VEICULO_COMBUSTIVEL': veiculo.combustivel || veiculo.tipo || '',
+    'VEICULO_DATA_MATRICULA': veiculo.data_matricula ? new Date(veiculo.data_matricula+'T00:00:00').toLocaleDateString('pt-PT') : '',
+    'OPERADOR_NOME': empresa.nome || '',
+    'OPERADOR_NIPC': empresa.nipc || '',
+    'OPERADOR_MORADA': empresa.morada || '',
+    'OPERADOR_CP': empresa.codigo_postal || '',
+    'OPERADOR_LICENCA': empresa.licenca_tvde || '',
+    'COMODANTE_NOME': empresa.nome || '',
+    'COMODANTE_NIPC': empresa.nipc || '',
+    'COMODANTE_MORADA': empresa.morada || '',
+    'COMODANTE_CP': empresa.codigo_postal || '',
+    'COMODATARIO_NOME': mot.nome || '',
+    'COMODATARIO_NIPC': mot.nif || '',
+    'COMODATARIO_MORADA': mot.morada || '',
+    'COMODATARIO_CP': '',
+    'PROPRIETARIO_NOME': empresa.nome || '',
+    'PROPRIETARIO_NIF': empresa.nipc || '',
+    'PROPRIETARIO_MORADA': empresa.morada || '',
+    'PROPRIETARIO_CP': empresa.codigo_postal || '',
+    'PROPRIETARIO_DOC_ID': '',
+    'PROPRIETARIO_DOC_VALIDADE': '',
+    'PROPRIETARIO_EMAIL': empresa.email || '',
+    'CONTRATO_DATA': hoje,
+    'CONTRATO_DATA_ASSINATURA': hoje,
+    'DECLARACAO_DATA': hoje,
+    'CONTRATO_LOCAL': empresa.morada ? empresa.morada.split(',').slice(-1)[0].trim() : 'Porto',
+    'SLOT_VALOR_SEMANAL': mot.slot_semanal ? mot.slot_semanal.toFixed(2) + ' €' : '',
+    'VALOR_ALUGUER_SEMANAL': mot.aluguer_semanal ? mot.aluguer_semanal.toFixed(2) + ' €' : '',
+    'VALOR_CAUCAO': '',
+    'VALOR_CAUCAO_CARTAO': '',
+    'VALOR_KM_ADICIONAL': '',
+    'LIMITE_KM_SEMANAL': '',
+  };
+
+  // Filtrar só placeholders REAIS (UPPERCASE_UNDERSCORE) do template
+  const placeholders = (tpl.placeholders||[])
+    .map(p => p.replace(/^«|»$/g, ''))
+    .filter(p => /^[A-Z_]+$/.test(p));
+
+  const fields = placeholders.map(p => {
+    const val = auto[p] || '';
+    const label = p.replace(/_/g, ' ').toLowerCase().replace(/^./, c=>c.toUpperCase());
+    return `
+      <div class="field" style="margin-bottom:12px">
+        <label>${label}</label>
+        <input id="ph-${p}" data-ph="${p}" value="${String(val).replace(/"/g,'&quot;')}" placeholder="${p}">
+      </div>
+    `;
+  }).join('') || '<p style="color:var(--sub2);font-size:12px">Este template não tem placeholders detectados.</p>';
+
+  document.getElementById('cont-form-fields').innerHTML = fields;
+  wrap.style.display = 'block';
+}
+
+async function downloadContrato() {
+  const tplId = document.getElementById('cont-template').value;
+  const motId = document.getElementById('cont-motorista').value;
+  const tpl = contratosTemplates.find(t => t.id === tplId);
+  const mot = motoristas.find(m => m.id === motId);
+  if (!tpl || !mot) { toast('Selecionar motorista e template','error'); return; }
+
+  // Recolher valores do form
+  const valores = {};
+  document.querySelectorAll('#cont-form-fields input[data-ph]').forEach(inp => {
+    valores[inp.dataset.ph] = inp.value;
+  });
+
+  toast('A gerar contrato...','success');
+
+  try {
+    // 1. Download template do Storage
+    const { data: file, error: dlErr } = await db.storage.from('contratos-templates').download(tpl.ficheiro_path);
+    if (dlErr) throw dlErr;
+
+    // 2. Abrir como ZIP
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const xmlEntry = zip.file('word/document.xml');
+    if (!xmlEntry) throw new Error('Template inválido — sem document.xml');
+    let xml = await xmlEntry.async('string');
+
+    // 3. Substituir cada placeholder («KEY» e variantes XML escapadas)
+    Object.keys(valores).forEach(key => {
+      const val = String(valores[key]||'')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const variants = [
+        '«' + key + '»',
+        '&#xAB;' + key + '&#xBB;',
+        '\u00AB' + key + '\u00BB'
+      ];
+      variants.forEach(v => { xml = xml.split(v).join(val); });
+    });
+
+    // 4. Re-zip + download
+    zip.file('word/document.xml', xml);
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fname = `${tpl.nome.replace(/[^a-zA-Z0-9_-]/g,'_')}_${mot.nome.split(' ')[0]}.docx`;
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+    toast('✅ Contrato descarregado: ' + fname);
+  } catch (e) {
+    console.error('Gerar contrato:', e);
+    toast('Erro: ' + (e.message || 'desconhecido'),'error');
+  }
+}
+
+function renderTemplatesList() {
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${contratosTemplates.length} template(s) para esta empresa</div>
+        <div style="font-size:11px;color:var(--sub2)">Templates .docx com placeholders no formato «NOME_DO_CAMPO»</div>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="document.getElementById('tpl-file').click()">+ Carregar template</button>
+      <input type="file" id="tpl-file" accept=".docx" style="display:none" onchange="processarUploadTemplate(this.files[0])">
+    </div>
+
+    ${contratosTemplates.length === 0 ? `
+      <div class="empty-state">
+        <div class="empty-state-icon">📁</div>
+        <div class="empty-state-text">Sem templates carregados</div>
+        <div class="empty-state-sub">Carrega .docx com placeholders «MOTORISTA_NOME», «VEICULO_MATRICULA», etc.</div>
+      </div>
+    ` : `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Nome</th><th>Tipo</th><th style="text-align:center">Placeholders</th><th style="text-align:center">Estado</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${contratosTemplates.map(t => `
+              <tr>
+                <td>${t.nome}</td>
+                <td style="color:var(--sub2)">${t.tipo||'—'}</td>
+                <td style="text-align:center;color:var(--gold)">${(t.placeholders||[]).length}</td>
+                <td style="text-align:center">
+                  <span class="badge ${t.ativo?'badge-green':'badge-red'}">
+                    <span class="badge-dot"></span>${t.ativo?'Ativo':'Inativo'}
+                  </span>
+                </td>
+                <td style="text-align:right">
+                  <button class="btn btn-ghost btn-sm" onclick="toggleTemplateAtivo('${t.id}', ${!t.ativo})">${t.ativo?'Desativar':'Ativar'}</button>
+                  <button class="btn btn-danger btn-sm" onclick="eliminarTemplate('${t.id}')">🗑️</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+}
+
+async function processarUploadTemplate(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.docx')) { toast('Só ficheiros .docx','error'); return; }
+
+  const nome = prompt('Nome do template:', file.name.replace(/\.docx$/i, ''));
+  if (!nome) return;
+  const tipo = prompt('Tipo (slug curto, ex: slot/comissao/comodato/declaracao/custom):', 'custom');
+  if (!tipo) return;
+
+  toast('A processar template...');
+
+  try {
+    // 1. Detectar placeholders no .docx (parse XML)
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const xmlEntry = zip.file('word/document.xml');
+    if (!xmlEntry) throw new Error('Ficheiro .docx inválido');
+    const xml = await xmlEntry.async('string');
+    const matches = [...xml.matchAll(/«([A-Z_]+)»/g)];
+    const placeholders = [...new Set(matches.map(m => '«'+m[1]+'»'))];
+
+    // 2. Inserir registo na BD para obter ID
+    const { data: tpl, error: insErr } = await db.from('contratos_templates').insert({
+      empresa_id: empresa.id,
+      tipo: tipo,
+      nome: nome,
+      placeholders: placeholders,
+      ficheiro_path: 'pending'  // atualizamos depois
+    }).select().single();
+    if (insErr) throw insErr;
+
+    // 3. Upload .docx ao Storage com path correto
+    const path = `${empresa.id}/${tpl.id}.docx`;
+    const { error: upErr } = await db.storage.from('contratos-templates').upload(path, file, {
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      upsert: true
+    });
+    if (upErr) {
+      // rollback do registo
+      await db.from('contratos_templates').delete().eq('id', tpl.id);
+      throw upErr;
+    }
+
+    // 4. Atualizar path no registo
+    await db.from('contratos_templates').update({ ficheiro_path: path }).eq('id', tpl.id);
+
+    toast(`✅ Template "${nome}" carregado com ${placeholders.length} placeholders`);
+    await carregarTemplates();
+    renderContratosTab();
+  } catch (e) {
+    console.error('Upload template:', e);
+    toast('Erro: ' + (e.message || 'desconhecido'),'error');
+  }
+}
+
+async function toggleTemplateAtivo(id, novoEstado) {
+  const { error } = await db.from('contratos_templates').update({ ativo: novoEstado }).eq('id', id);
+  if (error) { toast('Erro a alterar estado','error'); return; }
+  toast('✅ Template ' + (novoEstado?'ativado':'desativado'));
+  await carregarTemplates();
+  renderContratosTab();
+}
+
+async function eliminarTemplate(id) {
+  const tpl = contratosTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  if (!confirm(`Eliminar definitivamente o template "${tpl.nome}"? Os contratos já gerados não são afetados.`)) return;
+
+  // Apagar do Storage primeiro
+  if (tpl.ficheiro_path && tpl.ficheiro_path !== 'pending') {
+    await db.storage.from('contratos-templates').remove([tpl.ficheiro_path]);
+  }
+  // Apagar registo
+  const { error } = await db.from('contratos_templates').delete().eq('id', id);
+  if (error) { toast('Erro a eliminar','error'); return; }
+  toast('✅ Template eliminado');
+  await carregarTemplates();
+  renderContratosTab();
+}
 
 // ── CONFIG ──
 function renderConfig() {

@@ -7,3 +7,5 @@ desktop.ini
 node_modules/
 .env
 .env.local
+_tvde_v18_ref.html
+_templates_extracted/
