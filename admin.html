@@ -1217,22 +1217,28 @@ function modalMotorista(id=null) {
       <div class="field"><label>NIF</label><input id="m-nif" value="${m.nif||''}"></div>
       <div class="field"><label>IBAN</label><input id="m-iban" value="${m.iban||''}"></div>
     </div>
+    <div class="field"><label>Morada (rua, nº, andar — código postal cidade)</label><input id="m-morada" value="${m.morada||''}"></div>
+    <div class="field-row">
+      <div class="field"><label>Cartão Cidadão (nº)</label><input id="m-doc-id" value="${m.doc_id||''}" placeholder="00000000 0 ZZ0"></div>
+      <div class="field"><label>Cartão Cidadão validade</label><input type="date" id="m-cc" value="${m.cartao_cidadao_validade||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Licença TVDE (nº)</label><input id="m-licenca" value="${m.licenca_tvde||''}" placeholder="nº licença IMT"></div>
+      <div class="field"><label>Licença TVDE validade</label><input type="date" id="m-tvde" value="${m.licenca_tvde_validade||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>CMTVDE (nº certificado)</label><input id="m-cmtvde" value="${m.cmtvde||''}" placeholder="nº certificado"></div>
+      <div class="field"><label>Carta Condução validade</label><input type="date" id="m-carta" value="${m.carta_conducao_validade||''}"></div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Slot semanal (€)</label><input type="number" id="m-slot" value="${m.slot_semanal||0}" step="0.01"></div>
       <div class="field"><label>Aluguer semanal (€)</label><input type="number" id="m-aluguer" value="${m.aluguer_semanal||0}" step="0.01"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>IVA (%)</label><input type="number" id="m-iva" value="${m.iva_pct||23}" step="0.1"></div>
-      <div class="field"><label>Licença TVDE validade</label><input type="date" id="m-tvde" value="${m.licenca_tvde_validade||''}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Carta Condução validade</label><input type="date" id="m-carta" value="${m.carta_conducao_validade||''}"></div>
-      <div class="field"><label>Cartão Cidadão validade</label><input type="date" id="m-cc" value="${m.cartao_cidadao_validade||''}"></div>
-    </div>
-    <div class="field-row">
       <div class="field"><label>Reg. Criminal validade</label><input type="date" id="m-rc" value="${m.registo_criminal_validade||''}"></div>
-      <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
     </div>
+    <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
   `, `
     <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
     <button class="btn btn-gold" onclick="guardarMotorista(${id?`'${id}'`:null})">Guardar</button>
@@ -1251,6 +1257,10 @@ async function guardarMotorista(id) {
     slot_semanal: parseFloat(document.getElementById('m-slot').value)||0,
     aluguer_semanal: parseFloat(document.getElementById('m-aluguer').value)||0,
     iva_pct: parseFloat(document.getElementById('m-iva').value)||23,
+    morada: document.getElementById('m-morada').value,
+    doc_id: document.getElementById('m-doc-id').value,
+    licenca_tvde: document.getElementById('m-licenca').value,
+    cmtvde: document.getElementById('m-cmtvde').value,
     licenca_tvde_validade: document.getElementById('m-tvde').value||null,
     carta_conducao_validade: document.getElementById('m-carta').value||null,
     cartao_cidadao_validade: document.getElementById('m-cc').value||null,
@@ -1958,7 +1968,29 @@ function renderConfig() {
       </div>
 
       <div class="table-wrap" style="margin-bottom:24px">
-        <div class="table-header"><div class="table-title">Configurações globais</div></div>
+        <div class="table-header">
+          <div>
+            <div class="table-title">🏢 Dados da empresa</div>
+            <div class="table-sub">Usados nos contratos (operador/comodante/proprietário)</div>
+          </div>
+        </div>
+        <div style="padding:24px">
+          <div class="field"><label>Nome legal</label><input id="cfg-empresa-nome" value="${empresa?.nome||''}"></div>
+          <div class="field-row">
+            <div class="field"><label>NIPC / NIF</label><input id="cfg-empresa-nipc" value="${empresa?.nipc||empresa?.nif||''}"></div>
+            <div class="field"><label>Licença TVDE</label><input id="cfg-empresa-licenca" value="${empresa?.licenca_tvde||''}" placeholder="nº licença IMT"></div>
+          </div>
+          <div class="field"><label>Morada</label><input id="cfg-empresa-morada" value="${empresa?.morada||''}" placeholder="Rua, nº, andar — Cidade"></div>
+          <div class="field-row">
+            <div class="field"><label>Código postal</label><input id="cfg-empresa-cp" value="${empresa?.codigo_postal||''}" placeholder="0000-000 Cidade"></div>
+            <div class="field"><label>Email empresa</label><input id="cfg-empresa-email" type="email" value="${empresa?.email||''}"></div>
+          </div>
+          <button class="btn btn-gold" onclick="guardarDadosEmpresa()">Guardar dados da empresa</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header"><div class="table-title">⚙️ Configurações globais</div></div>
         <div style="padding:24px">
           <div class="field"><label>IVA Uber global (%)</label><input type="number" id="cfg-iva" value="${empresa?.iva_uber_pct||23}" step="0.1"></div>
           <div class="field"><label>Slot semanal padrão (€)</label><input type="number" id="cfg-slot" value="${empresa?.slot_semanal_default||0}" step="0.01"></div>
@@ -1977,6 +2009,22 @@ function renderConfig() {
       </div>
     </div>
   `;
+}
+
+async function guardarDadosEmpresa() {
+  const payload = {
+    nome: document.getElementById('cfg-empresa-nome').value.trim(),
+    nipc: document.getElementById('cfg-empresa-nipc').value.trim(),
+    licenca_tvde: document.getElementById('cfg-empresa-licenca').value.trim(),
+    morada: document.getElementById('cfg-empresa-morada').value.trim(),
+    codigo_postal: document.getElementById('cfg-empresa-cp').value.trim(),
+    email: document.getElementById('cfg-empresa-email').value.trim(),
+  };
+  if (!payload.nome) { toast('Nome da empresa obrigatório','error'); return; }
+  const { error } = await db.from('empresas').update(payload).eq('id', empresa.id);
+  if (error) { toast('Erro ao guardar: ' + error.message,'error'); console.error(error); return; }
+  toast('✅ Dados da empresa guardados!');
+  await carregarDados();
 }
 
 async function guardarConfig() {
