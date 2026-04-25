@@ -444,6 +444,7 @@ body.theme-sage .btn-ghost:hover { color:var(--paper); }
 
 // ── ESTADO GLOBAL ──
 let currentUser = null, perfil = null, empresa = null;
+let empresasDisponiveis = [];   // lista visível ao user (1 para operador, várias para superadmin)
 let motoristas = [], veiculos = [], pagamentos = [], alertas = [];
 let semanaAtual = getSegundaFeira(new Date());
 let currentPage = 'dashboard';
@@ -496,14 +497,89 @@ async function init() {
   if (!p || p.role === 'motorista') { window.location.href = 'motorista.html'; return; }
 
   perfil = p;
-  empresa = p.empresas;
+
+  // Superadmin: ver TODAS as empresas; operador: só a sua
+  if (perfil.role === 'superadmin') {
+    const { data: emps } = await db.from('empresas').select('*').order('nome');
+    empresasDisponiveis = emps || [];
+    const savedId = localStorage.getItem('fleetpay-empresa-ativa');
+    empresa = empresasDisponiveis.find(e => e.id === savedId) || empresasDisponiveis[0] || p.empresas;
+  } else {
+    empresasDisponiveis = p.empresas ? [p.empresas] : [];
+    empresa = p.empresas;
+  }
 
   document.getElementById('user-nome').textContent = perfil.nome || currentUser.email.split('@')[0];
   document.getElementById('user-avatar').textContent = (perfil.nome || currentUser.email)[0].toUpperCase();
-  document.getElementById('empresa-nome').textContent = empresa?.nome || 'FleetPay';
+  renderEmpresaSelector();
 
   await carregarDados();
   showPage('dashboard');
+}
+
+function renderEmpresaSelector() {
+  const el = document.getElementById('empresa-nome');
+  if (!el) return;
+  if (empresasDisponiveis.length <= 1) {
+    el.innerHTML = empresa?.nome || 'FleetPay';
+    el.style.cursor = 'default';
+    return;
+  }
+  // Multi-empresa (superadmin): dropdown
+  el.style.cursor = 'pointer';
+  el.style.padding = '0';
+  el.innerHTML = `
+    <button onclick="abrirSeletorEmpresa(event)" title="Trocar de empresa"
+      style="background:transparent;border:none;color:var(--sub);font-size:11px;font-family:var(--mono);letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:12px 20px">
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase">${empresa?.nome || 'FleetPay'}</span>
+      <span style="font-size:8px;color:var(--gold)">▼</span>
+    </button>
+  `;
+}
+
+function abrirSeletorEmpresa(e) {
+  if (e) e.stopPropagation();
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = ev => { if (ev.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:520px;width:100%">
+      <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--serif);font-size:20px;font-weight:300">Selecionar empresa</div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:20px">
+        <p style="font-size:11px;color:var(--sub2);margin-bottom:14px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">És superadmin · gere ${empresasDisponiveis.length} empresas</p>
+        ${empresasDisponiveis.map(e => `
+          <button onclick="trocarEmpresa('${e.id}')"
+            style="width:100%;text-align:left;padding:14px 16px;margin-bottom:8px;background:transparent;border:1px solid ${e.id===empresa?.id?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;color:var(--paper);font-family:var(--sans);display:flex;align-items:center;gap:12px;transition:border-color .2s">
+            <span style="font-size:24px">${e.id===empresa?.id?'🟢':'⚪'}</span>
+            <span style="flex:1">
+              <div style="font-size:14px;font-weight:500">${e.nome||'—'}</div>
+              <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">NIPC ${e.nipc||e.nif||'—'} ${e.licenca_tvde?'· Lic. '+e.licenca_tvde:''}</div>
+            </span>
+            ${e.id===empresa?.id?'<span style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px">ATIVA</span>':''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function trocarEmpresa(id) {
+  const nova = empresasDisponiveis.find(e => e.id === id);
+  if (!nova || nova.id === empresa?.id) {
+    document.querySelectorAll('[style*="z-index:300"]').forEach(el => el.remove());
+    return;
+  }
+  empresa = nova;
+  localStorage.setItem('fleetpay-empresa-ativa', id);
+  document.querySelectorAll('[style*="z-index:300"]').forEach(el => el.remove());
+  renderEmpresaSelector();
+  toast(`📦 Empresa ativa: ${nova.nome}`);
+  await carregarDados();
+  showPage(currentPage || 'dashboard');
 }
 
 async function carregarDados() {
