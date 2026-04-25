@@ -1672,21 +1672,32 @@ function exportarHistorico() {
 // ── CONTRATOS ──
 let contratosTab = 'gerar';
 let contratosTemplates = [];
+let contratosAssinados = [];
 
 async function renderContratos() {
   document.getElementById('topbar-actions').innerHTML = '';
   document.getElementById('content').innerHTML = `
     <div class="tabs-nav">
       <button class="tab-btn ${contratosTab==='gerar'?'active':''}" onclick="setContratosTab('gerar')">📄 Gerar contrato</button>
+      <button class="tab-btn ${contratosTab==='historico'?'active':''}" onclick="setContratosTab('historico')">📋 Histórico</button>
       <button class="tab-btn ${contratosTab==='templates'?'active':''}" onclick="setContratosTab('templates')">📁 Templates</button>
     </div>
     <div id="contratos-body"><div class="loading-row"><div class="spinner"></div> A carregar...</div></div>
   `;
-  await carregarTemplates();
+  await Promise.all([carregarTemplates(), carregarContratosAssinados()]);
   renderContratosTab();
 }
 
 function setContratosTab(tab) { contratosTab = tab; renderContratos(); }
+
+async function carregarContratosAssinados() {
+  const { data, error } = await db.from('contratos_assinados')
+    .select('*, motoristas(nome, email)')
+    .eq('empresa_id', empresa.id)
+    .order('criado_em', { ascending: false });
+  if (error) { console.error(error); contratosAssinados = []; return; }
+  contratosAssinados = data || [];
+}
 
 async function carregarTemplates() {
   const { data, error } = await db.from('contratos_templates')
@@ -1699,7 +1710,168 @@ function renderContratosTab() {
   const body = document.getElementById('contratos-body');
   if (!body) return;
   if (contratosTab === 'gerar') body.innerHTML = renderGerarContrato();
+  else if (contratosTab === 'historico') body.innerHTML = renderHistoricoContratos();
   else body.innerHTML = renderTemplatesList();
+}
+
+function renderHistoricoContratos() {
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${contratosAssinados.length} contrato(s) arquivado(s)</div>
+        <div style="font-size:11px;color:var(--sub2)">Workflow: gerar .docx → assinar via Adobe Sign → carregar PDF assinado aqui</div>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="modalCarregarAssinado()">+ Carregar PDF assinado</button>
+    </div>
+
+    ${contratosAssinados.length === 0 ? `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-text">Sem contratos arquivados</div>
+        <div class="empty-state-sub">Quando carregares um PDF assinado, ele aparece aqui associado ao motorista.</div>
+      </div>
+    ` : `
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Motorista</th><th>Contrato</th><th>Estado</th><th>Data</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${contratosAssinados.map(c => {
+              const estadoBadge = {
+                'gerado': 'badge-orange',
+                'enviado_assinatura': 'badge-orange',
+                'assinado': 'badge-green',
+                'arquivado': 'badge-green'
+              }[c.estado] || 'badge-orange';
+              const estadoLabel = {
+                'gerado': '⏳ Gerado',
+                'enviado_assinatura': '📨 Enviado',
+                'assinado': '✓ Assinado',
+                'arquivado': '🗄️ Arquivado'
+              }[c.estado] || c.estado;
+              return `
+              <tr>
+                <td>${c.motoristas?.nome || '—'}</td>
+                <td style="color:var(--sub2)">${c.template_nome || '—'}</td>
+                <td><span class="badge ${estadoBadge}"><span class="badge-dot"></span>${estadoLabel}</span></td>
+                <td style="font-family:var(--mono);font-size:11px;color:var(--sub2)">${fmtD(c.assinado_em||c.criado_em)}</td>
+                <td style="text-align:right;white-space:nowrap">
+                  ${c.ficheiro_path ? `<button class="btn btn-ghost btn-sm" onclick="downloadAssinado('${c.id}')">📥 Ver</button>`:''}
+                  <button class="btn btn-danger btn-sm" onclick="eliminarAssinado('${c.id}')">🗑️</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+}
+
+function modalCarregarAssinado() {
+  if (!motoristas.length) { toast('Adiciona motoristas primeiro','error'); return; }
+  if (!contratosTemplates.length) { toast('Carrega templates primeiro','error'); return; }
+  openModal('Carregar contrato assinado', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Após o motorista assinar via Adobe Sign, carrega o PDF assinado aqui para ficar associado a ele.</p>
+    <div class="field"><label>Motorista</label>
+      <select id="ass-motorista">
+        <option value="">— selecionar —</option>
+        ${motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>Template usado</label>
+      <select id="ass-template">
+        <option value="">— selecionar —</option>
+        ${contratosTemplates.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>PDF assinado</label>
+      <input type="file" id="ass-pdf" accept=".pdf" style="padding:10px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:3px;color:var(--paper);width:100%">
+    </div>
+    <div class="field"><label>Data de assinatura</label>
+      <input type="date" id="ass-data" value="${new Date().toISOString().split('T')[0]}">
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="guardarContratoAssinado()">📤 Carregar</button>
+  `);
+}
+
+async function guardarContratoAssinado() {
+  const motId = document.getElementById('ass-motorista').value;
+  const tplId = document.getElementById('ass-template').value;
+  const file = document.getElementById('ass-pdf').files[0];
+  const dataAss = document.getElementById('ass-data').value;
+
+  if (!motId || !tplId || !file) { toast('Preenche motorista, template e ficheiro','error'); return; }
+  if (!file.name.match(/\.pdf$/i)) { toast('Só PDF aceite','error'); return; }
+
+  const tpl = contratosTemplates.find(t => t.id === tplId);
+  toast('A carregar PDF...');
+
+  try {
+    // 1. Insert registo para obter ID
+    const { data: rec, error: insErr } = await db.from('contratos_assinados').insert({
+      empresa_id: empresa.id,
+      motorista_id: motId,
+      template_id: tplId,
+      template_nome: tpl?.nome,
+      estado: 'assinado',
+      assinado_em: dataAss + 'T00:00:00Z',
+      ficheiro_path: 'pending'
+    }).select().single();
+    if (insErr) throw insErr;
+
+    // 2. Upload ao Storage
+    const path = `${empresa.id}/${rec.id}.pdf`;
+    const { error: upErr } = await db.storage.from('contratos-assinados').upload(path, file, {
+      contentType: 'application/pdf',
+      upsert: true
+    });
+    if (upErr) {
+      await db.from('contratos_assinados').delete().eq('id', rec.id);
+      throw upErr;
+    }
+
+    // 3. Update path
+    await db.from('contratos_assinados').update({ ficheiro_path: path }).eq('id', rec.id);
+
+    closeModal();
+    toast('✅ Contrato arquivado!');
+    await carregarContratosAssinados();
+    renderContratosTab();
+  } catch (e) {
+    console.error('Carregar assinado:', e);
+    toast('Erro: ' + (e.message || 'desconhecido'),'error');
+  }
+}
+
+async function downloadAssinado(id) {
+  const c = contratosAssinados.find(x => x.id === id);
+  if (!c?.ficheiro_path) { toast('Sem ficheiro','error'); return; }
+  const { data, error } = await db.storage.from('contratos-assinados').download(c.ficheiro_path);
+  if (error) { toast('Erro: ' + error.message,'error'); return; }
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${c.template_nome||'contrato'}_${(c.motoristas?.nome||'motorista').split(' ')[0]}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function eliminarAssinado(id) {
+  if (!confirm('Eliminar este contrato arquivado? O PDF é apagado permanentemente.')) return;
+  const c = contratosAssinados.find(x => x.id === id);
+  if (c?.ficheiro_path && c.ficheiro_path !== 'pending') {
+    await db.storage.from('contratos-assinados').remove([c.ficheiro_path]);
+  }
+  const { error } = await db.from('contratos_assinados').delete().eq('id', id);
+  if (error) { toast('Erro: ' + error.message,'error'); return; }
+  toast('✅ Contrato eliminado');
+  await carregarContratosAssinados();
+  renderContratosTab();
 }
 
 function renderGerarContrato() {
