@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>FleetPay — Assinar contrato</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#f7f4ef;--paper:#0a0905;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(0,0,0,0.08);--sub:#8a7d6a;--sub2:#5a4f3f;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Geist Mono',monospace;--sans:'Outfit',sans-serif;
+  --green:#2a8a3c;--red:#c73e3e;
+}
+html,body{font-family:var(--sans);background:var(--ink);color:var(--paper);min-height:100vh}
+body{padding-bottom:200px}
+
+/* Header */
+.header{
+  background:var(--paper);color:var(--ink);
+  padding:16px 24px;display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;z-index:50;
+}
+.logo{font-family:var(--serif);font-size:22px;font-weight:400}
+.logo em{font-style:italic;color:var(--gold)}
+.brand-sub{font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase}
+
+/* Conteúdo */
+.wrap{max-width:760px;margin:0 auto;padding:24px}
+
+.contrato-banner{
+  background:rgba(200,146,42,0.08);border:1px solid rgba(200,146,42,0.25);border-radius:6px;
+  padding:18px 22px;margin-bottom:20px;
+  display:flex;align-items:center;gap:14px;
+}
+.contrato-banner-icon{font-size:28px}
+.contrato-banner-titulo{font-family:var(--serif);font-size:18px;font-weight:400}
+.contrato-banner-sub{font-size:11px;color:var(--sub);font-family:var(--mono);letter-spacing:.5px;margin-top:2px}
+
+/* Documento */
+.documento{
+  background:#fff;
+  border:1px solid var(--line);border-radius:6px;
+  padding:48px 56px;margin-bottom:24px;
+  font-family:'Times New Roman',Georgia,serif;
+  font-size:11pt;line-height:1.55;color:#000;
+  box-shadow:0 4px 24px rgba(0,0,0,0.06);
+  word-wrap:break-word;
+}
+.documento p{margin-bottom:8pt}
+.documento h1,.documento h2,.documento h3{font-family:Arial,sans-serif;margin:14pt 0 6pt;color:#000}
+.documento table{border-collapse:collapse;width:100%;margin:6pt 0}
+.documento td,.documento th{border:1px solid #ccc;padding:4pt 6pt;font-size:10pt}
+.documento strong{font-weight:bold}
+
+/* Loading + estados */
+.estado-card{
+  background:#fff;border:1px solid var(--line);border-radius:6px;
+  padding:60px 24px;text-align:center;
+}
+.estado-icon{font-size:64px;margin-bottom:16px}
+.estado-titulo{font-family:var(--serif);font-size:24px;font-weight:300;margin-bottom:8px}
+.estado-sub{font-size:13px;color:var(--sub2);max-width:480px;margin:0 auto;line-height:1.6}
+.spinner{width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Painel de assinatura */
+.assinar-panel{
+  background:var(--paper);color:var(--ink);
+  position:fixed;bottom:0;left:0;right:0;z-index:40;
+  border-top:2px solid var(--gold);
+  box-shadow:0 -8px 32px rgba(0,0,0,0.25);
+  transition:transform .3s;
+}
+.assinar-panel.collapsed{transform:translateY(calc(100% - 60px))}
+
+.assinar-handle{
+  padding:14px 24px;text-align:center;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.assinar-handle-arrow{transition:transform .3s}
+.assinar-panel.collapsed .assinar-handle-arrow{transform:rotate(180deg)}
+
+.assinar-body{
+  padding:24px;max-width:760px;margin:0 auto;
+}
+.assinar-titulo{font-family:var(--serif);font-size:24px;font-weight:300;margin-bottom:6px;text-align:center}
+.assinar-sub{font-size:12px;color:rgba(255,255,255,0.6);text-align:center;margin-bottom:20px}
+
+.canvas-wrap{
+  position:relative;
+  background:#fff;border:2px dashed rgba(200,146,42,0.4);border-radius:6px;
+  height:180px;margin-bottom:14px;overflow:hidden;
+  touch-action:none;
+}
+#canvas-assinatura{display:block;width:100%;height:100%;cursor:crosshair}
+.canvas-placeholder{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-size:18px;color:#999;font-style:italic;
+  pointer-events:none;
+}
+.canvas-placeholder.hidden{display:none}
+
+.assinar-actions{display:flex;gap:10px;margin-bottom:14px}
+.btn{
+  flex:1;padding:12px 18px;border-radius:4px;
+  font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;border:none;
+  transition:all .2s;
+}
+.btn-primary{background:var(--gold);color:#000}
+.btn-primary:hover:not(:disabled){background:var(--gold-light)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:transparent;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.2);flex:0 0 auto;padding:12px 16px}
+.btn-ghost:hover{color:#fff;border-color:var(--gold)}
+
+.consent{
+  font-size:11px;color:rgba(255,255,255,0.55);text-align:center;line-height:1.6;
+  padding:8px 0;
+}
+.consent a{color:var(--gold);text-decoration:none}
+
+/* Mensagem de sucesso */
+.sucesso{
+  background:#fff;border:1px solid rgba(42,138,60,0.3);border-radius:6px;
+  padding:32px 24px;text-align:center;margin-top:24px;
+}
+.sucesso-icon{font-size:64px;margin-bottom:16px}
+.sucesso-titulo{font-family:var(--serif);font-size:26px;font-weight:300;color:var(--green);margin-bottom:8px}
+.sucesso-sub{font-size:13px;color:var(--sub2);max-width:420px;margin:0 auto 20px;line-height:1.6}
+.sucesso-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn-download{
+  padding:12px 24px;background:var(--gold);color:#000;border:none;border-radius:4px;
+  font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+  font-family:var(--sans);text-decoration:none;display:inline-block;
+}
+
+/* Mobile */
+@media (max-width:680px){
+  .documento{padding:24px 20px;font-size:10.5pt}
+  .wrap{padding:14px}
+  .canvas-wrap{height:160px}
+  .header{padding:12px 16px}
+  .logo{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div>
+    <div class="logo">Fleet<em>Pay</em></div>
+    <div class="brand-sub">Assinatura Digital</div>
+  </div>
+  <div id="empresa-info" style="text-align:right;font-size:11px;color:rgba(255,255,255,0.6);font-family:var(--mono)"></div>
+</header>
+
+<div class="wrap" id="wrap">
+  <div class="estado-card" id="estado-loading">
+    <div class="spinner"></div>
+    <div class="estado-titulo">A carregar contrato</div>
+    <div class="estado-sub">Aguarda enquanto preparamos o teu documento...</div>
+  </div>
+</div>
+
+<!-- Painel de assinatura (escondido até carregar) -->
+<div class="assinar-panel" id="assinar-panel" style="display:none">
+  <div class="assinar-handle" onclick="togglePanel()">
+    <span>🖊️ Toca para assinar</span>
+    <span class="assinar-handle-arrow">▼</span>
+  </div>
+  <div class="assinar-body">
+    <div class="assinar-titulo">A tua assinatura</div>
+    <div class="assinar-sub">Assina com o dedo no espaço abaixo</div>
+
+    <div class="canvas-wrap">
+      <canvas id="canvas-assinatura"></canvas>
+      <div class="canvas-placeholder" id="canvas-placeholder">Desenha aqui...</div>
+    </div>
+
+    <div class="assinar-actions">
+      <button class="btn btn-ghost" onclick="limparAssinatura()" title="Apagar">🗑️ Limpar</button>
+      <button class="btn btn-primary" id="btn-confirmar" onclick="confirmarAssinatura()" disabled>✓ Confirmar Assinatura</button>
+    </div>
+
+    <div class="consent">
+      Ao assinar, declaras ter lido e aceitar os termos do contrato.<br>
+      Esta assinatura é válida e equivalente a uma assinatura em papel.
+    </div>
+  </div>
+</div>
+
+<!-- Bibliotecas -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+
+// Forçar tema claro (link público, ignorar prefs do utilizador)
+document.body.classList.remove('theme-sage','theme-light','light');
+
+const TOKEN = new URLSearchParams(window.location.search).get('t');
+let contrato = null;
+let template = null;
+let signaturePad = null;
+let assinaturaPNG = null;
+let pdfBlob = null;
+let panelAberto = false;
+
+// ── Inicialização ──
+async function init() {
+  if (!TOKEN) {
+    mostrarErro('Link inválido', 'Este link não tem o token de assinatura. Contacta o teu operador.');
+    return;
+  }
+
+  try {
+    // 1. Buscar contrato pelo token
+    const { data: c, error } = await db.from('contratos_assinados')
+      .select('*, motoristas(nome, email), empresas(nome, nipc, morada, codigo_postal, licenca_tvde)')
+      .eq('link_token', TOKEN)
+      .single();
+
+    if (error || !c) {
+      mostrarErro('Link inválido ou expirado', 'Este link de assinatura não foi encontrado. Pode ter sido cancelado ou já utilizado.');
+      return;
+    }
+    contrato = c;
+
+    // 2. Mostrar info da empresa no header
+    if (c.empresas) {
+      document.getElementById('empresa-info').innerHTML = `
+        ${c.empresas.nome || 'FleetPay'}<br>
+        <span style="opacity:.6">NIPC ${c.empresas.nipc || '—'}</span>
+      `;
+    }
+
+    // 3. Se já está assinado, mostrar isso
+    if (c.estado === 'assinado') {
+      mostrarJaAssinado();
+      return;
+    }
+
+    // 4. Buscar template
+    if (!c.template_id) {
+      mostrarErro('Template em falta', 'Não foi possível carregar o documento.');
+      return;
+    }
+    const { data: tpl } = await db.from('contratos_templates').select('*').eq('id', c.template_id).single();
+    if (!tpl?.ficheiro_path) {
+      mostrarErro('Template em falta', 'O documento não está disponível.');
+      return;
+    }
+    template = tpl;
+
+    // 5. Download do template + substituir placeholders + render
+    await renderContrato();
+
+    // 6. Mostrar painel de assinatura
+    document.getElementById('assinar-panel').style.display = 'block';
+    iniciarSignaturePad();
+
+  } catch (e) {
+    console.error(e);
+    mostrarErro('Erro ao carregar', e.message || 'Tenta novamente em alguns instantes.');
+  }
+}
+
+async function renderContrato() {
+  // 1. Download .docx do Storage
+  const { data: file, error } = await db.storage.from('contratos-templates').download(template.ficheiro_path);
+  if (error) throw error;
+
+  // 2. Substituir placeholders no XML
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const xmlEntry = zip.file('word/document.xml');
+  let xml = await xmlEntry.async('string');
+
+  const valores = contrato.dados_substituidos || {};
+  Object.keys(valores).forEach(key => {
+    const val = String(valores[key]||'')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const variants = ['«' + key + '»', '&#xAB;' + key + '&#xBB;', '\u00AB' + key + '\u00BB'];
+    variants.forEach(v => { xml = xml.split(v).join(val); });
+  });
+
+  zip.file('word/document.xml', xml);
+  const docxBlob = await zip.generateAsync({type:'blob'});
+
+  // 3. Converter .docx → HTML usando mammoth
+  const arrayBuffer = await docxBlob.arrayBuffer();
+  const result = await mammoth.convertToHtml({arrayBuffer});
+
+  // 4. Mostrar HTML no documento
+  document.getElementById('wrap').innerHTML = `
+    <div class="contrato-banner">
+      <div class="contrato-banner-icon">📄</div>
+      <div>
+        <div class="contrato-banner-titulo">${contrato.template_nome || template.nome}</div>
+        <div class="contrato-banner-sub">Para: ${contrato.motoristas?.nome || '—'}</div>
+      </div>
+    </div>
+    <div class="documento" id="documento">${result.value}</div>
+    <div style="height:60px"></div>
+  `;
+}
+
+// ── Signature Pad ──
+function iniciarSignaturePad() {
+  const canvas = document.getElementById('canvas-assinatura');
+  resizeCanvas(canvas);
+  signaturePad = new SignaturePad(canvas, {
+    backgroundColor: 'rgb(255,255,255)',
+    penColor: 'rgb(0,0,0)',
+    minWidth: 1.5,
+    maxWidth: 3,
+  });
+  signaturePad.addEventListener('beginStroke', () => {
+    document.getElementById('canvas-placeholder').classList.add('hidden');
+  });
+  signaturePad.addEventListener('endStroke', () => {
+    document.getElementById('btn-confirmar').disabled = signaturePad.isEmpty();
+  });
+  window.addEventListener('resize', () => resizeCanvas(canvas));
+}
+
+function resizeCanvas(canvas) {
+  const ratio = Math.max(window.devicePixelRatio || 1, 1);
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  canvas.getContext('2d').scale(ratio, ratio);
+  if (signaturePad) signaturePad.clear();
+}
+
+function limparAssinatura() {
+  if (!signaturePad) return;
+  signaturePad.clear();
+  document.getElementById('canvas-placeholder').classList.remove('hidden');
+  document.getElementById('btn-confirmar').disabled = true;
+}
+
+function togglePanel() {
+  panelAberto = !panelAberto;
+  document.getElementById('assinar-panel').classList.toggle('collapsed', !panelAberto);
+}
+
+// ── Confirmar e gerar PDF ──
+async function confirmarAssinatura() {
+  if (signaturePad.isEmpty()) return;
+  const btn = document.getElementById('btn-confirmar');
+  btn.disabled = true; btn.textContent = '⏳ A processar...';
+
+  try {
+    // Capturar assinatura como PNG
+    assinaturaPNG = signaturePad.toDataURL('image/png');
+
+    // Esconder painel para gerar PDF "limpo"
+    document.getElementById('assinar-panel').style.display = 'none';
+
+    // Adicionar página final ao documento com a assinatura + dados
+    const docEl = document.getElementById('documento');
+    const dataAss = new Date().toLocaleString('pt-PT');
+    const blocoAssinatura = `
+      <div style="margin-top:60pt;padding-top:20pt;border-top:1.5px solid #c8922a">
+        <h2 style="font-size:14pt;color:#c8922a;margin-bottom:14pt">Assinatura Digital</h2>
+        <div style="display:flex;gap:40pt;align-items:flex-end;margin-top:24pt">
+          <div style="flex:1">
+            <div style="font-size:9pt;color:#666;margin-bottom:4pt;text-transform:uppercase;letter-spacing:.5pt">Motorista</div>
+            <img src="${assinaturaPNG}" style="max-width:280px;max-height:80px;display:block;margin-bottom:8pt">
+            <div style="border-top:1px solid #000;padding-top:4pt;font-size:10pt;font-weight:bold">${contrato.motoristas?.nome || '—'}</div>
+            <div style="font-size:9pt;color:#666;margin-top:2pt">Assinado digitalmente em ${dataAss}</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:9pt;color:#666;margin-bottom:4pt;text-transform:uppercase;letter-spacing:.5pt">Operador</div>
+            <div style="height:80px"></div>
+            <div style="border-top:1px solid #000;padding-top:4pt;font-size:10pt;font-weight:bold">${contrato.empresas?.nome || 'FleetPay'}</div>
+            <div style="font-size:9pt;color:#666;margin-top:2pt">NIPC ${contrato.empresas?.nipc || '—'}</div>
+          </div>
+        </div>
+        <div style="margin-top:30pt;padding:12pt;background:#f8f5ee;border-left:3px solid #c8922a;font-size:9pt;color:#444;line-height:1.5">
+          <div style="font-weight:bold;margin-bottom:4pt;color:#000">Evidências da assinatura digital</div>
+          Esta assinatura foi capturada através da plataforma FleetPay.
+          Token de verificação: <code style="font-family:monospace;font-size:8pt">${TOKEN.substring(0,8)}...${TOKEN.substring(TOKEN.length-8)}</code><br>
+          Data/hora: ${dataAss} · IP guardado para auditoria.
+        </div>
+      </div>
+    `;
+    docEl.insertAdjacentHTML('beforeend', blocoAssinatura);
+
+    // Gerar PDF do documento
+    const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(contrato.motoristas?.nome||'motorista').split(' ')[0]}_assinado.pdf`;
+    const pdfWorker = html2pdf().set({
+      margin: [10, 10, 15, 10],
+      filename: fname,
+      image: { type:'jpeg', quality: 0.92 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit:'mm', format:'a4', orientation:'portrait', compress:true },
+      pagebreak: { mode:['avoid-all','css','legacy'] }
+    }).from(docEl);
+
+    pdfBlob = await pdfWorker.outputPdf('blob');
+
+    // Upload PDF ao Storage
+    const path = `${contrato.empresa_id}/${contrato.id}.pdf`;
+    const { error: upErr } = await db.storage.from('contratos-assinados').upload(path, pdfBlob, {
+      contentType: 'application/pdf', upsert: true
+    });
+    if (upErr) throw upErr;
+
+    // Update registo: assinado + ficheiro_path + assinatura PNG + IP/UA
+    const { error: updErr } = await db.from('contratos_assinados').update({
+      estado: 'assinado',
+      assinado_em: new Date().toISOString(),
+      ficheiro_path: path,
+      assinatura_png: assinaturaPNG,
+      user_agent_assinatura: navigator.userAgent
+    }).eq('link_token', TOKEN);
+    if (updErr) throw updErr;
+
+    mostrarSucesso(fname);
+
+  } catch (e) {
+    console.error('Confirmar assinatura:', e);
+    btn.disabled = false; btn.textContent = '✓ Confirmar Assinatura';
+    document.getElementById('assinar-panel').style.display = 'block';
+    alert('Erro ao registar assinatura: ' + (e.message || 'tenta de novo'));
+  }
+}
+
+// ── Estados ──
+function mostrarErro(titulo, sub) {
+  document.getElementById('wrap').innerHTML = `
+    <div class="estado-card">
+      <div class="estado-icon">⚠️</div>
+      <div class="estado-titulo">${titulo}</div>
+      <div class="estado-sub">${sub}</div>
+    </div>
+  `;
+}
+
+function mostrarJaAssinado() {
+  document.getElementById('wrap').innerHTML = `
+    <div class="estado-card">
+      <div class="estado-icon">✅</div>
+      <div class="estado-titulo">Já está assinado</div>
+      <div class="estado-sub">Este contrato já foi assinado em ${contrato.assinado_em ? new Date(contrato.assinado_em).toLocaleString('pt-PT') : 'data anterior'}.</div>
+      ${contrato.ficheiro_path ? `<button class="btn-download" style="margin-top:24px" onclick="downloadPDF()">📥 Descarregar PDF assinado</button>` : ''}
+    </div>
+  `;
+}
+
+function mostrarSucesso(fname) {
+  document.getElementById('wrap').innerHTML = `
+    <div class="sucesso">
+      <div class="sucesso-icon">✅</div>
+      <div class="sucesso-titulo">Contrato assinado!</div>
+      <div class="sucesso-sub">
+        Obrigado, <strong>${contrato.motoristas?.nome || ''}</strong>.<br>
+        O contrato foi arquivado e enviado para o operador.<br>
+        Podes descarregar uma cópia abaixo.
+      </div>
+      <div class="sucesso-actions">
+        <button class="btn-download" onclick="downloadPDFLocal()">📥 Descarregar PDF</button>
+      </div>
+    </div>
+  `;
+}
+
+async function downloadPDF() {
+  if (!contrato?.ficheiro_path) return;
+  const { data, error } = await db.storage.from('contratos-assinados').download(contrato.ficheiro_path);
+  if (error) { alert('Erro: ' + error.message); return; }
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${contrato.template_nome||'contrato'}_assinado.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPDFLocal() {
+  if (!pdfBlob) return;
+  const url = URL.createObjectURL(pdfBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${contrato.template_nome||'contrato'}_${(contrato.motoristas?.nome||'motorista').split(' ')[0]}_assinado.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+init();
+</script>
+</body>
+</html>

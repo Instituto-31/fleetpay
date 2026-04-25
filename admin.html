@@ -1913,9 +1913,10 @@ function renderGerarContrato() {
             </div>
           </div>
           <div id="cont-form-fields" style="padding:20px"></div>
-          <div style="padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end">
+          <div style="padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
             <button class="btn btn-ghost" onclick="document.getElementById('cont-placeholders-wrap').style.display='none'">Cancelar</button>
-            <button class="btn btn-gold" onclick="downloadContrato()">⬇️ Download .docx</button>
+            <button class="btn btn-ghost" onclick="downloadContrato()">⬇️ Apenas .docx</button>
+            <button class="btn btn-gold" onclick="enviarParaAssinatura()">🖊️ Enviar para assinatura</button>
           </div>
         </div>
       </div>
@@ -2008,6 +2009,85 @@ function atualizarFormPlaceholders() {
 
   document.getElementById('cont-form-fields').innerHTML = fields;
   wrap.style.display = 'block';
+}
+
+async function enviarParaAssinatura() {
+  const tplId = document.getElementById('cont-template').value;
+  const motId = document.getElementById('cont-motorista').value;
+  const tpl = contratosTemplates.find(t => t.id === tplId);
+  const mot = motoristas.find(m => m.id === motId);
+  if (!tpl || !mot) { toast('Selecionar motorista e template','error'); return; }
+  if (!mot.email) { toast('Motorista sem email — preenche em Motoristas → Editar','error'); return; }
+
+  // Recolher valores do form
+  const valores = {};
+  document.querySelectorAll('#cont-form-fields input[data-ph]').forEach(inp => {
+    valores[inp.dataset.ph] = inp.value;
+  });
+
+  toast('A criar link de assinatura...');
+  try {
+    // Gerar token UUID v4
+    const token = (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0; const v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16);
+    }));
+
+    // Inserir registo
+    const { data: rec, error } = await db.from('contratos_assinados').insert({
+      empresa_id: empresa.id,
+      motorista_id: motId,
+      template_id: tplId,
+      template_nome: tpl.nome,
+      estado: 'enviado_assinatura',
+      dados_substituidos: valores,
+      link_token: token,
+      enviado_em: new Date().toISOString()
+    }).select().single();
+    if (error) throw error;
+
+    // Construir URL de assinatura
+    const urlAssinar = new URL('assinar.html', window.location.href).href + '?t=' + token;
+
+    // Mostrar modal com link + opções de envio
+    const wa = (mot.whatsapp || '').replace(/\D/g,'');
+    const msgWA = encodeURIComponent(`Olá ${mot.nome.split(' ')[0]}! 👋\n\nEnviamos-te o contrato "${tpl.nome}" para assinares.\n\n👉 ${urlAssinar}\n\nAbre no telemóvel e assina com o dedo. Demora 1 minuto.\n\n${empresa.nome || 'FleetPay'}`);
+    const msgEmail = encodeURIComponent(`Olá ${mot.nome.split(' ')[0]},\n\nSegue o link para assinares o contrato "${tpl.nome}":\n\n${urlAssinar}\n\nPodes abrir no telemóvel ou no PC e assinar com o dedo/rato. Demora menos de 1 minuto.\n\nQualquer questão estamos disponíveis.\n\nCom os melhores cumprimentos,\n${empresa.nome || 'FleetPay'}`);
+    const subjEmail = encodeURIComponent(`Contrato para assinatura — ${tpl.nome}`);
+
+    openModal(`Link de assinatura gerado`, `
+      <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Envia este link ao motorista <strong>${mot.nome}</strong>. Ele abre, vê o contrato e assina com o dedo no telemóvel.</p>
+
+      <div class="field"><label>Link único de assinatura</label>
+        <div style="display:flex;gap:8px">
+          <input id="link-assinar" value="${urlAssinar}" readonly style="font-family:var(--mono);font-size:11px">
+          <button class="btn btn-ghost btn-sm" onclick="copiarLinkAssinar()" style="white-space:nowrap">📋 Copiar</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:14px">
+        ${wa ? `<a href="https://wa.me/${wa}?text=${msgWA}" target="_blank" class="btn btn-gold" style="flex:1;text-align:center;text-decoration:none">💬 Enviar por WhatsApp</a>` : ''}
+        <a href="mailto:${mot.email}?subject=${subjEmail}&body=${msgEmail}" class="btn btn-ghost" style="flex:1;text-align:center;text-decoration:none">✉️ Enviar por Email</a>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:4px;font-size:11px;color:var(--sub2);line-height:1.6">
+        <strong style="color:var(--paper)">⚠️ Nota:</strong> O link é único e secreto. Quando o motorista assinar, o contrato fica arquivado em <strong>Histórico</strong> e visível no perfil dele.
+      </div>
+    `, `
+      <button class="btn btn-ghost" onclick="closeModal(); document.getElementById('cont-placeholders-wrap').style.display='none'">Fechar</button>
+    `);
+
+    // Refresh histórico em background
+    carregarContratosAssinados();
+  } catch (e) {
+    console.error('Enviar assinatura:', e);
+    toast('Erro: ' + (e.message || 'desconhecido'),'error');
+  }
+}
+
+function copiarLinkAssinar() {
+  const inp = document.getElementById('link-assinar');
+  inp.select();
+  navigator.clipboard.writeText(inp.value).then(() => toast('✅ Link copiado'));
 }
 
 async function downloadContrato() {
