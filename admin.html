@@ -645,7 +645,7 @@ body.theme-default-dark { /* já é o root, sem override */ }
           <span class="nav-icon">📂</span> Carregar CSV
         </button>
         <button class="nav-item" onclick="showPage('prio')">
-          <span class="nav-icon">⚡</span> PRIO
+          <span class="nav-icon">⛽</span> Combustível
         </button>
         <button class="nav-item" onclick="showPage('viaverde')">
           <span class="nav-icon">🛣️</span> Via Verde
@@ -2447,58 +2447,332 @@ async function guardarVeiculo(id) {
 }
 
 // ── PRIO ──
-function renderPrio() {
-  document.getElementById('topbar-actions').innerHTML = '';
+// ═════════════════════════════════════
+// ── COMBUSTÍVEL: importador universal ──
+// ═════════════════════════════════════
+let csvMappings = [];
+let cargasSemanaAtual = [];
+
+const FORNECEDORES_PRESET = {
+  prio:    { nome:'PRIO',          icon:'⛽', cor:'#e8943a' },
+  galp:    { nome:'Galp Frota',    icon:'⛽', cor:'#FF6B00' },
+  bp:      { nome:'BP Plus',       icon:'⛽', cor:'#1B7A3A' },
+  repsol:  { nome:'Repsol',        icon:'⛽', cor:'#FF6600' },
+  cepsa:   { nome:'Cepsa',         icon:'⛽', cor:'#0033A0' },
+  mobie:   { nome:'MOBI.E',        icon:'⚡', cor:'#00B189' },
+  edp:     { nome:'EDP',           icon:'⚡', cor:'#00A859' },
+  outro:   { nome:'Outro cartão',  icon:'💳', cor:'#888' }
+};
+
+async function renderPrio() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="modalGerirMappings()">⚙️ Mappings</button>
+  `;
+  await carregarMappingsCSV();
   document.getElementById('content').innerHTML = `
     <div class="table-wrap" style="margin-bottom:24px">
-      <div class="table-header"><div class="table-title">⚡ Carregar CSV PRIO</div></div>
-      <div style="padding:20px">
-        <div class="upload-zone" onclick="document.getElementById('prio-file').click()">
-          <input type="file" id="prio-file" accept=".csv" onchange="processPrio(this.files[0])">
-          <div class="upload-icon">⚡</div>
-          <div class="upload-title">Arrasta o CSV da PRIO</div>
-          <div class="upload-sub">Transações_Detalhadas.csv</div>
+      <div class="table-header">
+        <div>
+          <div class="table-title">⛽ Carregar combustível / energia</div>
+          <div class="table-sub">Suporta qualquer cartão (PRIO, Galp, BP, Repsol, MOBI.E, etc.). Sistema deteta automaticamente se já carregaste antes.</div>
         </div>
-        <div id="prio-preview" style="margin-top:16px"></div>
+      </div>
+      <div style="padding:20px">
+        <div class="upload-zone" onclick="document.getElementById('comb-file').click()" id="comb-zone">
+          <input type="file" id="comb-file" accept=".csv,.txt" style="display:none" onchange="processarUploadCombustivel(this.files[0])">
+          <div class="upload-icon">⛽</div>
+          <div class="upload-title">Arrasta CSV ou clica para escolher</div>
+          <div class="upload-sub">PRIO · Galp · BP · Repsol · Cepsa · MOBI.E · EDP · Outro</div>
+        </div>
+        <div id="comb-preview" style="margin-top:16px"></div>
       </div>
     </div>
-    <div class="table-wrap" id="prio-resumo-wrap"></div>
+    <div class="table-wrap" id="comb-resumo-wrap"></div>
   `;
-  carregarResumoPrio();
+  carregarResumoCombustivel();
 }
 
-async function carregarResumoPrio() {
+async function carregarMappingsCSV() {
+  const { data } = await db.from('csv_mapeamentos').select('*').eq('empresa_id', empresa.id).eq('ativo', true);
+  csvMappings = data || [];
+}
+
+async function carregarResumoCombustivel() {
   const { data } = await db.from('prio_carregamentos').select('*, motoristas(nome)').eq('empresa_id',empresa.id).eq('semana_inicio',semanaAtual).order('data');
-  const wrap = document.getElementById('prio-resumo-wrap');
+  cargasSemanaAtual = data || [];
+  const wrap = document.getElementById('comb-resumo-wrap');
   if (!wrap) return;
-  if (!data?.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚡</div><div class="empty-state-text">Sem carregamentos esta semana</div></div>'; return; }
+  if (!cargasSemanaAtual.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⛽</div><div class="empty-state-text">Sem carregamentos esta semana</div></div>';
+    return;
+  }
+  // Agrupar por motorista E por fornecedor
   const byMot = {};
-  data.forEach(r => { const n = r.motoristas?.nome||r.matricula; if(!byMot[n]) byMot[n]={nome:n,total:0,count:0}; byMot[n].total+=r.valor; byMot[n].count++; });
-  wrap.innerHTML = `<div class="table-header"><div class="table-title">Resumo PRIO — ${semanaLabel(semanaAtual)}</div></div><div style="padding:16px">${Object.values(byMot).map(x=>`<div class="matricula-card"><div><div class="matricula-label">${x.nome}</div><div class="matricula-motorista">${x.count} carregamentos</div></div><div class="matricula-valor">${fmt(x.total)}</div></div>`).join('')}</div>`;
+  cargasSemanaAtual.forEach(r => {
+    const n = r.motoristas?.nome||r.matricula;
+    if(!byMot[n]) byMot[n]={nome:n,fornecedores:{},total:0,count:0};
+    byMot[n].total+=Number(r.valor)||0;
+    byMot[n].count++;
+    const f = r.fornecedor||'prio';
+    byMot[n].fornecedores[f] = (byMot[n].fornecedores[f]||0) + (Number(r.valor)||0);
+  });
+  const totalGeral = cargasSemanaAtual.reduce((s,r) => s+(Number(r.valor)||0), 0);
+  wrap.innerHTML = `
+    <div class="table-header">
+      <div>
+        <div class="table-title">Resumo — ${semanaLabel(semanaAtual)}</div>
+        <div class="table-sub">${cargasSemanaAtual.length} carregamentos · <strong style="color:var(--gold)">${fmt(totalGeral)}</strong> total</div>
+      </div>
+    </div>
+    <div style="padding:16px">
+      ${Object.values(byMot).map(x => {
+        const tags = Object.entries(x.fornecedores).map(([f,v]) => {
+          const p = FORNECEDORES_PRESET[f] || { nome:f, icon:'💳' };
+          return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:100px;font-size:10px;font-family:var(--mono);margin-right:4px">${p.icon} ${p.nome} ${fmt(v)}</span>`;
+        }).join('');
+        return `<div class="matricula-card">
+          <div style="flex:1">
+            <div class="matricula-label">${x.nome}</div>
+            <div class="matricula-motorista">${x.count} carregamentos · ${tags}</div>
+          </div>
+          <div class="matricula-valor">${fmt(x.total)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
 }
 
-function processPrio(file) {
+// === Upload + processamento ===
+async function processarUploadCombustivel(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async e => {
-    const rows = parseCSV(e.target.result);
-    const carregamentos = [];
-    rows.forEach(r => {
-      const matricula = r['matrícula'] || r['matricula'] || r['plate'] || r['viatura'] || '';
-      const valor = parseFloat(r['valor'] || r['amount'] || r['montante'] || 0);
-      const data = r['data'] || r['date'] || '';
-      if (!matricula || !valor) return;
-      const veiculo = veiculos.find(v=>v.matricula.replace('-','').toUpperCase()===matricula.replace('-','').toUpperCase());
-      carregamentos.push({ empresa_id:empresa.id, motorista_id:veiculo?.motorista_id||null, matricula, data:data||new Date().toISOString().split('T')[0], valor, semana_inicio:semanaAtual });
-    });
-    if (!carregamentos.length) { toast('Nenhum carregamento encontrado','error'); return; }
-    const { error } = await db.from('prio_carregamentos').insert(carregamentos);
-    if (error) { toast('Erro ao guardar PRIO','error'); return; }
-    toast(`⚡ ${carregamentos.length} carregamentos importados!`);
-    carregarResumoPrio();
+    const text = e.target.result;
+    // Detectar separador
+    const firstLine = text.split('\n')[0];
+    const sep = firstLine.includes(';') ? ';' : ',';
+    const linhas = text.split(/\r?\n/).filter(l => l.trim());
+    if (!linhas.length) { toast('Ficheiro vazio','error'); return; }
+
+    const header = linhas[0];
+    const colunas = header.split(sep).map(c => c.trim().replace(/^"|"$/g,''));
+    const dados = linhas.slice(1, 6).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g,'')));
+
+    // Tentar match com mapping existente
+    const mappingExistente = csvMappings.find(m =>
+      m.exemplo_header && m.exemplo_header.replace(/\s/g,'') === header.replace(/\s/g,'')
+    );
+
+    if (mappingExistente) {
+      // Auto-aplicar
+      toast(`✅ Detectado: ${mappingExistente.nome}. A processar...`);
+      await aplicarMappingCsv(text, mappingExistente, sep);
+    } else {
+      // Mostrar UI de mapping manual
+      mostrarMappingManual(text, header, colunas, dados, sep);
+    }
   };
-  reader.readAsText(file, 'latin1');
+  reader.readAsText(file, 'utf-8');
 }
+
+function mostrarMappingManual(textoCompleto, header, colunas, dados, sep) {
+  const tabelaPreview = `
+    <div style="overflow-x:auto;margin-top:14px">
+      <table style="font-size:11px;font-family:var(--mono);border-collapse:collapse;width:100%">
+        <thead><tr>${colunas.map((c,i) => `<th style="padding:6px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--line);text-align:left">${i+1}. ${c}</th>`).join('')}</tr></thead>
+        <tbody>${dados.map(d => `<tr>${d.map(v => `<td style="padding:5px 10px;border:1px solid var(--line);color:var(--sub2)">${v}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+
+  const presetOpts = Object.entries(FORNECEDORES_PRESET).map(([k,v]) => `<option value="${k}">${v.icon} ${v.nome}</option>`).join('');
+  const colOpts = '<option value="">— Não usar —</option>' + colunas.map((c,i) => `<option value="${i}">${i+1}. ${c}</option>`).join('');
+
+  // Auto-sugerir mapeamento baseado em palavras-chave
+  const sug = (palavras) => {
+    for (let i=0; i<colunas.length; i++) {
+      const c = colunas[i].toLowerCase();
+      if (palavras.some(p => c.includes(p))) return i;
+    }
+    return '';
+  };
+  const sMatricula = sug(['matr','plate','vehicle','viatura','plac']);
+  const sData = sug(['data','date']);
+  const sLitros = sug(['litro','quant','liter','volume','kwh','energia']);
+  const sValor = sug(['total','valor','amount','montante','gross']);
+  const sEstacao = sug(['estac','station','site','posto','local']);
+  const sCombustivel = sug(['combust','product','fuel','tipo']);
+
+  openModal('🗂️ Mapear colunas do CSV', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Detectámos ${dados.length} linhas de exemplo. Indica que coluna corresponde a cada campo. <strong style="color:var(--paper)">Vai ficar memorizado</strong> para próximas importações deste cartão.</p>
+
+    <div class="field-row">
+      <div class="field"><label>Cartão / Fornecedor</label>
+        <select id="map-fornecedor">${presetOpts}</select>
+      </div>
+      <div class="field"><label>Nome (para memorizar)</label>
+        <input id="map-nome" placeholder="Ex: Galp Frota Empresa X">
+      </div>
+    </div>
+
+    ${tabelaPreview}
+
+    <div style="margin-top:16px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Mapeamento de colunas</div>
+      <div class="field-row">
+        <div class="field"><label>Matrícula *</label><select id="map-col-matricula" required>${colOpts.replace(`value="${sMatricula}"`, `value="${sMatricula}" selected`)}</select></div>
+        <div class="field"><label>Data *</label><select id="map-col-data" required>${colOpts.replace(`value="${sData}"`, `value="${sData}" selected`)}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Valor total (€) *</label><select id="map-col-valor" required>${colOpts.replace(`value="${sValor}"`, `value="${sValor}" selected`)}</select></div>
+        <div class="field"><label>Litros / kWh</label><select id="map-col-litros">${colOpts.replace(`value="${sLitros}"`, `value="${sLitros}" selected`)}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Estação / Local</label><select id="map-col-estacao">${colOpts.replace(`value="${sEstacao}"`, `value="${sEstacao}" selected`)}</select></div>
+        <div class="field"><label>Tipo combustível</label><select id="map-col-combustivel">${colOpts.replace(`value="${sCombustivel}"`, `value="${sCombustivel}" selected`)}</select></div>
+      </div>
+      <div class="field"><label>Formato da data</label>
+        <select id="map-data-fmt">
+          <option value="DD/MM/YYYY">DD/MM/YYYY (PT)</option>
+          <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
+          <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+          <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
+        </select>
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="confirmarMappingCsv()" data-texto-completo="0">💾 Memorizar e importar</button>
+  `);
+
+  // Guardar texto do CSV no DOM (escapado)
+  const btnConfirmar = document.querySelector('[data-texto-completo]');
+  window._csvTextoTemporario = textoCompleto;
+  window._csvSepTemporario = sep;
+  window._csvHeaderTemporario = header;
+}
+
+async function confirmarMappingCsv() {
+  const fornecedor_slug = document.getElementById('map-fornecedor').value;
+  const nome = document.getElementById('map-nome').value.trim() || FORNECEDORES_PRESET[fornecedor_slug]?.nome || 'Custom';
+  const colMatricula = document.getElementById('map-col-matricula').value;
+  const colData = document.getElementById('map-col-data').value;
+  const colValor = document.getElementById('map-col-valor').value;
+  const colLitros = document.getElementById('map-col-litros').value;
+  const colEstacao = document.getElementById('map-col-estacao').value;
+  const colCombustivel = document.getElementById('map-col-combustivel').value;
+  const fmtData = document.getElementById('map-data-fmt').value;
+
+  if (colMatricula==='' || colData==='' || colValor==='') {
+    toast('Matrícula, data e valor são obrigatórios','error'); return;
+  }
+
+  const mapping = {
+    matricula: parseInt(colMatricula),
+    data: parseInt(colData),
+    valor: parseInt(colValor),
+    litros: colLitros !== '' ? parseInt(colLitros) : null,
+    estacao: colEstacao !== '' ? parseInt(colEstacao) : null,
+    combustivel: colCombustivel !== '' ? parseInt(colCombustivel) : null
+  };
+
+  // Memorizar
+  const { data: novoMapping, error: mErr } = await db.from('csv_mapeamentos').upsert({
+    empresa_id: empresa.id,
+    nome, fornecedor_slug, tipo: 'combustivel',
+    mapping, separador: window._csvSepTemporario,
+    formato_data: fmtData,
+    exemplo_header: window._csvHeaderTemporario, ativo: true
+  }, { onConflict: 'empresa_id,nome' }).select().single();
+
+  if (mErr) { toast('Erro a memorizar mapping: '+mErr.message,'error'); return; }
+
+  closeModal();
+  await aplicarMappingCsv(window._csvTextoTemporario, novoMapping, window._csvSepTemporario);
+  await carregarMappingsCSV();
+}
+
+async function aplicarMappingCsv(texto, mapping, sep) {
+  const linhas = texto.split(/\r?\n/).filter(l => l.trim());
+  const dados = linhas.slice(1).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g,'')));
+
+  const carregamentos = [];
+  const fmtData = mapping.formato_data || 'DD/MM/YYYY';
+  const m = mapping.mapping || mapping;  // pode vir do db (.mapping) ou direto
+
+  dados.forEach(linha => {
+    const matricula = (linha[m.matricula]||'').replace(/[\s-]/g,'').toUpperCase();
+    const dataRaw = linha[m.data]||'';
+    const valor = parseFloat((linha[m.valor]||'').replace(',','.').replace(/[^\d.-]/g,''));
+    if (!matricula || !valor || valor <= 0) return;
+
+    // Parse data
+    let data = '';
+    try {
+      if (fmtData === 'DD/MM/YYYY' || fmtData === 'DD-MM-YYYY') {
+        const partes = dataRaw.split(/[\/\- ]/);
+        if (partes.length >= 3) data = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+      } else if (fmtData === 'YYYY-MM-DD') {
+        data = dataRaw.substring(0,10);
+      } else if (fmtData === 'MM/DD/YYYY') {
+        const partes = dataRaw.split(/[\/\- ]/);
+        if (partes.length >= 3) data = `${partes[2].substring(0,4)}-${partes[0].padStart(2,'0')}-${partes[1].padStart(2,'0')}`;
+      }
+    } catch(e) {}
+    if (!data) data = new Date().toISOString().split('T')[0];
+
+    const veiculo = veiculos.find(v => v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
+    carregamentos.push({
+      empresa_id: empresa.id,
+      motorista_id: veiculo?.motorista_id || null,
+      matricula,
+      data,
+      valor,
+      semana_inicio: semanaAtual,
+      fornecedor: mapping.fornecedor_slug || 'outro',
+      litros: m.litros !== null && m.litros !== undefined ? parseFloat((linha[m.litros]||'').replace(',','.')) || null : null,
+      estacao: m.estacao !== null && m.estacao !== undefined ? linha[m.estacao] || null : null,
+      combustivel: m.combustivel !== null && m.combustivel !== undefined ? linha[m.combustivel] || null : null
+    });
+  });
+
+  if (!carregamentos.length) { toast('Nenhum carregamento válido encontrado','error'); return; }
+
+  const { error } = await db.from('prio_carregamentos').insert(carregamentos);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  toast(`✅ ${carregamentos.length} carregamentos importados (${mapping.nome})`);
+  await carregarResumoCombustivel();
+}
+
+async function modalGerirMappings() {
+  if (!csvMappings.length) {
+    toast('Sem mappings memorizados ainda. Faz primeiro um upload.','error'); return;
+  }
+  openModal('⚙️ Mappings memorizados', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">${csvMappings.length} mapping(s) memorizado(s). Eliminar um obriga a re-mapear no próximo upload.</p>
+    ${csvMappings.map(m => `
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
+        <span style="font-size:18px">${FORNECEDORES_PRESET[m.fornecedor_slug]?.icon || '💳'}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--paper);font-weight:500">${m.nome}</div>
+          <div style="font-size:10px;color:var(--sub2);font-family:var(--mono)">${(m.exemplo_header||'').substring(0,80)}…</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick='if(confirm("Eliminar mapping ${m.nome}?"))eliminarMapping("${m.id}")'>🗑️</button>
+      </div>
+    `).join('')}
+  `, `<button class="btn btn-ghost" onclick="closeModal()">Fechar</button>`);
+}
+
+async function eliminarMapping(id) {
+  await db.from('csv_mapeamentos').delete().eq('id', id);
+  await carregarMappingsCSV();
+  closeModal();
+  toast('✅ Mapping eliminado');
+}
+
+// Compat com pagamentos.html (aplicarPrioViaVerde) — mantém parser legacy mínimo
+function processPrio(file) { return processarUploadCombustivel(file); }
+async function carregarResumoPrio() { return carregarResumoCombustivel(); }
 
 // ── VIA VERDE ──
 function renderViaVerde() {
