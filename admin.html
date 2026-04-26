@@ -413,6 +413,36 @@ body.theme-warm .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
 body.theme-warm .btn-ghost { color:var(--sub2); border-color:var(--line); }
 body.theme-warm .btn-ghost:hover { color:var(--paper); }
 
+/* ─── COMUNS aos temas claros: alertas e badges ─── */
+body.light .alerta-exp,body.theme-warm .alerta-exp { background:rgba(184,84,80,0.10); }
+body.light .alerta-aviso,body.theme-warm .alerta-aviso { background:rgba(196,150,90,0.12); }
+body.light .badge-green,body.theme-sage .badge-green,body.theme-warm .badge-green { background:rgba(90,138,79,0.15); }
+body.light .badge-orange,body.theme-sage .badge-orange,body.theme-warm .badge-orange { background:rgba(196,150,90,0.18); }
+body.light .badge-red,body.theme-sage .badge-red,body.theme-warm .badge-red { background:rgba(184,84,80,0.15); }
+body.light .btn-danger,body.theme-sage .btn-danger,body.theme-warm .btn-danger { background:rgba(184,84,80,0.10); }
+
+/* ─── COMUNS aos temas pro escuros (tech-pro + forest): cobertura uniforme ─── */
+body.theme-tech-pro .alerta-exp,body.theme-forest .alerta-exp { background:rgba(248,81,73,0.10); }
+body.theme-tech-pro .alerta-aviso,body.theme-forest .alerta-aviso { background:rgba(210,153,34,0.10); }
+body.theme-tech-pro .badge-green,body.theme-forest .badge-green { background:rgba(63,185,80,0.12); }
+body.theme-tech-pro .badge-orange,body.theme-forest .badge-orange { background:rgba(210,153,34,0.14); }
+body.theme-tech-pro .badge-red,body.theme-forest .badge-red { background:rgba(248,81,73,0.12); }
+body.theme-tech-pro .btn-danger,body.theme-forest .btn-danger { background:rgba(248,81,73,0.10); }
+body.theme-tech-pro .toast-success,body.theme-forest .toast-success { background:#1a3d1f; }
+body.theme-tech-pro .toast-error,body.theme-forest .toast-error { background:#3d1a1a; }
+
+/* Fix: garantir que badges em temas claros não têm cor de fundo escura herdada */
+body.light .badge-green,body.theme-sage .badge-green,body.theme-warm .badge-green,body.light .badge-orange,body.theme-sage .badge-orange,body.theme-warm .badge-orange,body.light .badge-red,body.theme-sage .badge-red,body.theme-warm .badge-red { color:inherit }
+
+/* Botões btn-ghost em todos os temas pro escuros */
+body.theme-tech-pro .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-tech-pro .btn-ghost:hover { color:var(--paper) }
+body.theme-forest .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-forest .btn-ghost:hover { color:var(--paper) }
+
+/* Modal nos temas pro */
+body.theme-tech-pro .modal-overlay,body.theme-forest .modal-overlay,body.theme-warm .modal-overlay { backdrop-filter:blur(6px) }
+
 </style>
 </head>
 <body>
@@ -2428,7 +2458,7 @@ function renderConfig() {
               const podeUsar = themes.canUse(t.id);
               const ativo = t.id===atual;
               return `
-                <button onclick="${podeUsar ? `themes.apply('${t.id}'); renderConfig()` : `mostrarUpgradeTema('${t.id}','${t.label}')`}"
+                <button onclick='${podeUsar ? `themes.apply(${JSON.stringify(t.id)}); renderConfig()` : `mostrarUpgradeTema(${JSON.stringify(t.id)}, ${JSON.stringify(t.label)})`}'
                   style="text-align:left;padding:14px 16px;background:transparent;border:1px solid ${ativo?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:14px;transition:border-color .2s;opacity:${podeUsar?'1':'.65'}">
                   <span style="font-size:22px">${t.icon}</span>
                   <span style="flex:1">
