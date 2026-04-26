@@ -226,6 +226,10 @@ const themes = {
     const p = plano || window.fleetpayPlano || 'free';
     return p === 'pro' || p === 'enterprise';
   },
+  // Classificação por luminosidade (para toggle inteligente)
+  escuros: ['default','tech-pro','forest'],
+  claros: ['sage','light','warm'],
+  isDark(id) { return this.escuros.includes(id); },
   apply(id) {
     // Valida tier — se não pode, força default
     if (!this.canUse(id)) id = 'default';
@@ -236,15 +240,24 @@ const themes = {
     else if (id === 'forest')   document.body.classList.add('theme-forest');
     else if (id === 'warm')     document.body.classList.add('theme-warm');
     localStorage.setItem('fleetpay-theme', id);
+    // Memorizar último escuro / último claro (para o toggle do header)
+    if (this.isDark(id)) localStorage.setItem('fleetpay-last-dark', id);
+    else                 localStorage.setItem('fleetpay-last-light', id);
     // Atualizar ícone do botão de tema
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
   },
   cycle() {
-    // Toggle simples dark ↔ light (UX rápida no header).
-    // Tema completo escolhe-se em Configurações → Aparência.
+    // Toggle inteligente: alterna entre o último tema escuro e o último tema claro
+    // que o utilizador escolheu. Se nunca escolheu, fallback default↔sage.
     const cur = this.current();
-    const next = (cur === 'light') ? 'default' : 'light';
+    let next;
+    if (this.isDark(cur)) {
+      next = localStorage.getItem('fleetpay-last-light') || 'sage';
+    } else {
+      next = localStorage.getItem('fleetpay-last-dark') || 'default';
+    }
+    if (!this.canUse(next)) next = this.isDark(cur) ? 'sage' : 'default';
     this.apply(next);
     return next;
   },
