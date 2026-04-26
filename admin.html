@@ -2894,8 +2894,12 @@ function renderChecklistTab() {
 
 function renderChecklistRow(it) {
   return `
-    <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)">
-      <span style="font-family:var(--mono);font-size:10px;color:var(--sub);width:24px">${it.ordem}</span>
+    <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:9px" onclick='moverItemChecklist(${JSON.stringify(it.id)},-1)' title="Mover para cima">▲</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:9px" onclick='moverItemChecklist(${JSON.stringify(it.id)},1)' title="Mover para baixo">▼</button>
+      </div>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--sub);width:24px;text-align:center">${it.ordem}</span>
       <div style="flex:1">
         <div style="font-size:12px;color:var(--paper);font-weight:500">${it.label}${!it.ativo?' <span style=\"color:var(--orange);font-size:10px\">(inativo)</span>':''}</div>
         ${it.descricao ? `<div style="font-size:10px;color:var(--sub2);margin-top:2px">${it.descricao}</div>` : ''}
@@ -2906,8 +2910,30 @@ function renderChecklistRow(it) {
   `;
 }
 
+async function moverItemChecklist(id, direcao) {
+  const it = checklistItems.find(x => x.id === id);
+  if (!it) return;
+  // Encontrar items da mesma categoria, ordenados
+  const mesmaCategoria = checklistItems.filter(x => x.categoria === it.categoria).sort((a,b) => a.ordem - b.ordem);
+  const idx = mesmaCategoria.findIndex(x => x.id === id);
+  const novoIdx = idx + direcao;
+  if (novoIdx < 0 || novoIdx >= mesmaCategoria.length) return;
+  const vizinho = mesmaCategoria[novoIdx];
+  // Trocar ordens
+  await db.from('checklist_items_config').update({ ordem: vizinho.ordem }).eq('id', it.id);
+  await db.from('checklist_items_config').update({ ordem: it.ordem }).eq('id', vizinho.id);
+  await carregarChecklistConfig();
+  renderComplianceTab();
+}
+
 function modalItemChecklist(id = null) {
-  const it = id ? checklistItems.find(x => x.id === id) : { categoria: 'documento', ordem: (checklistItems.length+1)*10 };
+  // Auto-ordem: próximo número após o último da categoria default
+  const proxOrdemCategoria = (cat) => {
+    const itensCat = checklistItems.filter(x => x.categoria === cat);
+    if (!itensCat.length) return cat === 'documento' ? 1 : 20;
+    return Math.max(...itensCat.map(x => x.ordem)) + 1;
+  };
+  const it = id ? checklistItems.find(x => x.id === id) : { categoria: 'documento', ordem: proxOrdemCategoria('documento') };
   openModal(id ? 'Editar item' : 'Novo item', `
     <div class="field-row">
       <div class="field"><label>Categoria</label>
