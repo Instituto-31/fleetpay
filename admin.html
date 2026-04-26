@@ -635,6 +635,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('compliance')">
           <span class="nav-icon">📜</span> Compliance
         </button>
+        <button class="nav-item" onclick="showPage('tempos')">
+          <span class="nav-icon">⏱️</span> Tempos
+        </button>
       </div>
       <div class="nav-section">
         <div class="nav-label">Importação</div>
@@ -929,10 +932,279 @@ function showPage(page) {
     config: renderConfig,
     contratos: renderContratos,
     compliance: renderCompliance,
+    tempos: renderTempos,
   };
   // Parar timers de páginas anteriores
   if (page !== 'dashboard') pararLiveTickAdmin();
+  if (page !== 'tempos') pararTemposTickAdmin();
   (pages[page] || (() => {}))();
+}
+
+// ═══════════════════════════════════════════
+// ── PÁGINA DEDICADA: TEMPOS DE CONDUÇÃO ──
+// ═══════════════════════════════════════════
+let temposRegistos = [];          // todos os registos das últimas 2 semanas
+let temposTickInterval = null;
+let temposFiltroData = null;      // null = hoje
+let temposPesquisa = '';
+
+const SEG_8H = 8*3600, SEG_9_5H = 9.5*3600, SEG_10H = 10*3600;
+const SEG_4_5H = 4.5*3600;        // pausa após 4h30
+const SEG_11H = 11*3600;          // descanso diário mínimo
+const SEG_45H = 45*3600;          // descanso semanal mínimo
+
+async function renderTempos() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <input id="tempos-pesquisa" class="search-bar" placeholder="🔍 Procurar motorista..." oninput="aplicarFiltrosTempos(this.value)" value="${temposPesquisa||''}">
+    <button class="btn btn-ghost btn-sm" onclick="exportarTemposCSV()">⬇️ Exportar CSV</button>
+  `;
+
+  await carregarTemposRegistos();
+  pintarTempos();
+  iniciarTemposTickAdmin();
+}
+
+async function carregarTemposRegistos() {
+  // Últimos 14 dias para ter semana atual + anterior
+  const desde = new Date(Date.now() - 14*24*3600*1000).toISOString();
+  const { data, error } = await db.from('registos_conducao')
+    .select('*, motoristas(nome, email)')
+    .eq('empresa_id', empresa.id)
+    .gte('inicio', desde)
+    .order('inicio', { ascending: false });
+  temposRegistos = data || [];
+}
+
+function aplicarFiltrosTempos(q) {
+  temposPesquisa = (q||'').toLowerCase();
+  pintarTempos();
+}
+
+function calcularEstatsMotorista(motoristaId) {
+  const reg = temposRegistos.filter(r => r.motorista_id === motoristaId);
+  const agora = Date.now();
+  const inicioHoje = new Date(); inicioHoje.setHours(0,0,0,0);
+  const fimHoje = new Date(inicioHoje); fimHoje.setDate(fimHoje.getDate()+1);
+  // Semana atual (segunda a domingo)
+  const inicioSem = new Date(inicioHoje);
+  const dia = inicioSem.getDay() || 7;  // 1=seg ... 7=dom
+  inicioSem.setDate(inicioSem.getDate() - (dia-1));
+  const inicioSemAnterior = new Date(inicioSem); inicioSemAnterior.setDate(inicioSemAnterior.getDate()-7);
+
+  let condHoje = 0, condSemana = 0, condSemAnterior = 0;
+  let pausaUltimaCond = null;          // tempo desde fim da última condução
+  let temPausaApos45h = false;         // motorista fez pausa nos últimos 4h30 ou está a iniciar
+  let segDesdeUltimoFim = null;
+  let ultimoFim = null;
+  let estadoAtivo = null;              // registo aberto
+
+  reg.forEach(r => {
+    const ini = new Date(r.inicio).getTime();
+    const fim = r.fim ? new Date(r.fim).getTime() : agora;
+    const dur = (fim - ini) / 1000;
+    if (!r.fim) estadoAtivo = r;
+
+    if (r.tipo === 'conducao') {
+      // Soma à hoje/semana
+      if (ini >= inicioHoje.getTime() && ini < fimHoje.getTime()) condHoje += dur;
+      if (ini >= inicioSem.getTime()) condSemana += dur;
+      else if (ini >= inicioSemAnterior.getTime() && ini < inicioSem.getTime()) condSemAnterior += dur;
+    }
+
+    // Último fim de condução
+    if (r.tipo === 'conducao' && r.fim) {
+      if (!ultimoFim || new Date(r.fim).getTime() > new Date(ultimoFim).getTime()) ultimoFim = r.fim;
+    }
+  });
+
+  if (ultimoFim && !estadoAtivo) {
+    segDesdeUltimoFim = Math.floor((agora - new Date(ultimoFim).getTime())/1000);
+  }
+
+  return {
+    condHoje, condSemana, condSemAnterior,
+    estadoAtivo,
+    segDesdeUltimoFim,
+    cumpreLimite: condHoje < SEG_10H,
+    cumpreDescansoDiario: !ultimoFim || segDesdeUltimoFim === null || segDesdeUltimoFim >= SEG_11H,
+    cumpreDescansoSemanal: condSemana < 56*3600  // máx semana sugerido
+  };
+}
+
+function fmtHM(seg) {
+  if (!seg || seg<0) seg = 0;
+  const h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function corCondHoje(seg) {
+  if (seg >= SEG_10H) return 'var(--red)';
+  if (seg >= SEG_9_5H) return 'var(--orange)';
+  if (seg >= SEG_8H) return '#c8a020';
+  return 'var(--green)';
+}
+
+function pintarTempos() {
+  // Filtrar motoristas pela pesquisa
+  const lista = motoristas.filter(m => {
+    if (!temposPesquisa) return true;
+    return (m.nome||'').toLowerCase().includes(temposPesquisa) || (m.email||'').toLowerCase().includes(temposPesquisa);
+  });
+
+  document.getElementById('content').innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--serif);font-size:24px;font-weight:300;letter-spacing:-.3px">⏱️ Tempos de Condução</div>
+      <div style="font-size:12px;color:var(--sub2);margin-top:4px">Tempos baseados nos limites da Lei TVDE n.º 45/2018 — máx <strong>10h/dia</strong>, descanso diário ≥ 11h. Atualiza ao vivo (30s).</div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+      <div class="kpi">
+        <div class="kpi-label">Em serviço agora</div>
+        <div class="kpi-val">${lista.filter(m => calcularEstatsMotorista(m.id).estadoAtivo).length}</div>
+        <div class="kpi-sub">de ${lista.length} motoristas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Cumprem limite (10h)</div>
+        <div class="kpi-val">${lista.filter(m => calcularEstatsMotorista(m.id).cumpreLimite).length}/${lista.length}</div>
+        <div class="kpi-sub">hoje</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Total horas hoje</div>
+        <div class="kpi-val">${fmtHM(lista.reduce((s,m) => s + calcularEstatsMotorista(m.id).condHoje, 0))}</div>
+        <div class="kpi-sub">condução acumulada</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Total semana</div>
+        <div class="kpi-val">${fmtHM(lista.reduce((s,m) => s + calcularEstatsMotorista(m.id).condSemana, 0))}</div>
+        <div class="kpi-sub">semana atual</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Detalhe por motorista</div>
+          <div class="table-sub">${lista.length} ${lista.length===1?'motorista':'motoristas'} ${temposPesquisa?'(filtrado)':''}</div>
+        </div>
+      </div>
+      ${lista.length === 0 ? '<div class="empty-state"><div class="empty-state-text">Sem motoristas</div></div>' : `
+      <table id="tempos-tabela">
+        <thead><tr>
+          <th>Condutor</th>
+          <th>Estado</th>
+          <th>Última atividade</th>
+          <th>Condução hoje (10h)</th>
+          <th>Descanso desde última</th>
+          <th>Semana atual</th>
+          <th>Semana anterior</th>
+          <th style="text-align:center">Conformidade</th>
+        </tr></thead>
+        <tbody>
+          ${lista.map(m => renderLinhaTempos(m)).join('')}
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+function renderLinhaTempos(m) {
+  const s = calcularEstatsMotorista(m.id);
+  const ativo = s.estadoAtivo;
+  const cor = corCondHoje(s.condHoje);
+  const totalCondHoje = ativo && ativo.tipo === 'conducao' ?
+    s.condHoje + Math.floor((Date.now()-new Date(ativo.inicio).getTime())/1000) : s.condHoje;
+  const corHoje = corCondHoje(totalCondHoje);
+  const pct = Math.min(100, (totalCondHoje/SEG_10H)*100);
+
+  let estado = '<span class="badge badge-red"><span class="badge-dot"></span>Off</span>';
+  if (ativo) {
+    if (ativo.tipo === 'conducao') estado = '<span class="badge badge-green"><span class="badge-dot"></span>🚗 Em condução</span>';
+    else estado = '<span class="badge badge-orange"><span class="badge-dot"></span>⏸️ Em pausa</span>';
+  }
+
+  const ultActiv = ativo ? new Date(ativo.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})+' (atual)' :
+    (s.segDesdeUltimoFim != null ? `há ${fmtHM(s.segDesdeUltimoFim)}` : '—');
+
+  const descSeg = s.segDesdeUltimoFim;
+  const descLabel = ativo ? '—' : (descSeg != null ? fmtHM(descSeg) : '—');
+  const descCor = descSeg != null && descSeg < SEG_11H ? 'var(--orange)' : 'var(--green)';
+
+  const conformidade = s.cumpreLimite && s.cumpreDescansoDiario && s.cumpreDescansoSemanal;
+  const confBadge = conformidade ?
+    '<span style="color:var(--green);font-size:18px" title="Cumpre Lei TVDE">✓</span>' :
+    '<span style="color:var(--red);font-size:16px" title="Verifica limites">⚠️</span>';
+
+  return `
+    <tr data-motorista-id="${m.id}">
+      <td>
+        <div style="font-weight:500">${m.nome||'—'}</div>
+        <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:1px">${m.email||''}</div>
+      </td>
+      <td>${estado}</td>
+      <td style="font-size:11px;color:var(--sub2);font-family:var(--mono)">${ultActiv}</td>
+      <td style="min-width:200px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div data-cond-hoje="${m.id}" style="font-family:var(--mono);font-size:13px;color:${corHoje};font-weight:600;min-width:55px">${fmtHM(totalCondHoje)}</div>
+          <div style="flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden">
+            <div data-cond-barra="${m.id}" style="height:100%;width:${pct}%;background:${corHoje};transition:all .3s"></div>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--sub)">10h00</div>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);font-size:12px;color:${descCor}">${descLabel}</td>
+      <td style="font-family:var(--mono);font-size:12px">${fmtHM(s.condSemana)}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--sub2)">${fmtHM(s.condSemAnterior)}</td>
+      <td style="text-align:center">${confBadge}</td>
+    </tr>
+  `;
+}
+
+function tickTemposLive() {
+  // Atualiza só células dinâmicas — não re-renderiza tudo
+  motoristas.forEach(m => {
+    const s = calcularEstatsMotorista(m.id);
+    const ativo = s.estadoAtivo;
+    const totalCondHoje = ativo && ativo.tipo === 'conducao' ?
+      s.condHoje + Math.floor((Date.now()-new Date(ativo.inicio).getTime())/1000) : s.condHoje;
+    const cor = corCondHoje(totalCondHoje);
+    const pct = Math.min(100, (totalCondHoje/SEG_10H)*100);
+    const elH = document.querySelector(`[data-cond-hoje="${m.id}"]`);
+    const elB = document.querySelector(`[data-cond-barra="${m.id}"]`);
+    if (elH) { elH.textContent = fmtHM(totalCondHoje); elH.style.color = cor; }
+    if (elB) { elB.style.width = pct+'%'; elB.style.background = cor; }
+  });
+}
+
+function iniciarTemposTickAdmin() {
+  pararTemposTickAdmin();
+  temposTickInterval = setInterval(tickTemposLive, 30000);
+}
+function pararTemposTickAdmin() {
+  if (temposTickInterval) { clearInterval(temposTickInterval); temposTickInterval = null; }
+}
+
+function exportarTemposCSV() {
+  const linhas = [['Motorista','Email','Inicio','Fim','Tipo','Duração (segundos)','Duração (HH:MM)','Notas']];
+  temposRegistos.forEach(r => {
+    const dur = r.duracao_segundos || 0;
+    linhas.push([
+      r.motoristas?.nome||'',
+      r.motoristas?.email||'',
+      new Date(r.inicio).toLocaleString('pt-PT'),
+      r.fim ? new Date(r.fim).toLocaleString('pt-PT') : '(em curso)',
+      r.tipo,
+      dur,
+      fmtHM(dur),
+      (r.notas||'').replace(/[\n,]/g,' ')
+    ]);
+  });
+  const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `tempos_conducao_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ CSV exportado');
 }
 
 // ── CONDUÇÃO LIVE (admin) ──

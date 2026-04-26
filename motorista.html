@@ -383,16 +383,17 @@ async function init() {
 
   // Buscar pagamentos + contratos + condução hoje em paralelo
   const hojeISO = new Date().toISOString().split('T')[0];
-  const [pagsRes, contRes, sessaoRes, hojeRes] = await Promise.all([
+  const [pagsRes, contRes, sessaoRes, eventosHojeRes] = await Promise.all([
     db.from('pagamentos').select('*').eq('motorista_id', motorista.id).order('semana_inicio', { ascending: false }),
     db.from('contratos_assinados').select('*').eq('motorista_id', motorista.id).eq('estado','assinado').order('assinado_em', { ascending: false }),
     db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).is('fim', null).order('inicio', { ascending: false }).limit(1).maybeSingle(),
-    db.from('registos_conducao').select('duracao_segundos,tipo').eq('motorista_id', motorista.id).eq('tipo','conducao').gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z').not('fim','is',null)
+    db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z').order('inicio')
   ]);
   pagamentos = pagsRes.data || [];
   contratosMotorista = contRes.data || [];
   sessaoConducaoAtiva = sessaoRes.data || null;
-  totalSegundosHoje = (hojeRes.data || []).reduce((s,r) => s + (r.duracao_segundos||0), 0);
+  eventosHoje = eventosHojeRes.data || [];
+  totalSegundosHoje = eventosHoje.filter(e => e.tipo === 'conducao' && e.fim).reduce((s,e) => s + (e.duracao_segundos||0), 0);
   renderApp();
 
   // ── COMPLIANCE: validar Termos aceites + check diário ──
@@ -685,61 +686,108 @@ function corBarra(seg) {
   return 'var(--green)';
 }
 
+// Gauge semicircular SVG — inspirado no E-TACO
+function renderGauge(total) {
+  const pct = Math.min(1, total / LIMITE_LEGAL_SEG);
+  const cor = corBarra(total);
+  const restante = Math.max(0, LIMITE_LEGAL_SEG - total);
+  // Arco semicircular: raio 90, centro 100,100. Comprimento total ~= 282.7
+  const totalLen = Math.PI * 90;
+  const offset = totalLen * (1 - pct);
+  return `
+    <svg viewBox="0 0 200 120" style="width:100%;max-width:280px;display:block;margin:0 auto">
+      <path d="M 10 100 A 90 90 0 0 1 190 100" stroke="var(--line)" stroke-width="14" fill="none" stroke-linecap="round"/>
+      <path id="gauge-arc" d="M 10 100 A 90 90 0 0 1 190 100" stroke="${cor}" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="${totalLen}" stroke-dashoffset="${offset}" style="transition:stroke-dashoffset .5s,stroke .3s"/>
+      <text id="gauge-rest" x="100" y="78" text-anchor="middle" fill="var(--paper)" style="font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:-1px">${fmtHMS(restante).slice(0,5)}</text>
+      <text x="100" y="100" text-anchor="middle" fill="var(--sub)" style="font-family:var(--mono);font-size:8px;letter-spacing:1px">RESTANTE HOJE · LIMITE 10H</text>
+    </svg>
+  `;
+}
+
+function renderListaAtividade() {
+  // Lista de eventos do dia ordenados (mais recente primeiro)
+  if (!eventosHoje.length) {
+    return `<div style="text-align:center;padding:14px;color:var(--sub2);font-size:12px">Sem atividade hoje. Carrega <strong style="color:var(--gold)">Iniciar</strong> para começar.</div>`;
+  }
+  return eventosHoje.slice().reverse().map(e => {
+    const ini = new Date(e.inicio);
+    const fim = e.fim ? new Date(e.fim) : null;
+    const dur = fim ? Math.floor((fim-ini)/1000) : Math.floor((Date.now()-ini)/1000);
+    const cor = e.tipo === 'conducao' ? 'var(--green)' : 'var(--orange)';
+    const icon = e.tipo === 'conducao' ? '🚗' : '⏸️';
+    const label = e.tipo === 'conducao' ? 'Condução' : 'Pausa';
+    const horas = `${ini.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})} – ${fim?fim.toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'}):'em curso'}`;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
+        <span style="font-size:18px">${icon}</span>
+        <div style="flex:1">
+          <div style="font-size:12px;color:${cor};font-weight:600;letter-spacing:.5px">${label}${!e.fim?' · ATIVO':''}</div>
+          <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">${horas}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:13px;color:var(--paper)">${fmtHMS(dur).slice(0,5)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+let eventosHoje = [];
+
+async function carregarEventosHoje() {
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const { data } = await db.from('registos_conducao')
+    .select('*').eq('motorista_id', motorista.id)
+    .gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z')
+    .order('inicio');
+  eventosHoje = data || [];
+}
+
 function renderConducaoCard() {
   const total = totalSegundosAtuais();
-  const pct = Math.min(100, (total / LIMITE_LEGAL_SEG) * 100);
-  const cor = corBarra(total);
   const ativa = sessaoConducaoAtiva;
 
-  let estadoBox = '';
-  if (ativa && ativa.tipo === 'conducao') {
-    estadoBox = `
-      <div style="background:rgba(39,201,63,0.10);border:1px solid rgba(39,201,63,0.3);border-radius:6px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">🚗</span>
-        <div style="flex:1">
-          <div style="font-size:13px;color:var(--paper);font-weight:500">Em condução</div>
-          <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">desde ${new Date(ativa.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-        <div id="cond-timer" style="font-family:var(--mono);font-size:22px;color:var(--green);font-weight:600">${fmtHMS(Math.floor((Date.now()-new Date(ativa.inicio).getTime())/1000))}</div>
-      </div>
-    `;
-  } else if (ativa && ativa.tipo === 'pausa') {
-    estadoBox = `
-      <div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.3);border-radius:6px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;gap:12px">
-        <span style="font-size:24px">⏸️</span>
-        <div style="flex:1">
-          <div style="font-size:13px;color:var(--paper);font-weight:500">Em pausa</div>
-          <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">desde ${new Date(ativa.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-        <div id="cond-timer" style="font-family:var(--mono);font-size:22px;color:var(--orange);font-weight:600">${fmtHMS(Math.floor((Date.now()-new Date(ativa.inicio).getTime())/1000))}</div>
-      </div>
-    `;
+  // Estado tag pequena
+  let estadoTag = `<span style="display:inline-block;padding:5px 14px;background:rgba(135,135,135,0.15);color:var(--sub2);border-radius:100px;font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase">⚫ Off</span>`;
+  if (ativa && ativa.tipo === 'conducao') estadoTag = `<span style="display:inline-block;padding:5px 14px;background:rgba(39,201,63,0.15);color:var(--green);border-radius:100px;font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase">🚗 Em condução</span>`;
+  else if (ativa && ativa.tipo === 'pausa') estadoTag = `<span style="display:inline-block;padding:5px 14px;background:rgba(232,148,58,0.15);color:var(--orange);border-radius:100px;font-family:var(--mono);font-size:10px;letter-spacing:1.2px;text-transform:uppercase">⏸️ Em pausa</span>`;
+
+  // Timer da sessão atual
+  let timerSessao = '';
+  if (ativa) {
+    const sec = Math.floor((Date.now()-new Date(ativa.inicio).getTime())/1000);
+    const corTimer = ativa.tipo === 'conducao' ? 'var(--green)' : 'var(--orange)';
+    timerSessao = `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase">Sessão atual</div>
+        <div id="cond-timer" style="font-family:var(--mono);font-size:18px;color:${corTimer};font-weight:600">${fmtHMS(sec)}</div>
+      </div>`;
   }
 
+  // Botões
   let botoes = '';
   if (!ativa) {
-    botoes = `<button onclick="iniciarConducao()" style="width:100%;padding:18px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:16px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:10px">▶️ Iniciar condução</button>`;
+    botoes = `<button onclick="iniciarConducao()" style="width:100%;padding:16px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:14px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:10px">▶️ Iniciar condução</button>`;
   } else if (ativa.tipo === 'conducao') {
     botoes = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <button onclick="trocarParaPausa()" style="padding:14px;background:rgba(232,148,58,0.12);color:var(--orange);border:1px solid rgba(232,148,58,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏸️ Pausa</button>
-        <button onclick="terminarSessao()" style="padding:14px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
+        <button onclick="trocarParaPausa()" style="padding:13px;background:rgba(232,148,58,0.12);color:var(--orange);border:1px solid rgba(232,148,58,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏸️ Pausa</button>
+        <button onclick="terminarSessao()" style="padding:13px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
       </div>`;
   } else if (ativa.tipo === 'pausa') {
     botoes = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <button onclick="trocarParaConducao()" style="padding:14px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">▶️ Continuar</button>
-        <button onclick="terminarSessao()" style="padding:14px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
+        <button onclick="trocarParaConducao()" style="padding:13px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">▶️ Continuar</button>
+        <button onclick="terminarSessao()" style="padding:13px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
       </div>`;
   }
 
+  // Alerta
   let alerta = '';
   if (total >= LIMITE_LEGAL_SEG) {
-    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Termina o serviço para cumprir a Lei TVDE.</div>`;
+    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Termina o serviço para cumprir a Lei TVDE.</div>`;
   } else if (total >= ALERTA_LARANJA) {
-    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:var(--orange);line-height:1.5">Estás a aproximar-te das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total)}.</div>`;
+    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--orange);line-height:1.5">Estás a aproximar-te das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)}.</div>`;
   } else if (total >= ALERTA_AMARELO) {
-    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:#c8a020;line-height:1.5">Já conduziste ${fmtHMS(total)}. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total)} para o limite legal.</div>`;
+    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:#c8a020;line-height:1.5">Já conduziste ${fmtHMS(total).slice(0,5)}. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para o limite.</div>`;
   }
 
   return `
@@ -747,23 +795,21 @@ function renderConducaoCard() {
       <span class="section-title-line"></span>
       <span class="section-title-text">Tempo de condução</span>
     </div>
-    <div style="background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:28px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">
-        <div>
-          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">Total hoje</div>
-          <div id="cond-total" style="font-family:var(--serif);font-size:32px;font-weight:300;color:${cor};letter-spacing:-1px;line-height:1">${fmtHMS(total)}</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Limite legal</div>
-          <div style="font-family:var(--mono);font-size:13px;color:var(--paper)">10:00:00</div>
-        </div>
+    <div style="background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:14px">
+      <div style="text-align:center;margin-bottom:6px">${estadoTag}</div>
+      <div id="gauge-wrap">${renderGauge(total)}</div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--sub);margin:4px 14px 14px;letter-spacing:.5px">
+        <span>Hoje: <strong style="color:var(--paper)" id="gauge-total">${fmtHMS(total).slice(0,5)}</strong></span>
+        <span>10h00</span>
       </div>
-      <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:14px">
-        <div id="cond-barra" style="height:100%;width:${pct}%;background:${cor};transition:width .3s,background .3s"></div>
-      </div>
-      ${estadoBox}
+      ${timerSessao}
       ${botoes}
       ${alerta}
+    </div>
+
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:28px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Atividade de hoje</div>
+      <div id="lista-atividade-hoje">${renderListaAtividade()}</div>
     </div>
   `;
 }
@@ -776,6 +822,7 @@ async function iniciarConducao() {
   }).select().single();
   if (error) { alert('Erro: '+error.message); return; }
   sessaoConducaoAtiva = data;
+  await carregarEventosHoje();
   iniciarTickInterval();
   renderApp();
 }
@@ -806,6 +853,7 @@ async function trocarParaConducao() {
   }).select().single();
   if (error) { alert('Erro: '+error.message); return; }
   sessaoConducaoAtiva = data;
+  await carregarEventosHoje();
   iniciarTickInterval();
   renderApp();
 }
@@ -820,6 +868,7 @@ async function terminarSessao() {
   }
   sessaoConducaoAtiva = null;
   pararTickInterval();
+  await carregarEventosHoje();
   renderApp();
 }
 
@@ -828,18 +877,23 @@ function iniciarTickInterval() {
   conducaoTickInterval = setInterval(() => {
     if (!sessaoConducaoAtiva) { pararTickInterval(); return; }
     const elTimer = document.getElementById('cond-timer');
-    const elTotal = document.getElementById('cond-total');
-    const elBarra = document.getElementById('cond-barra');
-    if (!elTimer || !elTotal || !elBarra) return;
+    if (!elTimer) return;
     const segSessao = Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
     elTimer.textContent = fmtHMS(segSessao);
+
+    // Atualizar gauge se estiver em condução
     if (sessaoConducaoAtiva.tipo === 'conducao') {
       const total = totalSegundosHoje + segSessao;
-      elTotal.textContent = fmtHMS(total);
       const cor = corBarra(total);
-      elTotal.style.color = cor;
-      elBarra.style.background = cor;
-      elBarra.style.width = Math.min(100, (total/LIMITE_LEGAL_SEG)*100) + '%';
+      const restante = Math.max(0, LIMITE_LEGAL_SEG - total);
+      const totalLen = Math.PI * 90;
+      const offset = totalLen * (1 - Math.min(1, total/LIMITE_LEGAL_SEG));
+      const arc = document.getElementById('gauge-arc');
+      const rest = document.getElementById('gauge-rest');
+      const tot = document.getElementById('gauge-total');
+      if (arc) { arc.setAttribute('stroke-dashoffset', offset); arc.setAttribute('stroke', cor); }
+      if (rest) rest.textContent = fmtHMS(restante).slice(0,5);
+      if (tot) tot.textContent = fmtHMS(total).slice(0,5);
     }
   }, 1000);
 }
