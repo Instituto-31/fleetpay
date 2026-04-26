@@ -2872,7 +2872,10 @@ function renderChecklistTab() {
         <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${checklistItems.length} item(s) configurado(s)</div>
         <div style="font-size:11px;color:var(--sub2)">Lista que cada motorista vai confirmar diariamente antes de iniciar.</div>
       </div>
-      <button class="btn btn-gold btn-sm" onclick="modalItemChecklist()">+ Adicionar item</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="renumerarChecklist()" title="Renumera 1, 2, 3... por categoria">🔢 Renumerar</button>
+        <button class="btn btn-gold btn-sm" onclick="modalItemChecklist()">+ Adicionar item</button>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
@@ -2908,6 +2911,30 @@ function renderChecklistRow(it) {
       <button class="btn btn-danger btn-sm" onclick='if(confirm(${JSON.stringify("Eliminar item: "+it.label+"?")}))eliminarItemChecklist(${JSON.stringify(it.id)})'>🗑️</button>
     </div>
   `;
+}
+
+async function renumerarChecklist() {
+  if (!confirm('Renumera todos os items em sequência: documentos 1, 2, 3... e itens 20, 21, 22...?')) return;
+  toast('A renumerar...');
+  const docs = checklistItems.filter(x => x.categoria === 'documento').sort((a,b) => a.ordem - b.ordem);
+  const items = checklistItems.filter(x => x.categoria === 'item').sort((a,b) => a.ordem - b.ordem);
+  // 1ª passagem: ordens temporárias (offset alto para evitar colisões com unique)
+  const updates = [];
+  docs.forEach((d, i) => updates.push({ id: d.id, novaOrdem: 1000 + i }));
+  items.forEach((d, i) => updates.push({ id: d.id, novaOrdem: 2000 + i }));
+  for (const u of updates) {
+    await db.from('checklist_items_config').update({ ordem: u.novaOrdem }).eq('id', u.id);
+  }
+  // 2ª passagem: ordens finais
+  const finais = [];
+  docs.forEach((d, i) => finais.push({ id: d.id, novaOrdem: i + 1 }));
+  items.forEach((d, i) => finais.push({ id: d.id, novaOrdem: 20 + i }));
+  for (const u of finais) {
+    await db.from('checklist_items_config').update({ ordem: u.novaOrdem }).eq('id', u.id);
+  }
+  toast('✅ Renumerado!');
+  await carregarChecklistConfig();
+  renderComplianceTab();
 }
 
 async function moverItemChecklist(id, direcao) {
