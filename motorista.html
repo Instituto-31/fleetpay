@@ -383,6 +383,197 @@ async function init() {
   pagamentos = pagsRes.data || [];
   contratosMotorista = contRes.data || [];
   renderApp();
+
+  // ── COMPLIANCE: validar Termos aceites + check diário ──
+  await verificarCompliance();
+}
+
+async function verificarCompliance() {
+  // 1) Termos: existe versão ativa que ainda não foi aceite?
+  const { data: ativa } = await db.from('termos_versoes')
+    .select('*').eq('empresa_id', motorista.empresa_id).eq('ativo', true).maybeSingle();
+
+  if (ativa) {
+    const { data: aceite } = await db.from('termos_aceitacoes')
+      .select('id').eq('motorista_id', motorista.id).eq('termos_versao_id', ativa.id).maybeSingle();
+    if (!aceite) {
+      mostrarModalTermos(ativa);
+      return; // bloqueia checklist até aceitar
+    }
+  }
+
+  // 2) Checklist do dia já feito?
+  const hoje = new Date().toISOString().split('T')[0];
+  const { data: ckHoje } = await db.from('checklists_diarios')
+    .select('id').eq('motorista_id', motorista.id).eq('data', hoje).maybeSingle();
+
+  if (!ckHoje) {
+    mostrarBannerChecklist();
+  }
+}
+
+function mostrarModalTermos(versao) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px';
+  const empresa = motorista.empresas || {};
+  const conteudo = (versao.conteudo||'')
+    .replace(/\{\{EMPRESA\}\}/g, empresa.nome||'')
+    .replace(/\{\{NIPC\}\}/g, empresa.nipc||'')
+    .replace(/\{\{LICENCA\}\}/g, empresa.licenca_tvde||'');
+
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--gold);border-radius:8px;max-width:640px;width:100%;max-height:90vh;display:flex;flex-direction:column">
+      <div style="padding:18px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div>
+          <div style="font-family:var(--serif);font-size:22px;font-weight:300">📜 Termos & Condições</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-top:2px">v${versao.versao} · ${empresa.nome||''}</div>
+        </div>
+      </div>
+      <div style="padding:24px;overflow-y:auto;flex:1;font-size:13px;line-height:1.7;color:var(--paper)">
+        ${conteudo}
+      </div>
+      <div style="padding:18px 24px;border-top:1px solid var(--line);background:rgba(200,146,42,0.06);flex-shrink:0">
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--paper);cursor:pointer;line-height:1.5">
+          <input type="checkbox" id="termos-aceito" style="margin-top:3px;width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+          <span>Li, compreendi e <strong>aceito</strong> os termos acima.</span>
+        </label>
+        <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+          <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')" style="padding:11px 20px;background:transparent;border:1px solid var(--line);border-radius:3px;color:var(--sub2);font-size:11px;font-weight:500;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">Sair</button>
+          <button id="btn-aceitar-termos" disabled onclick="aceitarTermos('${versao.id}')" style="padding:11px 24px;background:var(--gold);color:#000;border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);opacity:.4">✓ Aceitar e continuar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('termos-aceito').addEventListener('change', e => {
+    const btn = document.getElementById('btn-aceitar-termos');
+    btn.disabled = !e.target.checked;
+    btn.style.opacity = e.target.checked ? '1' : '.4';
+  });
+}
+
+async function aceitarTermos(versaoId) {
+  const btn = document.getElementById('btn-aceitar-termos');
+  btn.disabled = true; btn.textContent = '⏳ A registar...';
+  const { error } = await db.from('termos_aceitacoes').insert({
+    motorista_id: motorista.id,
+    termos_versao_id: versaoId,
+    user_agent: navigator.userAgent
+  });
+  if (error) { alert('Erro: '+error.message); btn.disabled = false; btn.textContent = '✓ Aceitar e continuar'; return; }
+  document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
+  // Continuar para checklist
+  setTimeout(() => verificarCompliance(), 200);
+}
+
+function mostrarBannerChecklist() {
+  const banner = document.createElement('div');
+  banner.id = 'banner-checklist';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--gold);color:#000;padding:14px 24px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 4px 16px rgba(0,0,0,0.2);font-family:var(--sans)';
+  banner.innerHTML = `
+    <span style="font-size:14px;font-weight:600">⚠️ Faz o teu check diário antes de começares a conduzir</span>
+    <button onclick="abrirChecklistDiario()" style="padding:9px 18px;background:#000;color:var(--gold);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">✅ Fazer agora</button>
+  `;
+  document.body.prepend(banner);
+}
+
+async function abrirChecklistDiario() {
+  // Carregar items configurados
+  const { data: items } = await db.from('checklist_items_config')
+    .select('*').eq('empresa_id', motorista.empresa_id).eq('ativo', true).order('ordem');
+
+  if (!items || !items.length) {
+    alert('A tua empresa ainda não configurou um checklist. Fala com o operador.');
+    return;
+  }
+
+  const docs = items.filter(i => i.categoria === 'documento');
+  const itensEq = items.filter(i => i.categoria === 'item');
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--gold);border-radius:8px;max-width:560px;width:100%;max-height:90vh;display:flex;flex-direction:column">
+      <div style="padding:18px 24px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div style="font-family:var(--serif);font-size:22px;font-weight:300">✅ Check Diário</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-top:2px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</div>
+      </div>
+      <div style="padding:18px 24px;overflow-y:auto;flex:1">
+        <p style="font-size:12px;color:var(--sub2);margin-bottom:18px;line-height:1.6">Confirma que verificaste e tens cada um dos itens abaixo. <strong style="color:var(--paper)">Marca apenas os que tens efetivamente</strong> — se algum está em falta, não marques (mas a app deixa-te continuar; ficas responsável).</p>
+
+        ${docs.length ? `<div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">📋 Documentos</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
+          ${docs.map(it => renderCheckItem(it)).join('')}
+        </div>` : ''}
+
+        ${itensEq.length ? `<div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">🛠️ Itens obrigatórios</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
+          ${itensEq.map(it => renderCheckItem(it)).join('')}
+        </div>` : ''}
+
+        <div style="margin-top:14px">
+          <label style="display:block;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Observações (opcional)</label>
+          <textarea id="ck-obs" placeholder="Ex: Extintor a expirar em 15 dias..." style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:3px;color:var(--paper);font-family:var(--sans);font-size:13px;min-height:60px;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span id="ck-status" style="font-size:11px;color:var(--sub2)">0 / ${items.length} confirmados</span>
+        <button onclick="confirmarChecklist(${JSON.stringify(items.map(i=>i.id)).replace(/"/g,'&quot;')})" style="padding:11px 24px;background:var(--gold);color:#000;border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">Confirmar e iniciar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Listener para atualizar contador
+  overlay.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const total = overlay.querySelectorAll('input[type=checkbox]').length;
+      const ok = overlay.querySelectorAll('input[type=checkbox]:checked').length;
+      const st = document.getElementById('ck-status');
+      if (st) st.textContent = `${ok} / ${total} confirmados${ok<total?' · '+(total-ok)+' em falta':' ✅'}`;
+    });
+  });
+}
+
+function renderCheckItem(it) {
+  return `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;cursor:pointer;transition:border-color .15s">
+      <input type="checkbox" data-item="${it.id}" style="margin-top:2px;width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
+      <span style="flex:1;font-size:13px;color:var(--paper);line-height:1.4">
+        <span style="font-weight:500">${it.label}</span>
+        ${it.descricao ? `<span style="display:block;font-size:11px;color:var(--sub2);margin-top:2px">${it.descricao}</span>` : ''}
+      </span>
+    </label>
+  `;
+}
+
+async function confirmarChecklist(allItemIds) {
+  const itens = {};
+  let okCount = 0;
+  document.querySelectorAll('[data-item]').forEach(cb => {
+    itens[cb.dataset.item] = cb.checked;
+    if (cb.checked) okCount++;
+  });
+  const todosOk = okCount === allItemIds.length;
+  const observacoes = document.getElementById('ck-obs').value.trim();
+
+  if (!todosOk) {
+    if (!confirm(`Estás a confirmar que NÃO tens ${allItemIds.length-okCount} item(s). Conduzir nestas condições é por tua conta — em caso de fiscalização, és responsável. Continuar?`)) return;
+  }
+
+  const { error } = await db.from('checklists_diarios').insert({
+    motorista_id: motorista.id,
+    empresa_id: motorista.empresa_id,
+    itens,
+    todos_ok: todosOk,
+    observacoes,
+    user_agent: navigator.userAgent
+  });
+  if (error) { alert('Erro: '+error.message); return; }
+
+  document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
+  document.getElementById('banner-checklist')?.remove();
+  alert(todosOk ? '✅ Check diário registado — boa viagem!' : '⚠️ Check registado com itens em falta. Conduz com cuidado.');
 }
 
 function renderSemAcesso(nome) {

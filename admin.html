@@ -632,6 +632,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('contratos')">
           <span class="nav-icon">📄</span> Contratos
         </button>
+        <button class="nav-item" onclick="showPage('compliance')">
+          <span class="nav-icon">📜</span> Compliance
+        </button>
       </div>
       <div class="nav-section">
         <div class="nav-label">Importação</div>
@@ -925,6 +928,7 @@ function showPage(page) {
     alertas: renderAlertas,
     config: renderConfig,
     contratos: renderContratos,
+    compliance: renderCompliance,
   };
   (pages[page] || (() => {}))();
 }
@@ -2669,6 +2673,369 @@ function renderConfig() {
           <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials</p>
           <button class="btn btn-gold" onclick="guardarConfigBolt()">Guardar Bolt API</button>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════
+// ── COMPLIANCE: Termos & Condições + Checklist ──
+// ═══════════════════════════════════════════
+let complianceTab = 'termos';
+let termosVersoes = [];
+let checklistItems = [];
+
+const TEMPLATE_TERMOS_TVDE = `<h2>Termos e Condições — Motorista TVDE</h2>
+<p>Pelo presente documento, eu, motorista, ao aceitar prestar serviços através da plataforma FleetPay para a empresa <strong>{{EMPRESA}}</strong> (NIPC {{NIPC}}, Licença TVDE {{LICENCA}}), declaro que li, compreendi e aceito os seguintes termos:</p>
+
+<h3>1. Documentação e equipamento obrigatórios</h3>
+<p>Comprometo-me a manter sempre na viatura toda a documentação e equipamento exigidos pela <strong>Lei n.º 45/2018</strong> e demais legislação aplicável ao TVDE, incluindo (mas não limitado a):</p>
+<ul>
+  <li>Licença de Operador da empresa, Inspeção, Seguros (Carta Verde, Acidentes de Trabalho, Responsabilidade Civil, Acidentes Pessoais)</li>
+  <li>Contrato de Prestação de Serviços, Documento de Identificação, Carta de Condução, DUA/DAV, Certificado de Motorista TVDE</li>
+  <li>Extintor lacrado de 2kg + relatório, Kit de Primeiros Socorros, Colete refletor, Aplicativo contador de horas, Dístico TVDE, Adesivo "Não Fumar", Triângulo</li>
+</ul>
+
+<h3>2. Verificação diária e check-list obrigatório</h3>
+<p>Comprometo-me a realizar diariamente, antes de iniciar a prestação de serviços, o check-list disponibilizado pela plataforma, confirmando a presença e validade de todos os documentos e equipamentos referidos.</p>
+
+<h3>3. Comunicação atempada de validades e desgastes</h3>
+<p>Sou responsável por <strong>comunicar à empresa, com pelo menos 30 dias de antecedência</strong>:</p>
+<ul>
+  <li>Aproximação da data de validade de qualquer documento (seguros, inspeção, licenças, registo criminal, CC)</li>
+  <li>Aproximação da validade do extintor e do Kit de Primeiros Socorros</li>
+  <li>Desgaste anormal de pneus, travões, ou qualquer componente que comprometa a segurança</li>
+</ul>
+
+<h3>4. Exclusão de responsabilidade do operador</h3>
+<p>Em caso de fiscalização ou ocorrência decorrente da <strong>falta de comunicação atempada</strong> dos pontos anteriores, ou da <strong>não realização do check-list diário</strong>, declaro que a responsabilidade é exclusivamente minha, ficando a empresa <strong>{{EMPRESA}}</strong> isenta de qualquer responsabilidade civil, contraordenacional ou criminal daí decorrente.</p>
+
+<h3>5. RGPD</h3>
+<p>Os meus dados pessoais (incluindo IP e timestamp de aceitação) serão guardados pela {{EMPRESA}} para cumprimento das obrigações legais ao abrigo do RGPD. Tenho direito de acesso, retificação e eliminação.</p>
+
+<p style="margin-top:24px;font-size:12px;color:#666;font-style:italic">Esta aceitação é juridicamente vinculativa nos termos do Decreto-Lei n.º 12/2021 e do Regulamento (UE) n.º 910/2014 (eIDAS).</p>`;
+
+async function renderCompliance() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <div class="tabs-nav">
+      <button class="tab-btn ${complianceTab==='termos'?'active':''}" onclick="setComplianceTab('termos')">📜 Termos & Condições</button>
+      <button class="tab-btn ${complianceTab==='checklist'?'active':''}" onclick="setComplianceTab('checklist')">✅ Checklist Diário</button>
+      <button class="tab-btn ${complianceTab==='auditoria'?'active':''}" onclick="setComplianceTab('auditoria')">🗂️ Auditoria</button>
+    </div>
+    <div id="compliance-body"><div class="loading-row"><div class="spinner"></div> A carregar...</div></div>
+  `;
+  await Promise.all([carregarTermos(), carregarChecklistConfig()]);
+  renderComplianceTab();
+}
+
+function setComplianceTab(tab) { complianceTab = tab; renderCompliance(); }
+
+async function carregarTermos() {
+  const { data } = await db.from('termos_versoes')
+    .select('*').eq('empresa_id', empresa.id).order('versao', { ascending: false });
+  termosVersoes = data || [];
+}
+
+async function carregarChecklistConfig() {
+  const { data } = await db.from('checklist_items_config')
+    .select('*').eq('empresa_id', empresa.id).order('ordem');
+  checklistItems = data || [];
+}
+
+function renderComplianceTab() {
+  const body = document.getElementById('compliance-body');
+  if (!body) return;
+  if (complianceTab === 'termos') body.innerHTML = renderTermosTab();
+  else if (complianceTab === 'checklist') body.innerHTML = renderChecklistTab();
+  else body.innerHTML = '<div class="loading-row">A carregar auditoria...</div>', renderAuditoriaTab();
+}
+
+// ── TAB: TERMOS ──
+function renderTermosTab() {
+  const ativa = termosVersoes.find(v => v.ativo);
+  return `
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:24px">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">Versões (${termosVersoes.length})</div>
+          <button class="btn btn-gold btn-sm" onclick="novaVersaoTermos()">+ Nova</button>
+        </div>
+        ${termosVersoes.length === 0 ? `
+          <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:4px;font-size:12px;color:var(--sub2);text-align:center">
+            Sem versões.<br>Cria a primeira →
+          </div>
+        ` : termosVersoes.map(v => `
+          <div onclick="verVersaoTermos('${v.id}')" style="padding:12px 14px;background:${v.ativo?'rgba(200,146,42,0.06)':'rgba(255,255,255,0.02)'};border:1px solid ${v.ativo?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;margin-bottom:8px;transition:border-color .2s">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-family:var(--mono);font-size:11px;color:var(--gold);font-weight:600">v${v.versao}</span>
+              ${v.ativo ? '<span style="font-size:9px;background:var(--gold);color:#000;padding:2px 6px;border-radius:100px;letter-spacing:.5px;font-family:var(--mono)">ATIVA</span>' : ''}
+            </div>
+            <div style="font-size:13px;color:var(--paper);font-weight:500">${v.titulo||'(sem título)'}</div>
+            <div style="font-size:10px;color:var(--sub2);font-family:var(--mono);margin-top:4px">${new Date(v.criado_em).toLocaleDateString('pt-PT')}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div>
+        <div class="table-wrap">
+          <div class="table-header">
+            <div>
+              <div class="table-title">${ativa ? `Versão ativa — v${ativa.versao}` : 'Sem versão ativa'}</div>
+              <div class="table-sub">${ativa ? ativa.titulo : 'Cria uma versão para os motoristas aceitarem'}</div>
+            </div>
+            ${ativa ? '' : `<button class="btn btn-gold btn-sm" onclick="novaVersaoTermos(true)">⚡ Usar template TVDE</button>`}
+          </div>
+          <div style="padding:24px;max-height:600px;overflow-y:auto">
+            ${ativa ? `<div style="font-size:13px;line-height:1.7;color:var(--paper)">${ativa.conteudo.replace(/\{\{EMPRESA\}\}/g, empresa.nome||'').replace(/\{\{NIPC\}\}/g, empresa.nipc||'').replace(/\{\{LICENCA\}\}/g, empresa.licenca_tvde||'')}</div>` : `
+              <div class="empty-state"><div class="empty-state-icon">📜</div>
+                <div class="empty-state-text">Sem termos publicados</div>
+                <div class="empty-state-sub">Cria a primeira versão dos teus Termos para os motoristas aceitarem</div>
+                <button class="btn btn-gold" style="margin-top:16px" onclick="novaVersaoTermos(true)">⚡ Usar template TVDE pré-pronto</button>
+              </div>
+            `}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function verVersaoTermos(id) {
+  const v = termosVersoes.find(x => x.id === id);
+  if (!v) return;
+  openModal(`Termos v${v.versao}${v.ativo?' (ATIVA)':''}`, `
+    <div style="margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Título</div>
+      <div style="font-size:14px;color:var(--paper);margin-bottom:14px">${v.titulo||'(sem título)'}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Data publicação</div>
+      <div style="font-size:13px;color:var(--sub2);margin-bottom:14px">${new Date(v.criado_em).toLocaleString('pt-PT')}</div>
+    </div>
+    <div style="max-height:400px;overflow-y:auto;padding:14px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;font-size:12px;line-height:1.6">${v.conteudo}</div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+    ${v.ativo ? '' : `<button class="btn btn-danger" onclick="if(confirm('Eliminar v${v.versao}?'))eliminarVersaoTermos('${v.id}')">🗑️ Eliminar</button>`}
+  `);
+}
+
+function novaVersaoTermos(usarTemplate = false) {
+  const proximaVersao = termosVersoes.length === 0 ? 1 : Math.max(...termosVersoes.map(v => v.versao)) + 1;
+  openModal(`Nova versão de Termos (v${proximaVersao})`, `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Ao publicar, esta torna-se a versão ativa. Motoristas serão obrigados a aceitar no próximo login.</p>
+    <div class="field"><label>Título</label>
+      <input id="termos-titulo" placeholder="Ex: Termos e Condições — Motorista TVDE" value="Termos e Condições — Motorista TVDE">
+    </div>
+    <div class="field"><label>Conteúdo (HTML permitido)</label>
+      <textarea id="termos-conteudo" style="min-height:340px;font-family:var(--mono);font-size:11px;line-height:1.5">${usarTemplate ? TEMPLATE_TERMOS_TVDE.replace(/`/g, '\\`') : ''}</textarea>
+    </div>
+    <p style="font-size:11px;color:var(--sub2);line-height:1.6">Placeholders disponíveis: <code>{{EMPRESA}}</code>, <code>{{NIPC}}</code>, <code>{{LICENCA}}</code> — substituídos automaticamente pelos dados da empresa.</p>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="publicarTermos(${proximaVersao})">📜 Publicar versão ativa</button>
+  `);
+}
+
+async function publicarTermos(versao) {
+  const titulo = document.getElementById('termos-titulo').value.trim();
+  const conteudo = document.getElementById('termos-conteudo').value.trim();
+  if (!conteudo) { toast('Conteúdo obrigatório','error'); return; }
+
+  toast('A publicar...');
+  // Desativar versões anteriores
+  await db.from('termos_versoes').update({ ativo: false }).eq('empresa_id', empresa.id);
+  // Criar nova
+  const { error } = await db.from('termos_versoes').insert({
+    empresa_id: empresa.id, versao, titulo, conteudo, ativo: true
+  });
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  closeModal();
+  toast(`✅ Versão v${versao} publicada — motoristas terão de re-aceitar`);
+  await carregarTermos();
+  renderComplianceTab();
+}
+
+async function eliminarVersaoTermos(id) {
+  const { error } = await db.from('termos_versoes').delete().eq('id', id);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  closeModal();
+  toast('✅ Versão eliminada');
+  await carregarTermos();
+  renderComplianceTab();
+}
+
+// ── TAB: CHECKLIST ──
+function renderChecklistTab() {
+  const docs = checklistItems.filter(i => i.categoria === 'documento');
+  const items = checklistItems.filter(i => i.categoria === 'item');
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${checklistItems.length} item(s) configurado(s)</div>
+        <div style="font-size:11px;color:var(--sub2)">Lista que cada motorista vai confirmar diariamente antes de iniciar.</div>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="modalItemChecklist()">+ Adicionar item</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">📋 Documentos (${docs.length})</div></div>
+        <div style="padding:0">
+          ${docs.length === 0 ? '<div style="padding:20px;color:var(--sub2);font-size:12px;text-align:center">Sem itens</div>' : docs.map(it => renderChecklistRow(it)).join('')}
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">🛠️ Itens obrigatórios (${items.length})</div></div>
+        <div style="padding:0">
+          ${items.length === 0 ? '<div style="padding:20px;color:var(--sub2);font-size:12px;text-align:center">Sem itens</div>' : items.map(it => renderChecklistRow(it)).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderChecklistRow(it) {
+  return `
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--sub);width:24px">${it.ordem}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--paper);font-weight:500">${it.label}${!it.ativo?' <span style=\"color:var(--orange);font-size:10px\">(inativo)</span>':''}</div>
+        ${it.descricao ? `<div style="font-size:10px;color:var(--sub2);margin-top:2px">${it.descricao}</div>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick='modalItemChecklist(${JSON.stringify(it.id)})'>✏️</button>
+      <button class="btn btn-danger btn-sm" onclick='if(confirm(${JSON.stringify("Eliminar item: "+it.label+"?")}))eliminarItemChecklist(${JSON.stringify(it.id)})'>🗑️</button>
+    </div>
+  `;
+}
+
+function modalItemChecklist(id = null) {
+  const it = id ? checklistItems.find(x => x.id === id) : { categoria: 'documento', ordem: (checklistItems.length+1)*10 };
+  openModal(id ? 'Editar item' : 'Novo item', `
+    <div class="field-row">
+      <div class="field"><label>Categoria</label>
+        <select id="ck-cat">
+          <option value="documento" ${it.categoria==='documento'?'selected':''}>📋 Documento</option>
+          <option value="item" ${it.categoria==='item'?'selected':''}>🛠️ Item</option>
+        </select>
+      </div>
+      <div class="field"><label>Ordem</label><input type="number" id="ck-ordem" value="${it.ordem||0}"></div>
+    </div>
+    <div class="field"><label>Label *</label><input id="ck-label" value="${(it.label||'').replace(/"/g,'&quot;')}" placeholder="Ex: Carta de condução"></div>
+    <div class="field"><label>Descrição</label><input id="ck-desc" value="${(it.descricao||'').replace(/"/g,'&quot;')}" placeholder="Detalhes adicionais"></div>
+    <div class="checkbox-row" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="ck-ativo" ${it.ativo!==false?'checked':''}>
+      <label for="ck-ativo" style="font-size:12px;color:var(--sub2)">Item ativo (mostra no checklist)</label>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick='guardarItemChecklist(${id?JSON.stringify(id):'null'})'>Guardar</button>
+  `);
+}
+
+async function guardarItemChecklist(id) {
+  const payload = {
+    empresa_id: empresa.id,
+    categoria: document.getElementById('ck-cat').value,
+    ordem: parseInt(document.getElementById('ck-ordem').value)||0,
+    label: document.getElementById('ck-label').value.trim(),
+    descricao: document.getElementById('ck-desc').value.trim(),
+    ativo: document.getElementById('ck-ativo').checked
+  };
+  if (!payload.label) { toast('Label obrigatório','error'); return; }
+
+  const { error } = id
+    ? await db.from('checklist_items_config').update(payload).eq('id', id)
+    : await db.from('checklist_items_config').insert(payload);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  closeModal();
+  toast('✅ Item guardado');
+  await carregarChecklistConfig();
+  renderComplianceTab();
+}
+
+async function eliminarItemChecklist(id) {
+  const { error } = await db.from('checklist_items_config').delete().eq('id', id);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  toast('✅ Item eliminado');
+  await carregarChecklistConfig();
+  renderComplianceTab();
+}
+
+// ── TAB: AUDITORIA ──
+async function renderAuditoriaTab() {
+  const body = document.getElementById('compliance-body');
+  if (!body) return;
+
+  // Aceitações de Termos (motorista + versão + quando)
+  const { data: aceitacoes } = await db.from('termos_aceitacoes')
+    .select('*, termos_versoes(versao, titulo), motoristas:motorista_id(nome, email, empresa_id)')
+    .order('aceite_em', { ascending: false });
+
+  const aceitacoesEmpresa = (aceitacoes||[]).filter(a => a.motoristas?.empresa_id === empresa.id);
+
+  // Checklists hoje
+  const hoje = new Date().toISOString().split('T')[0];
+  const { data: checksHoje } = await db.from('checklists_diarios')
+    .select('*, motoristas(nome, email)')
+    .eq('empresa_id', empresa.id).eq('data', hoje).order('criado_em', { ascending: false });
+
+  // Motoristas ativos da empresa
+  const motAtivos = motoristas.filter(m => m.ativo);
+  const fizeramHoje = (checksHoje||[]).map(c => c.motorista_id);
+  const naoFizeram = motAtivos.filter(m => !fizeramHoje.includes(m.id));
+
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+      <div class="kpi">
+        <div class="kpi-label">Aceitações Termos</div>
+        <div class="kpi-val">${aceitacoesEmpresa.length}</div>
+        <div class="kpi-sub">total registadas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Check diário (hoje)</div>
+        <div class="kpi-val">${checksHoje?.length || 0}/${motAtivos.length}</div>
+        <div class="kpi-sub">${naoFizeram.length>0 ? '⚠️ '+naoFizeram.length+' por fazer' : '✅ Todos OK'}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">📜 Aceitações de Termos</div></div>
+        ${aceitacoesEmpresa.length === 0 ? '<div class="empty-state"><div class="empty-state-text">Sem aceitações ainda</div></div>' : `
+          <table>
+            <thead><tr><th>Motorista</th><th>Versão</th><th>Data</th></tr></thead>
+            <tbody>${aceitacoesEmpresa.map(a => `
+              <tr>
+                <td>${a.motoristas?.nome||'—'}</td>
+                <td><span class="badge badge-green"><span class="badge-dot"></span>v${a.termos_versoes?.versao||'?'}</span></td>
+                <td style="font-family:var(--mono);font-size:11px;color:var(--sub2)">${new Date(a.aceite_em).toLocaleString('pt-PT')}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table>
+        `}
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">✅ Checklists hoje</div></div>
+        ${motAtivos.length === 0 ? '<div class="empty-state"><div class="empty-state-text">Sem motoristas</div></div>' : `
+          <table>
+            <thead><tr><th>Motorista</th><th>Estado</th><th>Hora</th></tr></thead>
+            <tbody>
+              ${(checksHoje||[]).map(c => `
+                <tr>
+                  <td>${c.motoristas?.nome||'—'}</td>
+                  <td><span class="badge ${c.todos_ok?'badge-green':'badge-orange'}"><span class="badge-dot"></span>${c.todos_ok?'Tudo OK':'C/ falhas'}</span></td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--sub2)">${new Date(c.criado_em).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</td>
+                </tr>
+              `).join('')}
+              ${naoFizeram.map(m => `
+                <tr>
+                  <td>${m.nome}</td>
+                  <td><span class="badge badge-red"><span class="badge-dot"></span>Não fez</span></td>
+                  <td style="font-family:var(--mono);font-size:11px;color:var(--sub2)">—</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
       </div>
     </div>
   `;
