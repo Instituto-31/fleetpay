@@ -221,6 +221,7 @@ body.theme-sage .btn-recibo { background:rgba(122,140,102,0.10); }
 let currentUser = null;
 let motorista = null;
 let pagamentos = [];
+let contratosMotorista = [];
 let filtroMes = null;
 
 const fmt = (v) => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(v||0);
@@ -259,13 +260,13 @@ async function init() {
 
   motorista = mot;
 
-  // Buscar pagamentos
-  const { data: pags } = await db.from('pagamentos')
-    .select('*')
-    .eq('motorista_id', motorista.id)
-    .order('semana_inicio', { ascending: false });
-
-  pagamentos = pags || [];
+  // Buscar pagamentos + contratos em paralelo
+  const [pagsRes, contRes] = await Promise.all([
+    db.from('pagamentos').select('*').eq('motorista_id', motorista.id).order('semana_inicio', { ascending: false }),
+    db.from('contratos_assinados').select('*').eq('motorista_id', motorista.id).eq('estado','assinado').order('assinado_em', { ascending: false })
+  ]);
+  pagamentos = pagsRes.data || [];
+  contratosMotorista = contRes.data || [];
   renderApp();
 }
 
@@ -306,6 +307,8 @@ function renderApp() {
     <div class="main">
       ${ultimo ? renderSemanaAtual(ultimo) : ''}
 
+      ${contratosMotorista.length ? renderContratosMotorista() : ''}
+
       <div class="section-title">
         <span class="section-title-line"></span>
         <span class="section-title-text">Histórico</span>
@@ -337,6 +340,77 @@ function renderApp() {
       </button>
     </div>
   `;
+}
+
+function renderContratosMotorista() {
+  return `
+    <div class="section-title">
+      <span class="section-title-line"></span>
+      <span class="section-title-text">Os meus documentos</span>
+    </div>
+    <div class="contratos-block" style="background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:28px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span style="font-size:24px">📄</span>
+        <div>
+          <div style="font-size:14px;color:var(--paper);font-weight:500">Contratos assinados</div>
+          <div style="font-size:11px;color:var(--sub2)">Mostra à fiscalização — toca para abrir</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${contratosMotorista.map(c => {
+          const dt = c.assinado_em ? new Date(c.assinado_em).toLocaleDateString('pt-PT') : '';
+          const safeName = (c.template_nome||'contrato').replace(/'/g, '\\\'');
+          return `
+            <button onclick="abrirContratoVisualizar('${c.ficheiro_path||''}','${safeName}')"
+              style="text-align:left;padding:14px 16px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:4px;cursor:pointer;color:var(--paper);font-family:var(--sans);display:flex;align-items:center;gap:12px;width:100%;transition:all .15s">
+              <span style="font-size:22px">📑</span>
+              <span style="flex:1">
+                <div style="font-size:13px;font-weight:500">${c.template_nome||'Contrato'}</div>
+                <div style="font-size:10px;color:var(--green);font-family:var(--mono);margin-top:2px">✓ Assinado em ${dt}</div>
+              </span>
+              <span style="font-size:14px;color:var(--gold);font-weight:600">VER</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+async function abrirContratoVisualizar(path, nome) {
+  if (!path) { alert('Ficheiro indisponível'); return; }
+  // Abrir overlay com PDF inline (melhor para fiscalização — não força download)
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:300;display:flex;flex-direction:column';
+  overlay.innerHTML = `
+    <div style="padding:14px 20px;background:#0a0905;color:#f7f4ef;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(200,146,42,0.3)">
+      <div style="font-family:var(--serif);font-size:18px">${nome.replace(/_/g,' ')}</div>
+      <div style="display:flex;gap:8px">
+        <button id="cv-share" style="background:rgba(200,146,42,0.15);border:1px solid var(--gold);color:var(--gold);padding:8px 14px;border-radius:3px;cursor:pointer;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase">📥 Descarregar</button>
+        <button onclick="this.closest('[style*=\\'z-index:300\\']').remove()" style="background:none;border:1px solid rgba(255,255,255,0.2);color:#fff;padding:8px 14px;border-radius:3px;cursor:pointer;font-size:14px">✕</button>
+      </div>
+    </div>
+    <div id="cv-loading" style="flex:1;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.6)"><div class="spinner-lg"></div></div>
+    <iframe id="cv-iframe" style="display:none;flex:1;border:none;background:#fff"></iframe>
+  `;
+  document.body.appendChild(overlay);
+
+  try {
+    const { data, error } = await db.storage.from('contratos-assinados').download(path);
+    if (error) throw error;
+    const url = URL.createObjectURL(data);
+    document.getElementById('cv-loading').style.display = 'none';
+    const iframe = document.getElementById('cv-iframe');
+    iframe.style.display = 'block';
+    iframe.src = url;
+    document.getElementById('cv-share').onclick = () => {
+      const a = document.createElement('a');
+      a.href = url; a.download = nome + '.pdf'; a.click();
+    };
+  } catch(e) {
+    overlay.remove();
+    alert('Erro ao abrir: ' + (e.message||'desconhecido'));
+  }
 }
 
 function renderSemanaAtual(p) {

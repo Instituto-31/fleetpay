@@ -1316,10 +1316,68 @@ function modalMotorista(id=null) {
       <div class="field"><label>Reg. Criminal validade</label><input type="date" id="m-rc" value="${m.registo_criminal_validade||''}"></div>
     </div>
     <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
+
+    ${id ? `
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">📄 Contratos arquivados</div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal();showPage('contratos');setTimeout(()=>{document.getElementById('cont-motorista')&&(document.getElementById('cont-motorista').value='${id}',atualizarFormPlaceholders());},300)">+ Gerar novo</button>
+        </div>
+        <div id="motorista-contratos-list" style="font-size:12px;color:var(--sub2);text-align:center;padding:14px;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:4px">
+          A carregar contratos...
+        </div>
+      </div>
+    ` : ''}
   `, `
     <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
     <button class="btn btn-gold" onclick="guardarMotorista(${id?`'${id}'`:null})">Guardar</button>
   `);
+
+  // Carregar contratos do motorista (apenas em edit)
+  if (id) carregarContratosMotoristaModal(id);
+}
+
+async function carregarContratosMotoristaModal(motoristaId) {
+  const { data } = await db.from('contratos_assinados')
+    .select('id, template_nome, estado, ficheiro_path, assinado_em, criado_em')
+    .eq('motorista_id', motoristaId)
+    .order('criado_em', { ascending: false });
+
+  const wrap = document.getElementById('motorista-contratos-list');
+  if (!wrap) return;
+
+  if (!data || !data.length) {
+    wrap.innerHTML = `<div style="padding:8px">Sem contratos arquivados ainda.</div>`;
+    return;
+  }
+
+  wrap.style.padding = '0';
+  wrap.style.background = 'transparent';
+  wrap.style.border = 'none';
+  wrap.innerHTML = data.map(c => {
+    const estado = c.estado === 'assinado' ? '✓ Assinado' : c.estado === 'enviado_assinatura' ? '⏳ Enviado' : c.estado;
+    const cor = c.estado === 'assinado' ? 'var(--green)' : 'var(--orange)';
+    const dt = c.assinado_em || c.criado_em;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
+        <span style="font-size:18px">📑</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--paper);font-weight:500">${c.template_nome || '—'}</div>
+          <div style="font-size:10px;color:${cor};font-family:var(--mono);margin-top:2px">${estado} · ${dt ? new Date(dt).toLocaleDateString('pt-PT') : ''}</div>
+        </div>
+        ${c.ficheiro_path ? `<button type="button" class="btn btn-ghost btn-sm" onclick="downloadAssinadoModal('${c.ficheiro_path}','${(c.template_nome||'contrato').replace(/'/g,'\\\\\\'')}')">📥 Ver</button>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function downloadAssinadoModal(path, nome) {
+  const { data, error } = await db.storage.from('contratos-assinados').download(path);
+  if (error) { toast('Erro: ' + error.message,'error'); return; }
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url; a.download = (nome || 'contrato') + '.pdf'; a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function guardarMotorista(id) {
