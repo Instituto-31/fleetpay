@@ -246,6 +246,8 @@ const themes = {
     // Atualizar ícone do botão de tema
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
+    // Notificar páginas para re-renderizarem (Configurações, Perfil, etc.)
+    document.dispatchEvent(new CustomEvent('fleetpay:theme', { detail: { id } }));
   },
   cycle() {
     // Toggle inteligente: alterna entre o último tema escuro e o último tema claro

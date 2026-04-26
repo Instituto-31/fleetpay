@@ -2585,8 +2585,13 @@ async function guardarConfigBolt() {
 
 
 // toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
-// Para escolher um tema específico: themes.apply('default'|'sage'|'light')
-// O botão 🌙 no header faz cycle(), e a página Config tem o seletor visual.
+// Para escolher um tema específico: themes.apply('default'|'sage'|'light'|'tech-pro'|'forest'|'warm')
+// O botão 🌙 no header faz cycle() (toggle inteligente último-dark↔último-light), e a página Config tem o seletor visual.
+
+// Re-renderizar página atual quando o tema muda (ex: Configurações deve atualizar o "ATIVO")
+document.addEventListener('fleetpay:theme', () => {
+  if (currentPage === 'config' && typeof renderConfig === 'function') renderConfig();
+});
 
 // ── START ──
 init();
