@@ -334,6 +334,12 @@ let motorista = null;
 let pagamentos = [];
 let contratosMotorista = [];
 let filtroMes = null;
+let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
+let totalSegundosHoje = 0;            // soma de condução já fechada hoje
+let conducaoTickInterval = null;
+const LIMITE_LEGAL_SEG = 10 * 3600;
+const ALERTA_AMARELO = 8 * 3600;
+const ALERTA_LARANJA = 9.5 * 3600;
 
 const fmt = (v) => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(v||0);
 const fmtData = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT', {day:'2-digit',month:'short'}) : '—';
@@ -375,13 +381,18 @@ async function init() {
   window.fleetpayPlano = mot.empresas?.plano || 'free';
   if (!themes.canUse(themes.current())) themes.apply('default');
 
-  // Buscar pagamentos + contratos em paralelo
-  const [pagsRes, contRes] = await Promise.all([
+  // Buscar pagamentos + contratos + condução hoje em paralelo
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const [pagsRes, contRes, sessaoRes, hojeRes] = await Promise.all([
     db.from('pagamentos').select('*').eq('motorista_id', motorista.id).order('semana_inicio', { ascending: false }),
-    db.from('contratos_assinados').select('*').eq('motorista_id', motorista.id).eq('estado','assinado').order('assinado_em', { ascending: false })
+    db.from('contratos_assinados').select('*').eq('motorista_id', motorista.id).eq('estado','assinado').order('assinado_em', { ascending: false }),
+    db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).is('fim', null).order('inicio', { ascending: false }).limit(1).maybeSingle(),
+    db.from('registos_conducao').select('duracao_segundos,tipo').eq('motorista_id', motorista.id).eq('tipo','conducao').gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z').not('fim','is',null)
   ]);
   pagamentos = pagsRes.data || [];
   contratosMotorista = contRes.data || [];
+  sessaoConducaoAtiva = sessaoRes.data || null;
+  totalSegundosHoje = (hojeRes.data || []).reduce((s,r) => s + (r.duracao_segundos||0), 0);
   renderApp();
 
   // ── COMPLIANCE: validar Termos aceites + check diário ──
@@ -611,6 +622,8 @@ function renderApp() {
     </div>
 
     <div class="main">
+      ${renderConducaoCard()}
+
       ${ultimo ? renderSemanaAtual(ultimo) : ''}
 
       ${contratosMotorista.length ? renderContratosMotorista() : ''}
@@ -646,6 +659,193 @@ function renderApp() {
       </button>
     </div>
   `;
+  // Se há sessão ativa, arranca o timer ao vivo
+  if (sessaoConducaoAtiva) iniciarTickInterval();
+}
+
+// ── Tempo de Condução ──
+function fmtHMS(seg) {
+  if (!seg || seg < 0) seg = 0;
+  const h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60), s = seg%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function totalSegundosAtuais() {
+  let total = totalSegundosHoje;
+  if (sessaoConducaoAtiva && sessaoConducaoAtiva.tipo === 'conducao') {
+    total += Math.floor((Date.now() - new Date(sessaoConducaoAtiva.inicio).getTime()) / 1000);
+  }
+  return total;
+}
+
+function corBarra(seg) {
+  if (seg >= LIMITE_LEGAL_SEG) return 'var(--red)';
+  if (seg >= ALERTA_LARANJA) return 'var(--orange)';
+  if (seg >= ALERTA_AMARELO) return '#e8c43a';
+  return 'var(--green)';
+}
+
+function renderConducaoCard() {
+  const total = totalSegundosAtuais();
+  const pct = Math.min(100, (total / LIMITE_LEGAL_SEG) * 100);
+  const cor = corBarra(total);
+  const ativa = sessaoConducaoAtiva;
+
+  let estadoBox = '';
+  if (ativa && ativa.tipo === 'conducao') {
+    estadoBox = `
+      <div style="background:rgba(39,201,63,0.10);border:1px solid rgba(39,201,63,0.3);border-radius:6px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">🚗</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--paper);font-weight:500">Em condução</div>
+          <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">desde ${new Date(ativa.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div id="cond-timer" style="font-family:var(--mono);font-size:22px;color:var(--green);font-weight:600">${fmtHMS(Math.floor((Date.now()-new Date(ativa.inicio).getTime())/1000))}</div>
+      </div>
+    `;
+  } else if (ativa && ativa.tipo === 'pausa') {
+    estadoBox = `
+      <div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.3);border-radius:6px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">⏸️</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--paper);font-weight:500">Em pausa</div>
+          <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">desde ${new Date(ativa.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <div id="cond-timer" style="font-family:var(--mono);font-size:22px;color:var(--orange);font-weight:600">${fmtHMS(Math.floor((Date.now()-new Date(ativa.inicio).getTime())/1000))}</div>
+      </div>
+    `;
+  }
+
+  let botoes = '';
+  if (!ativa) {
+    botoes = `<button onclick="iniciarConducao()" style="width:100%;padding:18px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:16px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:10px">▶️ Iniciar condução</button>`;
+  } else if (ativa.tipo === 'conducao') {
+    botoes = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="trocarParaPausa()" style="padding:14px;background:rgba(232,148,58,0.12);color:var(--orange);border:1px solid rgba(232,148,58,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏸️ Pausa</button>
+        <button onclick="terminarSessao()" style="padding:14px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
+      </div>`;
+  } else if (ativa.tipo === 'pausa') {
+    botoes = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="trocarParaConducao()" style="padding:14px;background:var(--gold);color:var(--ink);border:none;border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">▶️ Continuar</button>
+        <button onclick="terminarSessao()" style="padding:14px;background:rgba(224,82,82,0.12);color:var(--red);border:1px solid rgba(224,82,82,0.4);border-radius:6px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">⏹️ Terminar</button>
+      </div>`;
+  }
+
+  let alerta = '';
+  if (total >= LIMITE_LEGAL_SEG) {
+    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Termina o serviço para cumprir a Lei TVDE.</div>`;
+  } else if (total >= ALERTA_LARANJA) {
+    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:var(--orange);line-height:1.5">Estás a aproximar-te das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total)}.</div>`;
+  } else if (total >= ALERTA_AMARELO) {
+    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:12px;color:#c8a020;line-height:1.5">Já conduziste ${fmtHMS(total)}. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total)} para o limite legal.</div>`;
+  }
+
+  return `
+    <div class="section-title">
+      <span class="section-title-line"></span>
+      <span class="section-title-text">Tempo de condução</span>
+    </div>
+    <div style="background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:28px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">Total hoje</div>
+          <div id="cond-total" style="font-family:var(--serif);font-size:32px;font-weight:300;color:${cor};letter-spacing:-1px;line-height:1">${fmtHMS(total)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Limite legal</div>
+          <div style="font-family:var(--mono);font-size:13px;color:var(--paper)">10:00:00</div>
+        </div>
+      </div>
+      <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:14px">
+        <div id="cond-barra" style="height:100%;width:${pct}%;background:${cor};transition:width .3s,background .3s"></div>
+      </div>
+      ${estadoBox}
+      ${botoes}
+      ${alerta}
+    </div>
+  `;
+}
+
+async function iniciarConducao() {
+  const { data, error } = await db.from('registos_conducao').insert({
+    motorista_id: motorista.id,
+    empresa_id: motorista.empresa_id,
+    tipo: 'conducao'
+  }).select().single();
+  if (error) { alert('Erro: '+error.message); return; }
+  sessaoConducaoAtiva = data;
+  iniciarTickInterval();
+  renderApp();
+}
+
+async function trocarParaPausa() {
+  if (!sessaoConducaoAtiva) return;
+  // Fechar registo atual
+  await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', sessaoConducaoAtiva.id);
+  // Recalcular total dia (a sessão fechada agora conta)
+  const dur = Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
+  totalSegundosHoje += dur;
+  // Abrir pausa
+  const { data, error } = await db.from('registos_conducao').insert({
+    motorista_id: motorista.id, empresa_id: motorista.empresa_id, tipo: 'pausa'
+  }).select().single();
+  if (error) { alert('Erro: '+error.message); return; }
+  sessaoConducaoAtiva = data;
+  renderApp();
+}
+
+async function trocarParaConducao() {
+  if (!sessaoConducaoAtiva) return;
+  // Fechar pausa
+  await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', sessaoConducaoAtiva.id);
+  // Abrir condução
+  const { data, error } = await db.from('registos_conducao').insert({
+    motorista_id: motorista.id, empresa_id: motorista.empresa_id, tipo: 'conducao'
+  }).select().single();
+  if (error) { alert('Erro: '+error.message); return; }
+  sessaoConducaoAtiva = data;
+  iniciarTickInterval();
+  renderApp();
+}
+
+async function terminarSessao() {
+  if (!sessaoConducaoAtiva) return;
+  if (!confirm('Terminar a sessão atual?')) return;
+  // Fechar registo + somar total se for condução
+  await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', sessaoConducaoAtiva.id);
+  if (sessaoConducaoAtiva.tipo === 'conducao') {
+    totalSegundosHoje += Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
+  }
+  sessaoConducaoAtiva = null;
+  pararTickInterval();
+  renderApp();
+}
+
+function iniciarTickInterval() {
+  pararTickInterval();
+  conducaoTickInterval = setInterval(() => {
+    if (!sessaoConducaoAtiva) { pararTickInterval(); return; }
+    const elTimer = document.getElementById('cond-timer');
+    const elTotal = document.getElementById('cond-total');
+    const elBarra = document.getElementById('cond-barra');
+    if (!elTimer || !elTotal || !elBarra) return;
+    const segSessao = Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
+    elTimer.textContent = fmtHMS(segSessao);
+    if (sessaoConducaoAtiva.tipo === 'conducao') {
+      const total = totalSegundosHoje + segSessao;
+      elTotal.textContent = fmtHMS(total);
+      const cor = corBarra(total);
+      elTotal.style.color = cor;
+      elBarra.style.background = cor;
+      elBarra.style.width = Math.min(100, (total/LIMITE_LEGAL_SEG)*100) + '%';
+    }
+  }, 1000);
+}
+
+function pararTickInterval() {
+  if (conducaoTickInterval) { clearInterval(conducaoTickInterval); conducaoTickInterval = null; }
 }
 
 function renderContratosMotorista() {

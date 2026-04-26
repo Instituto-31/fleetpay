@@ -930,16 +930,127 @@ function showPage(page) {
     contratos: renderContratos,
     compliance: renderCompliance,
   };
+  // Parar timers de páginas anteriores
+  if (page !== 'dashboard') pararLiveTickAdmin();
   (pages[page] || (() => {}))();
 }
 
+// ── CONDUÇÃO LIVE (admin) ──
+let conducaoSessoesLive = [];   // sessões em curso (fim IS NULL) hoje
+let conducaoTotaisHoje = {};    // motorista_id → segundos de condução já fechados hoje
+let conducaoLiveInterval = null;
+
+async function carregarConducaoLive() {
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const [ativasRes, hojeRes] = await Promise.all([
+    db.from('registos_conducao')
+      .select('*, motoristas(nome, email)')
+      .eq('empresa_id', empresa.id).is('fim', null)
+      .order('inicio'),
+    db.from('registos_conducao')
+      .select('motorista_id, duracao_segundos')
+      .eq('empresa_id', empresa.id).eq('tipo','conducao')
+      .gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z')
+      .not('fim','is',null)
+  ]);
+  conducaoSessoesLive = ativasRes.data || [];
+  conducaoTotaisHoje = {};
+  (hojeRes.data || []).forEach(r => {
+    conducaoTotaisHoje[r.motorista_id] = (conducaoTotaisHoje[r.motorista_id] || 0) + (r.duracao_segundos||0);
+  });
+}
+
+function corSemaforo(seg) {
+  if (seg >= 36000) return 'var(--red)';        // 10h
+  if (seg >= 34200) return 'var(--orange)';     // 9h30
+  if (seg >= 28800) return '#c8a020';           // 8h
+  return 'var(--green)';
+}
+function fmtHMSAdmin(seg) {
+  if (!seg || seg<0) seg = 0;
+  const h = Math.floor(seg/3600), m = Math.floor((seg%3600)/60);
+  return `${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`;
+}
+
+function renderConducaoLiveBlock() {
+  const ativos = conducaoSessoesLive.length;
+  const totalConducao = conducaoSessoesLive.reduce((s,r) => {
+    const ja = conducaoTotaisHoje[r.motorista_id] || 0;
+    const sessao = r.tipo === 'conducao' ? Math.floor((Date.now()-new Date(r.inicio).getTime())/1000) : 0;
+    return s + ja + sessao;
+  }, 0);
+
+  return `
+    <div class="table-wrap" style="margin-bottom:24px">
+      <div class="table-header">
+        <div>
+          <div class="table-title">🚗 Em serviço agora</div>
+          <div class="table-sub">${ativos} motorista(s) ativo(s) · soma total hoje: <strong style="color:var(--gold)">${fmtHMSAdmin(totalConducao)}</strong></div>
+        </div>
+        <span class="badge badge-green" style="font-size:9px"><span class="badge-dot"></span>Atualiza ao vivo</span>
+      </div>
+      <div id="conducao-live-body" style="padding:0">
+        ${ativos === 0 ? '<div style="padding:40px;text-align:center;color:var(--sub2);font-size:13px">Nenhum motorista em serviço.</div>' : conducaoSessoesLive.map(r => renderLinhaConducaoLive(r)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderLinhaConducaoLive(r) {
+  const ja = conducaoTotaisHoje[r.motorista_id] || 0;
+  const sessao = r.tipo === 'conducao' ? Math.floor((Date.now()-new Date(r.inicio).getTime())/1000) : 0;
+  const total = ja + sessao;
+  const cor = corSemaforo(total);
+  const tipoLabel = r.tipo === 'conducao' ? '🚗 Em condução' : '⏸️ Em pausa';
+  const tipoBadge = r.tipo === 'conducao' ? 'badge-green' : 'badge-orange';
+  return `
+    <div data-cond-row="${r.id}" style="display:grid;grid-template-columns:1fr 140px 100px 110px;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)">
+      <div>
+        <div style="font-size:13px;color:var(--paper);font-weight:500">${r.motoristas?.nome || '—'}</div>
+        <div style="font-size:11px;color:var(--sub2);font-family:var(--mono);margin-top:2px">desde ${new Date(r.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      <span class="badge ${tipoBadge}" style="justify-self:start"><span class="badge-dot"></span>${tipoLabel}</span>
+      <div data-cond-sessao="${r.id}" style="font-family:var(--mono);font-size:14px;color:var(--paper);text-align:right">${fmtHMSAdmin(sessao)}</div>
+      <div data-cond-total="${r.motorista_id}" style="font-family:var(--mono);font-size:14px;font-weight:600;color:${cor};text-align:right">${fmtHMSAdmin(total)}/10h00</div>
+    </div>
+  `;
+}
+
+function tickConducaoLive() {
+  conducaoSessoesLive.forEach(r => {
+    const sessao = r.tipo === 'conducao' ? Math.floor((Date.now()-new Date(r.inicio).getTime())/1000) : 0;
+    const elS = document.querySelector(`[data-cond-sessao="${r.id}"]`);
+    if (elS) elS.textContent = fmtHMSAdmin(sessao);
+    if (r.tipo === 'conducao') {
+      const total = (conducaoTotaisHoje[r.motorista_id]||0) + sessao;
+      const elT = document.querySelector(`[data-cond-total="${r.motorista_id}"]`);
+      if (elT) {
+        elT.textContent = `${fmtHMSAdmin(total)}/10h00`;
+        elT.style.color = corSemaforo(total);
+      }
+    }
+  });
+}
+
+function iniciarLiveTickAdmin() {
+  pararLiveTickAdmin();
+  if (conducaoSessoesLive.length === 0) return;
+  conducaoLiveInterval = setInterval(tickConducaoLive, 30000);  // 30s — economiza recursos
+}
+function pararLiveTickAdmin() {
+  if (conducaoLiveInterval) { clearInterval(conducaoLiveInterval); conducaoLiveInterval = null; }
+}
+
 // ── DASHBOARD ──
-function renderDashboard() {
+async function renderDashboard() {
   document.getElementById('topbar-actions').innerHTML = '';
   const semPags = pagamentos.filter(p => p.semana_inicio === semanaAtual);
   const totalPagar = semPags.reduce((s,p) => s + (p.valor_final||0), 0);
   const totalBruto = semPags.reduce((s,p) => s + (p.uber_bruto||0) + (p.bolt_bruto||0), 0);
   const pagos = semPags.filter(p=>p.estado==='pago').length;
+
+  // Carregar condução ativa hoje
+  await carregarConducaoLive();
 
   document.getElementById('content').innerHTML = `
     <div class="kpi-grid">
@@ -964,6 +1075,8 @@ function renderDashboard() {
         <div class="kpi-sub">esta semana</div>
       </div>
     </div>
+
+    ${renderConducaoLiveBlock()}
 
     ${alertas.length > 0 ? `
     <div class="table-wrap" style="margin-bottom:24px">
@@ -1024,6 +1137,7 @@ function renderDashboard() {
       </table>`}
     </div>
   `;
+  iniciarLiveTickAdmin();
 }
 
 // ── PAGAMENTOS ──
