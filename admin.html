@@ -1445,7 +1445,7 @@ async function carregarContratosMotoristaModal(motoristaId) {
           <div style="font-size:13px;color:var(--paper);font-weight:500">${c.template_nome || '—'}</div>
           <div style="font-size:10px;color:${cor};font-family:var(--mono);margin-top:2px">${estado} · ${dt ? new Date(dt).toLocaleDateString('pt-PT') : ''}</div>
         </div>
-        ${c.ficheiro_path ? `<button type="button" class="btn btn-ghost btn-sm" onclick="downloadAssinadoModal('${c.ficheiro_path}','${(c.template_nome||'contrato').replace(/'/g,'\\\\\\'')}')">📥 Ver</button>` : ''}
+        ${c.ficheiro_path ? `<button type="button" class="btn btn-ghost btn-sm" onclick='downloadAssinadoModal(${JSON.stringify(c.ficheiro_path)}, ${JSON.stringify(c.template_nome||"contrato")})'>📥 Ver</button>` : ''}
       </div>
     `;
   }).join('');
