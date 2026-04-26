@@ -206,27 +206,47 @@ const utils = {
 };
 
 // ── TEMAS ──
-// 3 paletas: 'default' (Black & Gold), 'sage' (Instituto 31), 'light' (Modern Minimal)
-// Aplicado via classe no body. Persistência em localStorage.
+// 6 paletas com tier (free/pro). Aplicado via classe no body. Persistência em localStorage.
+// O acesso a temas pro é controlado via canUse() — o plano da empresa vem de window.fleetpayPlano.
 const themes = {
   list: [
-    { id: 'default', label: 'Black & Gold', icon: '🌙', vibe: 'Premium, escuro' },
-    { id: 'sage',    label: 'Sage Instituto 31', icon: '🌿', vibe: 'Calmo, claro' },
-    { id: 'light',   label: 'Modern Minimal', icon: '☀️', vibe: 'Limpo, moderno' }
+    { id: 'default',  label: 'Black & Gold',       icon: '🌙', vibe: 'Premium escuro · atual',     tier: 'free' },
+    { id: 'sage',     label: 'Sage Instituto 31',  icon: '🌿', vibe: 'Calmo claro · brand I31',    tier: 'free' },
+    { id: 'light',    label: 'Modern Minimal',     icon: '☀️', vibe: 'Limpo moderno · Linear',     tier: 'free' },
+    { id: 'tech-pro', label: 'Tech Pro',           icon: '💼', vibe: 'Fintech azul · Wise/Revolut', tier: 'pro'  },
+    { id: 'forest',   label: 'Forest Premium',     icon: '🌲', vibe: 'Verde + champanhe · Audi',   tier: 'pro'  },
+    { id: 'warm',     label: 'Warm Mediterranean', icon: '🍅', vibe: 'Terracota acolhedor',         tier: 'pro'  }
   ],
   current() { return localStorage.getItem('fleetpay-theme') || 'default'; },
+  // Verifica se o plano da empresa permite usar este tema
+  canUse(id, plano) {
+    const t = this.list.find(x => x.id === id);
+    if (!t) return false;
+    if (t.tier === 'free') return true;
+    const p = plano || window.fleetpayPlano || 'free';
+    return p === 'pro' || p === 'enterprise';
+  },
   apply(id) {
-    document.body.classList.remove('theme-sage','theme-light','light');
-    if (id === 'sage') document.body.classList.add('theme-sage');
-    else if (id === 'light') document.body.classList.add('theme-light','light'); // 'light' por compat. com CSS antigo
+    // Valida tier — se não pode, força default
+    if (!this.canUse(id)) id = 'default';
+    document.body.classList.remove('theme-sage','theme-light','light','theme-tech-pro','theme-forest','theme-warm');
+    if (id === 'sage')          document.body.classList.add('theme-sage');
+    else if (id === 'light')    document.body.classList.add('theme-light','light'); // 'light' por compat. com CSS antigo
+    else if (id === 'tech-pro') document.body.classList.add('theme-tech-pro');
+    else if (id === 'forest')   document.body.classList.add('theme-forest');
+    else if (id === 'warm')     document.body.classList.add('theme-warm');
     localStorage.setItem('fleetpay-theme', id);
-    // Atualizar ícone no botão de tema, se existir
+    // Atualizar ícone do botão de tema
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
   },
   cycle() {
-    const ids = this.list.map(t => t.id);
-    const next = ids[(ids.indexOf(this.current()) + 1) % ids.length];
+    // Só cicla entre os que pode usar
+    const usaveis = this.list.filter(t => this.canUse(t.id)).map(t => t.id);
+    if (!usaveis.length) return;
+    const cur = this.current();
+    const idx = usaveis.indexOf(cur);
+    const next = usaveis[(idx + 1) % usaveis.length];
     this.apply(next);
     return next;
   },

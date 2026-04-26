@@ -201,6 +201,41 @@ body.theme-sage .bottom-nav { background:rgba(250,247,242,0.97); }
 body.theme-sage .detail-val { color:var(--paper); }
 body.theme-sage .btn-recibo { background:rgba(122,140,102,0.10); }
 
+/* TEMA PRO: Tech Pro */
+body.theme-tech-pro {
+  --ink:#0F1419;--paper:#E6EDF3;--gold:#4FB3D9;--gold-light:#7BC8E0;
+  --line:rgba(79,179,217,0.2);--sub:#7D8590;--sub2:#9EA5AD;
+}
+body.theme-tech-pro { background:var(--ink); }
+body.theme-tech-pro .header { background:rgba(15,20,25,0.97); }
+body.theme-tech-pro .semana-atual { background:rgba(79,179,217,0.06); }
+body.theme-tech-pro .pagamento-card { background:rgba(255,255,255,0.04); }
+body.theme-tech-pro .bottom-nav { background:rgba(15,20,25,0.97); }
+
+/* TEMA PRO: Forest Premium */
+body.theme-forest {
+  --ink:#1A2820;--paper:#F0E8D8;--gold:#D4A574;--gold-light:#E8C495;
+  --line:rgba(212,165,116,0.2);--sub:#8A9888;--sub2:#A8B6A4;
+}
+body.theme-forest { background:var(--ink); }
+body.theme-forest .header { background:rgba(26,40,32,0.97); }
+body.theme-forest .semana-atual { background:rgba(212,165,116,0.05); }
+body.theme-forest .pagamento-card { background:rgba(212,165,116,0.04); }
+body.theme-forest .bottom-nav { background:rgba(26,40,32,0.97); }
+
+/* TEMA PRO: Warm Mediterranean */
+body.theme-warm {
+  --ink:#FFF8F0;--paper:#3D2817;--gold:#C36F4F;--gold-light:#D9885F;
+  --line:rgba(195,111,79,0.2);--sub:#7A5C45;--sub2:#5A3F2A;
+}
+body.theme-warm { background:var(--ink); }
+body.theme-warm .header { background:rgba(255,248,240,0.97); }
+body.theme-warm .semana-atual { background:rgba(195,111,79,0.05); }
+body.theme-warm .pagamento-card { background:rgba(255,255,255,0.55); }
+body.theme-warm .bottom-nav { background:rgba(255,248,240,0.97); }
+body.theme-warm .detail-val { color:var(--paper); }
+body.theme-warm .btn-recibo { background:rgba(195,111,79,0.10); }
+
 </style>
 </head>
 <body>
@@ -248,7 +283,7 @@ async function init() {
 
   // Buscar dados do motorista
   const { data: mot } = await db.from('motoristas')
-    .select('*, empresas(nome)')
+    .select('*, empresas(nome, plano)')
     .eq('perfil_id', currentUser.id)
     .single();
 
@@ -259,6 +294,10 @@ async function init() {
   }
 
   motorista = mot;
+
+  // Plano da empresa controla acesso a temas pro
+  window.fleetpayPlano = mot.empresas?.plano || 'free';
+  if (!themes.canUse(themes.current())) themes.apply('default');
 
   // Buscar pagamentos + contratos em paralelo
   const [pagsRes, contRes] = await Promise.all([
@@ -594,19 +633,24 @@ async function abrirPerfil() {
         </div>
 
         <div style="margin-bottom:24px">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Tema da app</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Tema da app · plano <strong style="color:var(--gold)">${(motorista?.empresas?.plano||'free').toUpperCase()}</strong></div>
           <div style="display:flex;flex-direction:column;gap:8px">
-            ${themes.list.map(t => `
-              <button onclick="themes.apply('${t.id}'); document.querySelectorAll('[data-theme-id]').forEach(b=>b.style.borderColor=b.dataset.themeId==='${t.id}'?'var(--gold)':'var(--line)')"
-                data-theme-id="${t.id}"
-                style="text-align:left;padding:12px 14px;background:transparent;border:1px solid ${t.id===atual?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:12px;transition:border-color .2s">
-                <span style="font-size:20px">${t.icon}</span>
-                <span style="flex:1">
-                  <div style="font-size:13px;font-weight:500">${t.label}</div>
-                  <div style="font-size:11px;color:var(--sub2);margin-top:2px">${t.vibe}</div>
-                </span>
-              </button>
-            `).join('')}
+            ${themes.list.map(t => {
+              const podeUsar = themes.canUse(t.id);
+              const proTag = t.tier==='pro' ? '<span style="font-size:9px;background:var(--gold);color:#000;padding:2px 6px;border-radius:100px;margin-left:6px;letter-spacing:.5px;font-family:var(--mono);font-weight:600">PRO</span>' : '';
+              return `
+                <button onclick="${podeUsar ? `themes.apply('${t.id}'); document.querySelectorAll('[data-theme-id]').forEach(b=>b.style.borderColor=b.dataset.themeId==='${t.id}'?'var(--gold)':'var(--line)')` : `alert('Este tema é exclusivo do plano Pro. Fala com o teu operador para fazer upgrade.')`}"
+                  data-theme-id="${t.id}"
+                  style="text-align:left;padding:12px 14px;background:transparent;border:1px solid ${t.id===atual?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:12px;transition:border-color .2s;opacity:${podeUsar?'1':'.6'}">
+                  <span style="font-size:20px">${t.icon}</span>
+                  <span style="flex:1">
+                    <div style="font-size:13px;font-weight:500">${t.label}${proTag}</div>
+                    <div style="font-size:11px;color:var(--sub2);margin-top:2px">${t.vibe}</div>
+                  </span>
+                  ${!podeUsar ? '<span style="font-size:16px">🔒</span>' : ''}
+                </button>
+              `;
+            }).join('')}
           </div>
         </div>
 
