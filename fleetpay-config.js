@@ -206,19 +206,42 @@ const utils = {
 };
 
 // ── TEMAS ──
-// 6 paletas com tier (free/pro). Aplicado via classe no body. Persistência em localStorage.
-// O acesso a temas pro é controlado via canUse() — o plano da empresa vem de window.fleetpayPlano.
+// 6 paletas estéticas, cada uma com 2 modos (dark/light) = 12 visuais totais.
+// O ID do tema (paleta) e o modo (dark/light) são guardados separadamente.
+// Body classes: 'theme-{id}-{modo}' (ex: 'theme-sage-dark', 'theme-default-light')
+// Acesso a temas pro controlado via canUse() — plano da empresa em window.fleetpayPlano.
 const themes = {
   list: [
-    { id: 'default',  label: 'Black & Gold',       icon: '🌙', vibe: 'Premium escuro · atual',     tier: 'free' },
-    { id: 'sage',     label: 'Sage Instituto 31',  icon: '🌿', vibe: 'Calmo claro · brand I31',    tier: 'free' },
-    { id: 'light',    label: 'Modern Minimal',     icon: '☀️', vibe: 'Limpo moderno · Linear',     tier: 'free' },
-    { id: 'tech-pro', label: 'Tech Pro',           icon: '💼', vibe: 'Fintech azul · Wise/Revolut', tier: 'pro'  },
-    { id: 'forest',   label: 'Forest Premium',     icon: '🌲', vibe: 'Verde + champanhe · Audi',   tier: 'pro'  },
-    { id: 'warm',     label: 'Warm Mediterranean', icon: '🍅', vibe: 'Terracota acolhedor',         tier: 'pro'  }
+    { id: 'default',  label: 'Black & Gold',       icon: '🟡', vibe: 'Premium · ouro sobre carvão',  tier: 'free' },
+    { id: 'sage',     label: 'Sage Instituto 31',  icon: '🌿', vibe: 'Calmo · sage Instituto 31',     tier: 'free' },
+    { id: 'minimal',  label: 'Modern Minimal',     icon: '🔷', vibe: 'Limpo · índigo Linear',         tier: 'free' },
+    { id: 'tech',     label: 'Tech Pro',           icon: '💼', vibe: 'Fintech · ciano Wise',          tier: 'pro'  },
+    { id: 'forest',   label: 'Forest Premium',     icon: '🌲', vibe: 'Audi · champanhe sobre verde',  tier: 'pro'  },
+    { id: 'warm',     label: 'Warm Mediterranean', icon: '🍅', vibe: 'Acolhedor · terracota',         tier: 'pro'  }
   ],
-  current() { return localStorage.getItem('fleetpay-theme') || 'default'; },
-  // Verifica se o plano da empresa permite usar este tema
+  // === Estado ===
+  currentTheme() { return localStorage.getItem('fleetpay-theme-id') || 'default'; },
+  currentMode()  { return localStorage.getItem('fleetpay-theme-mode') || 'dark'; },
+  // Compat com versão antiga (mapeia IDs antigos → novos)
+  _migrate() {
+    // Migração one-time do esquema antigo para o novo
+    const legacy = localStorage.getItem('fleetpay-theme');
+    if (legacy && !localStorage.getItem('fleetpay-theme-id')) {
+      const map = {
+        'default':  ['default','dark'],
+        'sage':     ['sage','light'],
+        'light':    ['minimal','light'],
+        'tech-pro': ['tech','dark'],
+        'forest':   ['forest','dark'],
+        'warm':     ['warm','light']
+      };
+      const [id, mode] = map[legacy] || ['default','dark'];
+      localStorage.setItem('fleetpay-theme-id', id);
+      localStorage.setItem('fleetpay-theme-mode', mode);
+      localStorage.removeItem('fleetpay-theme');
+    }
+  },
+  current() { return this.currentTheme(); },  // alias para compat
   canUse(id, plano) {
     const t = this.list.find(x => x.id === id);
     if (!t) return false;
@@ -226,50 +249,77 @@ const themes = {
     const p = plano || window.fleetpayPlano || 'free';
     return p === 'pro' || p === 'enterprise';
   },
-  // Classificação por luminosidade (para toggle inteligente)
-  escuros: ['default','tech-pro','forest'],
-  claros: ['sage','light','warm'],
-  isDark(id) { return this.escuros.includes(id); },
-  apply(id) {
-    // Valida tier — se não pode, força default
-    if (!this.canUse(id)) id = 'default';
-    document.body.classList.remove('theme-sage','theme-light','light','theme-tech-pro','theme-forest','theme-warm');
-    if (id === 'sage')          document.body.classList.add('theme-sage');
-    else if (id === 'light')    document.body.classList.add('theme-light','light'); // 'light' por compat. com CSS antigo
-    else if (id === 'tech-pro') document.body.classList.add('theme-tech-pro');
-    else if (id === 'forest')   document.body.classList.add('theme-forest');
-    else if (id === 'warm')     document.body.classList.add('theme-warm');
-    localStorage.setItem('fleetpay-theme', id);
-    // Memorizar último escuro / último claro (para o toggle do header)
-    if (this.isDark(id)) localStorage.setItem('fleetpay-last-dark', id);
-    else                 localStorage.setItem('fleetpay-last-light', id);
-    // Atualizar ícone do botão de tema
+  // === Aplicar tema + modo ===
+  apply(themeId, mode) {
+    if (typeof themeId === 'undefined') themeId = this.currentTheme();
+    if (typeof mode === 'undefined')    mode    = this.currentMode();
+    if (!this.canUse(themeId)) themeId = 'default';
+    if (mode !== 'dark' && mode !== 'light') mode = 'dark';
+
+    // Remove todas as combinações possíveis (incluindo classes legacy)
+    const todasClasses = [];
+    this.list.forEach(t => {
+      todasClasses.push(`theme-${t.id}-dark`, `theme-${t.id}-light`);
+    });
+    todasClasses.push('light','theme-mode-dark','theme-mode-light',
+      'theme-sage','theme-light','theme-tech-pro','theme-forest','theme-warm'); // legacy classes
+    document.body.classList.remove(...todasClasses);
+
+    // Adiciona as novas
+    document.body.classList.add(`theme-${themeId}-${mode}`);
+    document.body.classList.add(`theme-mode-${mode}`);
+
+    // Mapping para classes legacy (reaproveita CSS atual para o modo padrão de cada tema)
+    const legacyMap = {
+      'default-light': null,         // novo, sem mapping
+      'default-dark':  null,         // default sem classe (CSS root)
+      'sage-light':    'theme-sage',
+      'sage-dark':     null,         // novo
+      'minimal-light': 'light',      // Modern Minimal claro = body.light antigo
+      'minimal-dark':  null,         // novo
+      'tech-dark':     'theme-tech-pro',
+      'tech-light':    null,         // novo
+      'forest-dark':   'theme-forest',
+      'forest-light':  null,         // novo
+      'warm-light':    'theme-warm',
+      'warm-dark':     null          // novo
+    };
+    const legacy = legacyMap[`${themeId}-${mode}`];
+    if (legacy) document.body.classList.add(legacy);
+    if (mode === 'light') document.body.classList.add('light'); // compat global com CSS antigo
+
+    localStorage.setItem('fleetpay-theme-id', themeId);
+    localStorage.setItem('fleetpay-theme-mode', mode);
+
+    // Ícone do botão mostra o OPOSTO ao atual (clica para mudar)
     const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
-    // Notificar páginas para re-renderizarem (Configurações, Perfil, etc.)
-    document.dispatchEvent(new CustomEvent('fleetpay:theme', { detail: { id } }));
+    if (btn) btn.textContent = mode === 'dark' ? '☀️' : '🌙';
+
+    document.dispatchEvent(new CustomEvent('fleetpay:theme', { detail: { themeId, mode } }));
   },
-  cycle() {
-    // Toggle inteligente: alterna entre o último tema escuro e o último tema claro
-    // que o utilizador escolheu. Se nunca escolheu, fallback default↔sage.
-    const cur = this.current();
-    let next;
-    if (this.isDark(cur)) {
-      next = localStorage.getItem('fleetpay-last-light') || 'sage';
-    } else {
-      next = localStorage.getItem('fleetpay-last-dark') || 'default';
-    }
-    if (!this.canUse(next)) next = this.isDark(cur) ? 'sage' : 'default';
-    this.apply(next);
-    return next;
+  // Apenas troca a paleta, mantém o modo
+  setTheme(themeId) {
+    this.apply(themeId, this.currentMode());
   },
+  // Apenas troca o modo, mantém a paleta
+  setMode(mode) {
+    this.apply(this.currentTheme(), mode);
+  },
+  // Toggle do modo (chamado pelo botão 🌙 do header)
+  toggleMode() {
+    this.setMode(this.currentMode() === 'dark' ? 'light' : 'dark');
+  },
+  // Compat: cycle() agora alterna o modo (mantém o tema)
+  cycle() { this.toggleMode(); return this.currentMode(); },
   init() {
-    if (document.body) this.apply(this.current());
-    else document.addEventListener('DOMContentLoaded', () => this.apply(this.current()));
+    this._migrate();
+    const apply = () => this.apply(this.currentTheme(), this.currentMode());
+    if (document.body) apply();
+    else document.addEventListener('DOMContentLoaded', apply);
   }
 };
 themes.init();
-// Compat: HTMLs antigos chamam toggleTheme() — mapear para cycle()
-function toggleTheme() { themes.cycle(); }
+// Compat: HTMLs antigos chamam toggleTheme() — mapear para toggleMode()
+function toggleTheme() { themes.toggleMode(); }
 
 console.log('✅ FleetPay v2.0 — Supabase + temas inicializados');

@@ -443,6 +443,161 @@ body.theme-forest .btn-ghost:hover { color:var(--paper) }
 /* Modal nos temas pro */
 body.theme-tech-pro .modal-overlay,body.theme-forest .modal-overlay,body.theme-warm .modal-overlay { backdrop-filter:blur(6px) }
 
+/* ═══════════════════════════════════════════════════════════════
+   PALETAS MODO OPOSTO (cada tema com a sua versão dark+light)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Black & Gold em modo CLARO ─── */
+body.theme-default-light {
+  --ink:#FAF7F0;--paper:#1A1408;--gold:#9C6F1A;--gold-light:#c8922a;
+  --line:rgba(156,111,26,0.18);--sub:#8a7d6a;--sub2:#5a4f3f;
+  --green:#1a8a2a;--red:#c03030;--orange:#b86a1a;
+}
+body.theme-default-light { background:var(--ink); color:var(--paper); }
+body.theme-default-light .sidebar { background:rgba(255,255,255,0.7); border-right:1px solid var(--line); }
+body.theme-default-light .topbar { background:rgba(250,247,240,0.95); }
+body.theme-default-light .main { background:#F1ECE0; }
+body.theme-default-light .kpi { background:rgba(255,255,255,0.85); }
+body.theme-default-light .table-wrap { background:rgba(255,255,255,0.85); }
+body.theme-default-light table th { background:rgba(0,0,0,0.04); }
+body.theme-default-light tr:hover td { background:rgba(0,0,0,0.02); }
+body.theme-default-light .field input,body.theme-default-light .field select,body.theme-default-light .field textarea { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.theme-default-light .field select option { background:var(--ink); color:var(--paper); }
+body.theme-default-light .modal { background:#F5F0E2; }
+body.theme-default-light .upload-zone { border-color:rgba(156,111,26,0.25); }
+body.theme-default-light .upload-zone:hover { background:rgba(156,111,26,0.06); }
+body.theme-default-light .nav-item:hover { background:rgba(0,0,0,0.04); }
+body.theme-default-light .nav-item.active { background:rgba(156,111,26,0.10); }
+body.theme-default-light .user-chip { background:rgba(0,0,0,0.05); }
+body.theme-default-light .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.theme-default-light .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-default-light .btn-ghost:hover { color:var(--paper); }
+
+/* ─── Sage Instituto 31 em modo ESCURO ─── */
+body.theme-sage-dark {
+  --ink:#1B2519;--paper:#E8EBDF;--gold:#9CAF88;--gold-light:#B8CFA3;
+  --line:rgba(156,175,136,0.18);--sub:#7A8970;--sub2:#B8C2A7;
+  --green:#7AAF6F;--red:#D87070;--orange:#D4A574;
+}
+body.theme-sage-dark { background:var(--ink); color:var(--paper); }
+body.theme-sage-dark .sidebar { background:rgba(0,0,0,0.32); border-right:1px solid var(--line); }
+body.theme-sage-dark .topbar { background:rgba(0,0,0,0.22); }
+body.theme-sage-dark .kpi { background:rgba(156,175,136,0.06); }
+body.theme-sage-dark .table-wrap { background:rgba(156,175,136,0.04); }
+body.theme-sage-dark table th { background:rgba(0,0,0,0.25); }
+body.theme-sage-dark tr:hover td { background:rgba(255,255,255,0.03); }
+body.theme-sage-dark .field input,body.theme-sage-dark .field select,body.theme-sage-dark .field textarea { background:rgba(255,255,255,0.04); color:var(--paper); }
+body.theme-sage-dark .field select option { background:var(--ink); color:var(--paper); }
+body.theme-sage-dark .modal { background:#22302F; }
+body.theme-sage-dark .upload-zone { border-color:rgba(156,175,136,0.28); }
+body.theme-sage-dark .nav-item:hover { background:rgba(255,255,255,0.04); }
+body.theme-sage-dark .nav-item.active { background:rgba(156,175,136,0.12); }
+body.theme-sage-dark .user-chip { background:rgba(255,255,255,0.04); }
+body.theme-sage-dark .search-bar { background:rgba(255,255,255,0.05); color:var(--paper); }
+body.theme-sage-dark .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-sage-dark .btn-ghost:hover { color:var(--paper); }
+
+/* ─── Modern Minimal em modo ESCURO ─── */
+body.theme-minimal-dark {
+  --ink:#0F0F12;--paper:#E8E8EC;--gold:#7C84DD;--gold-light:#9DA4E8;
+  --line:rgba(124,132,221,0.20);--sub:#6E707A;--sub2:#9799A8;
+  --green:#22C55E;--red:#F85149;--orange:#F59E0B;
+}
+body.theme-minimal-dark { background:var(--ink); color:var(--paper); }
+body.theme-minimal-dark .sidebar { background:rgba(0,0,0,0.35); border-right:1px solid var(--line); }
+body.theme-minimal-dark .topbar { background:rgba(0,0,0,0.25); }
+body.theme-minimal-dark .kpi { background:rgba(255,255,255,0.04); }
+body.theme-minimal-dark .table-wrap { background:rgba(255,255,255,0.04); }
+body.theme-minimal-dark table th { background:rgba(0,0,0,0.3); }
+body.theme-minimal-dark tr:hover td { background:rgba(255,255,255,0.03); }
+body.theme-minimal-dark .field input,body.theme-minimal-dark .field select,body.theme-minimal-dark .field textarea { background:rgba(255,255,255,0.04); color:var(--paper); }
+body.theme-minimal-dark .field select option { background:var(--ink); color:var(--paper); }
+body.theme-minimal-dark .modal { background:#181821; }
+body.theme-minimal-dark .upload-zone { border-color:rgba(124,132,221,0.28); }
+body.theme-minimal-dark .nav-item:hover { background:rgba(255,255,255,0.04); }
+body.theme-minimal-dark .nav-item.active { background:rgba(124,132,221,0.12); }
+body.theme-minimal-dark .user-chip { background:rgba(255,255,255,0.04); }
+body.theme-minimal-dark .search-bar { background:rgba(255,255,255,0.05); color:var(--paper); }
+body.theme-minimal-dark .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-minimal-dark .btn-ghost:hover { color:var(--paper); }
+
+/* ─── Tech Pro em modo CLARO ─── */
+body.theme-tech-light {
+  --ink:#F4F8FB;--paper:#0F1419;--gold:#1F7AAB;--gold-light:#3A95C8;
+  --line:rgba(31,122,171,0.18);--sub:#5A6770;--sub2:#3D4853;
+  --green:#1F7A3A;--red:#C73E3E;--orange:#C77519;
+}
+body.theme-tech-light { background:var(--ink); color:var(--paper); }
+body.theme-tech-light .sidebar { background:rgba(255,255,255,0.72); border-right:1px solid var(--line); }
+body.theme-tech-light .topbar { background:rgba(244,248,251,0.95); }
+body.theme-tech-light .main { background:#E8EFF4; }
+body.theme-tech-light .kpi { background:rgba(255,255,255,0.85); }
+body.theme-tech-light .table-wrap { background:rgba(255,255,255,0.85); }
+body.theme-tech-light table th { background:rgba(31,122,171,0.06); }
+body.theme-tech-light tr:hover td { background:rgba(0,0,0,0.02); }
+body.theme-tech-light .field input,body.theme-tech-light .field select,body.theme-tech-light .field textarea { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.theme-tech-light .field select option { background:var(--ink); color:var(--paper); }
+body.theme-tech-light .modal { background:#EDF2F7; }
+body.theme-tech-light .upload-zone { border-color:rgba(31,122,171,0.28); }
+body.theme-tech-light .nav-item:hover { background:rgba(0,0,0,0.04); }
+body.theme-tech-light .nav-item.active { background:rgba(31,122,171,0.10); }
+body.theme-tech-light .user-chip { background:rgba(0,0,0,0.05); }
+body.theme-tech-light .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.theme-tech-light .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-tech-light .btn-ghost:hover { color:var(--paper); }
+
+/* ─── Forest Premium em modo CLARO ─── */
+body.theme-forest-light {
+  --ink:#F5F1E8;--paper:#1A2820;--gold:#A07530;--gold-light:#C4924A;
+  --line:rgba(160,117,48,0.18);--sub:#7A6F5E;--sub2:#5A4F3F;
+  --green:#3F7A3F;--red:#B85450;--orange:#A07530;
+}
+body.theme-forest-light { background:var(--ink); color:var(--paper); }
+body.theme-forest-light .sidebar { background:rgba(255,255,255,0.65); border-right:1px solid var(--line); }
+body.theme-forest-light .topbar { background:rgba(245,241,232,0.95); }
+body.theme-forest-light .main { background:#EDE7D4; }
+body.theme-forest-light .kpi { background:rgba(255,255,255,0.78); }
+body.theme-forest-light .table-wrap { background:rgba(255,255,255,0.78); }
+body.theme-forest-light table th { background:rgba(160,117,48,0.06); }
+body.theme-forest-light tr:hover td { background:rgba(0,0,0,0.02); }
+body.theme-forest-light .field input,body.theme-forest-light .field select,body.theme-forest-light .field textarea { background:rgba(0,0,0,0.04); color:var(--paper); }
+body.theme-forest-light .field select option { background:var(--ink); color:var(--paper); }
+body.theme-forest-light .modal { background:#F0EAD8; }
+body.theme-forest-light .upload-zone { border-color:rgba(160,117,48,0.28); }
+body.theme-forest-light .nav-item:hover { background:rgba(0,0,0,0.04); }
+body.theme-forest-light .nav-item.active { background:rgba(160,117,48,0.10); }
+body.theme-forest-light .user-chip { background:rgba(0,0,0,0.05); }
+body.theme-forest-light .search-bar { background:rgba(0,0,0,0.05); color:var(--paper); }
+body.theme-forest-light .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-forest-light .btn-ghost:hover { color:var(--paper); }
+
+/* ─── Warm Mediterranean em modo ESCURO ─── */
+body.theme-warm-dark {
+  --ink:#241712;--paper:#F5E5D3;--gold:#E08560;--gold-light:#EFA078;
+  --line:rgba(224,133,96,0.18);--sub:#9A7E68;--sub2:#C2A48C;
+  --green:#9AB87A;--red:#D87070;--orange:#E0A570;
+}
+body.theme-warm-dark { background:var(--ink); color:var(--paper); }
+body.theme-warm-dark .sidebar { background:rgba(0,0,0,0.32); border-right:1px solid var(--line); }
+body.theme-warm-dark .topbar { background:rgba(0,0,0,0.22); }
+body.theme-warm-dark .kpi { background:rgba(224,133,96,0.06); }
+body.theme-warm-dark .table-wrap { background:rgba(224,133,96,0.04); }
+body.theme-warm-dark table th { background:rgba(0,0,0,0.25); }
+body.theme-warm-dark tr:hover td { background:rgba(255,255,255,0.03); }
+body.theme-warm-dark .field input,body.theme-warm-dark .field select,body.theme-warm-dark .field textarea { background:rgba(255,255,255,0.04); color:var(--paper); }
+body.theme-warm-dark .field select option { background:var(--ink); color:var(--paper); }
+body.theme-warm-dark .modal { background:#3A241B; }
+body.theme-warm-dark .upload-zone { border-color:rgba(224,133,96,0.28); }
+body.theme-warm-dark .nav-item:hover { background:rgba(255,255,255,0.04); }
+body.theme-warm-dark .nav-item.active { background:rgba(224,133,96,0.12); }
+body.theme-warm-dark .user-chip { background:rgba(255,255,255,0.04); }
+body.theme-warm-dark .search-bar { background:rgba(255,255,255,0.05); color:var(--paper); }
+body.theme-warm-dark .btn-ghost { color:var(--sub2); border-color:var(--line); }
+body.theme-warm-dark .btn-ghost:hover { color:var(--paper); }
+
+/* Default-dark explícito (caso JS aplique a classe) */
+body.theme-default-dark { /* já é o root, sem override */ }
+
 </style>
 </head>
 <body>
@@ -2448,17 +2603,18 @@ function renderConfig() {
         <div class="table-header">
           <div>
             <div class="table-title">🎨 Aparência</div>
-            <div class="table-sub">Plano atual: <strong style="color:var(--gold);text-transform:uppercase">${empresa?.plano||'free'}</strong></div>
+            <div class="table-sub">Plano: <strong style="color:var(--gold);text-transform:uppercase">${empresa?.plano||'free'}</strong> · Modo: <strong style="color:var(--gold)">${themes.currentMode()==='dark'?'Escuro 🌙':'Claro ☀️'}</strong></div>
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="themes.toggleMode()" title="Alternar dark/light">${themes.currentMode()==='dark'?'☀️ Claro':'🌙 Escuro'}</button>
         </div>
         <div style="padding:24px">
-          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Escolhe o tema. A escolha fica guardada no teu browser.</p>
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Escolhe a paleta. O modo (claro/escuro) alterna-se em separado.</p>
           <div style="display:grid;grid-template-columns:1fr;gap:10px">
             ${themes.list.map(t => {
               const podeUsar = themes.canUse(t.id);
               const ativo = t.id===atual;
               return `
-                <button onclick='${podeUsar ? `themes.apply(${JSON.stringify(t.id)}); renderConfig()` : `mostrarUpgradeTema(${JSON.stringify(t.id)}, ${JSON.stringify(t.label)})`}'
+                <button onclick='${podeUsar ? `themes.setTheme(${JSON.stringify(t.id)})` : `mostrarUpgradeTema(${JSON.stringify(t.id)}, ${JSON.stringify(t.label)})`}'
                   style="text-align:left;padding:14px 16px;background:transparent;border:1px solid ${ativo?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:14px;transition:border-color .2s;opacity:${podeUsar?'1':'.65'}">
                   <span style="font-size:22px">${t.icon}</span>
                   <span style="flex:1">

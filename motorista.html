@@ -236,6 +236,82 @@ body.theme-warm .bottom-nav { background:rgba(255,248,240,0.97); }
 body.theme-warm .detail-val { color:var(--paper); }
 body.theme-warm .btn-recibo { background:rgba(195,111,79,0.10); }
 
+/* ─── PALETAS MODO OPOSTO (cada tema com versão dark+light) ─── */
+
+/* Black & Gold em modo CLARO */
+body.theme-default-light {
+  --ink:#FAF7F0;--paper:#1A1408;--gold:#9C6F1A;--gold-light:#c8922a;
+  --line:rgba(156,111,26,0.18);--sub:#8a7d6a;--sub2:#5a4f3f;
+}
+body.theme-default-light { background:var(--ink); }
+body.theme-default-light .header { background:rgba(250,247,240,0.97); }
+body.theme-default-light .semana-atual { background:rgba(156,111,26,0.05); }
+body.theme-default-light .pagamento-card { background:rgba(255,255,255,0.6); }
+body.theme-default-light .bottom-nav { background:rgba(250,247,240,0.97); }
+body.theme-default-light .detail-val { color:var(--paper); }
+body.theme-default-light .btn-recibo { background:rgba(156,111,26,0.10); }
+
+/* Sage em modo ESCURO */
+body.theme-sage-dark {
+  --ink:#1B2519;--paper:#E8EBDF;--gold:#9CAF88;--gold-light:#B8CFA3;
+  --line:rgba(156,175,136,0.18);--sub:#7A8970;--sub2:#B8C2A7;
+}
+body.theme-sage-dark { background:var(--ink); }
+body.theme-sage-dark .header { background:rgba(27,37,25,0.97); }
+body.theme-sage-dark .semana-atual { background:rgba(156,175,136,0.06); }
+body.theme-sage-dark .pagamento-card { background:rgba(156,175,136,0.04); }
+body.theme-sage-dark .bottom-nav { background:rgba(27,37,25,0.97); }
+
+/* Modern Minimal em modo ESCURO */
+body.theme-minimal-dark {
+  --ink:#0F0F12;--paper:#E8E8EC;--gold:#7C84DD;--gold-light:#9DA4E8;
+  --line:rgba(124,132,221,0.20);--sub:#6E707A;--sub2:#9799A8;
+}
+body.theme-minimal-dark { background:var(--ink); }
+body.theme-minimal-dark .header { background:rgba(15,15,18,0.97); }
+body.theme-minimal-dark .semana-atual { background:rgba(124,132,221,0.06); }
+body.theme-minimal-dark .pagamento-card { background:rgba(255,255,255,0.04); }
+body.theme-minimal-dark .bottom-nav { background:rgba(15,15,18,0.97); }
+
+/* Tech Pro em modo CLARO */
+body.theme-tech-light {
+  --ink:#F4F8FB;--paper:#0F1419;--gold:#1F7AAB;--gold-light:#3A95C8;
+  --line:rgba(31,122,171,0.18);--sub:#5A6770;--sub2:#3D4853;
+}
+body.theme-tech-light { background:var(--ink); }
+body.theme-tech-light .header { background:rgba(244,248,251,0.97); }
+body.theme-tech-light .semana-atual { background:rgba(31,122,171,0.05); }
+body.theme-tech-light .pagamento-card { background:rgba(255,255,255,0.6); }
+body.theme-tech-light .bottom-nav { background:rgba(244,248,251,0.97); }
+body.theme-tech-light .detail-val { color:var(--paper); }
+body.theme-tech-light .btn-recibo { background:rgba(31,122,171,0.10); }
+
+/* Forest Premium em modo CLARO */
+body.theme-forest-light {
+  --ink:#F5F1E8;--paper:#1A2820;--gold:#A07530;--gold-light:#C4924A;
+  --line:rgba(160,117,48,0.18);--sub:#7A6F5E;--sub2:#5A4F3F;
+}
+body.theme-forest-light { background:var(--ink); }
+body.theme-forest-light .header { background:rgba(245,241,232,0.97); }
+body.theme-forest-light .semana-atual { background:rgba(160,117,48,0.05); }
+body.theme-forest-light .pagamento-card { background:rgba(255,255,255,0.55); }
+body.theme-forest-light .bottom-nav { background:rgba(245,241,232,0.97); }
+body.theme-forest-light .detail-val { color:var(--paper); }
+body.theme-forest-light .btn-recibo { background:rgba(160,117,48,0.10); }
+
+/* Warm Mediterranean em modo ESCURO */
+body.theme-warm-dark {
+  --ink:#241712;--paper:#F5E5D3;--gold:#E08560;--gold-light:#EFA078;
+  --line:rgba(224,133,96,0.18);--sub:#9A7E68;--sub2:#C2A48C;
+}
+body.theme-warm-dark { background:var(--ink); }
+body.theme-warm-dark .header { background:rgba(36,23,18,0.97); }
+body.theme-warm-dark .semana-atual { background:rgba(224,133,96,0.06); }
+body.theme-warm-dark .pagamento-card { background:rgba(224,133,96,0.04); }
+body.theme-warm-dark .bottom-nav { background:rgba(36,23,18,0.97); }
+
+body.theme-default-dark { /* root - sem override */ }
+
 </style>
 </head>
 <body>
@@ -633,13 +709,16 @@ async function abrirPerfil() {
         </div>
 
         <div style="margin-bottom:24px">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Tema da app · plano <strong style="color:var(--gold)">${(motorista?.empresas?.plano||'free').toUpperCase()}</strong></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">Tema · plano <strong style="color:var(--gold)">${(motorista?.empresas?.plano||'free').toUpperCase()}</strong></div>
+            <button onclick="themes.toggleMode()" style="background:transparent;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:6px 12px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.5px">${themes.currentMode()==='dark'?'☀️ Claro':'🌙 Escuro'}</button>
+          </div>
           <div style="display:flex;flex-direction:column;gap:8px">
             ${themes.list.map(t => {
               const podeUsar = themes.canUse(t.id);
               const proTag = t.tier==='pro' ? '<span style="font-size:9px;background:var(--gold);color:#000;padding:2px 6px;border-radius:100px;margin-left:6px;letter-spacing:.5px;font-family:var(--mono);font-weight:600">PRO</span>' : '';
               return `
-                <button onclick="${podeUsar ? `themes.apply('${t.id}'); document.querySelectorAll('[data-theme-id]').forEach(b=>b.style.borderColor=b.dataset.themeId==='${t.id}'?'var(--gold)':'var(--line)')` : `alert('Este tema é exclusivo do plano Pro. Fala com o teu operador para fazer upgrade.')`}"
+                <button onclick='${podeUsar ? `themes.setTheme(${JSON.stringify(t.id)}); document.querySelectorAll("[data-theme-id]").forEach(b=>b.style.borderColor=b.dataset.themeId===${JSON.stringify(t.id)}?"var(--gold)":"var(--line)")` : `alert("Este tema é exclusivo do plano Pro. Fala com o teu operador para fazer upgrade.")`}'
                   data-theme-id="${t.id}"
                   style="text-align:left;padding:12px 14px;background:transparent;border:1px solid ${t.id===atual?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;font-family:var(--sans);color:var(--paper);display:flex;align-items:center;gap:12px;transition:border-color .2s;opacity:${podeUsar?'1':'.6'}">
                   <span style="font-size:20px">${t.icon}</span>
