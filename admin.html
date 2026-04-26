@@ -956,7 +956,7 @@ const SEG_45H = 45*3600;          // descanso semanal mínimo
 async function renderTempos() {
   document.getElementById('topbar-actions').innerHTML = `
     <input id="tempos-pesquisa" class="search-bar" placeholder="🔍 Procurar motorista..." oninput="aplicarFiltrosTempos(this.value)" value="${temposPesquisa||''}">
-    <button class="btn btn-ghost btn-sm" onclick="exportarTemposCSV()">⬇️ Exportar CSV</button>
+    <button class="btn btn-gold btn-sm" onclick="modalAuditoriaTempos()">📊 Gerar relatório</button>
   `;
 
   await carregarTemposRegistos();
@@ -1183,28 +1183,260 @@ function pararTemposTickAdmin() {
   if (temposTickInterval) { clearInterval(temposTickInterval); temposTickInterval = null; }
 }
 
-function exportarTemposCSV() {
-  const linhas = [['Motorista','Email','Inicio','Fim','Tipo','Duração (segundos)','Duração (HH:MM)','Notas']];
-  temposRegistos.forEach(r => {
+function modalAuditoriaTempos() {
+  // Datas default: último mês
+  const hoje = new Date();
+  const ha30 = new Date(); ha30.setDate(ha30.getDate()-29);
+  const fmt = d => d.toISOString().split('T')[0];
+  openModal('📊 Relatório de Tempos para Auditoria', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:16px;line-height:1.6">Gera relatórios formais para arquivo, auditoria interna ou fiscalização IMT. PDF inclui dados da empresa, motorista e conformidade legal.</p>
+
+    <div class="field"><label>Motorista</label>
+      <select id="aud-motorista">
+        <option value="todos">— Todos os motoristas —</option>
+        ${motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Data início</label><input type="date" id="aud-data-ini" value="${fmt(ha30)}"></div>
+      <div class="field"><label>Data fim</label><input type="date" id="aud-data-fim" value="${fmt(hoje)}"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-ghost btn-sm" onclick="setIntervalo(7)">Última semana</button>
+      <button class="btn btn-ghost btn-sm" onclick="setIntervalo(30)">Último mês</button>
+      <button class="btn btn-ghost btn-sm" onclick="setIntervalo(90)">Últimos 3 meses</button>
+    </div>
+
+    <div style="background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:4px;padding:14px;margin-top:14px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Formatos disponíveis</div>
+      <ul style="list-style:none;padding:0;font-size:12px;color:var(--paper);line-height:1.8">
+        <li>📄 <strong>PDF Auditoria</strong> — relatório formal com letterhead, sumário e conformidade legal (recomendado para fiscalização)</li>
+        <li>📊 <strong>CSV detalhado</strong> — todos os registos do período (Excel)</li>
+        <li>📋 <strong>CSV resumo</strong> — total/dia por motorista</li>
+      </ul>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-ghost" onclick="gerarRelatorioTempos('csv-detalhado')">📊 CSV detalhado</button>
+    <button class="btn btn-ghost" onclick="gerarRelatorioTempos('csv-resumo')">📋 CSV resumo</button>
+    <button class="btn btn-gold" onclick="gerarRelatorioTempos('pdf')">📄 PDF Auditoria</button>
+  `);
+}
+
+function setIntervalo(dias) {
+  const hoje = new Date();
+  const inicio = new Date(); inicio.setDate(inicio.getDate()-(dias-1));
+  document.getElementById('aud-data-ini').value = inicio.toISOString().split('T')[0];
+  document.getElementById('aud-data-fim').value = hoje.toISOString().split('T')[0];
+}
+
+async function gerarRelatorioTempos(formato) {
+  const motoristaId = document.getElementById('aud-motorista').value;
+  const dataIni = document.getElementById('aud-data-ini').value;
+  const dataFim = document.getElementById('aud-data-fim').value;
+  if (!dataIni || !dataFim) { toast('Datas obrigatórias','error'); return; }
+
+  toast('A gerar relatório...');
+
+  // Buscar registos do intervalo
+  let q = db.from('registos_conducao')
+    .select('*, motoristas(nome, email, nif, licenca_tvde, doc_id, morada)')
+    .eq('empresa_id', empresa.id)
+    .gte('inicio', dataIni+'T00:00:00Z')
+    .lte('inicio', dataFim+'T23:59:59Z')
+    .order('inicio');
+  if (motoristaId !== 'todos') q = q.eq('motorista_id', motoristaId);
+  const { data: regs, error } = await q;
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  if (!regs || !regs.length) { toast('Sem registos no período','error'); return; }
+
+  closeModal();
+
+  if (formato === 'csv-detalhado') exportarCSVDetalhado(regs, dataIni, dataFim);
+  else if (formato === 'csv-resumo') exportarCSVResumo(regs, dataIni, dataFim);
+  else exportarPDFAuditoria(regs, motoristaId, dataIni, dataFim);
+}
+
+function exportarCSVDetalhado(regs, ini, fim) {
+  const linhas = [['Motorista','Email','NIF','Início','Fim','Tipo','Duração (HH:MM)','Duração (segundos)','Notas']];
+  regs.forEach(r => {
     const dur = r.duracao_segundos || 0;
     linhas.push([
-      r.motoristas?.nome||'',
-      r.motoristas?.email||'',
+      r.motoristas?.nome||'', r.motoristas?.email||'', r.motoristas?.nif||'',
       new Date(r.inicio).toLocaleString('pt-PT'),
       r.fim ? new Date(r.fim).toLocaleString('pt-PT') : '(em curso)',
-      r.tipo,
-      dur,
-      fmtHM(dur),
+      r.tipo, fmtHM(dur), dur,
       (r.notas||'').replace(/[\n,]/g,' ')
     ]);
   });
+  downloadCSV(linhas, `tempos_detalhado_${ini}_${fim}.csv`);
+  toast('✅ CSV detalhado exportado');
+}
+
+function exportarCSVResumo(regs, ini, fim) {
+  // Agrupar por motorista + dia
+  const map = {};
+  regs.forEach(r => {
+    if (!r.fim) return;
+    const dia = new Date(r.inicio).toISOString().split('T')[0];
+    const motId = r.motorista_id;
+    const motNome = r.motoristas?.nome || '—';
+    const k = motId + '|' + dia;
+    if (!map[k]) map[k] = { motorista: motNome, dia, conducao: 0, pausa: 0 };
+    map[k][r.tipo] += (r.duracao_segundos||0);
+  });
+  const linhas = [['Motorista','Dia','Condução (HH:MM)','Pausas (HH:MM)','Total (HH:MM)','Cumpre 10h?']];
+  Object.values(map).sort((a,b) => a.motorista.localeCompare(b.motorista) || a.dia.localeCompare(b.dia)).forEach(r => {
+    linhas.push([
+      r.motorista, r.dia, fmtHM(r.conducao), fmtHM(r.pausa), fmtHM(r.conducao+r.pausa),
+      r.conducao < SEG_10H ? 'Sim' : 'NÃO'
+    ]);
+  });
+  downloadCSV(linhas, `tempos_resumo_${ini}_${fim}.csv`);
+  toast('✅ CSV resumo exportado');
+}
+
+function downloadCSV(linhas, fname) {
   const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `tempos_conducao_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+  a.href = url; a.download = fname; a.click();
   URL.revokeObjectURL(url);
-  toast('✅ CSV exportado');
+}
+
+async function exportarPDFAuditoria(regs, motoristaId, ini, fim) {
+  // Para "todos" gerar 1 PDF por motorista; para 1 só, gerar 1 PDF
+  const isUmMotorista = motoristaId !== 'todos';
+  if (isUmMotorista) {
+    await gerarPDFMotorista(regs, motoristas.find(m => m.id === motoristaId), ini, fim);
+  } else {
+    // Agrupar por motorista
+    const porMot = {};
+    regs.forEach(r => { (porMot[r.motorista_id] = porMot[r.motorista_id] || []).push(r); });
+    for (const motId of Object.keys(porMot)) {
+      await gerarPDFMotorista(porMot[motId], motoristas.find(m => m.id === motId), ini, fim);
+      await new Promise(r => setTimeout(r, 300));   // espaçar downloads
+    }
+    toast(`✅ ${Object.keys(porMot).length} PDFs gerados`);
+  }
+}
+
+async function gerarPDFMotorista(regs, motorista, ini, fim) {
+  if (!motorista) return;
+
+  // Agrupar por dia
+  const dias = {};
+  regs.forEach(r => {
+    if (!r.fim) return;
+    const dia = new Date(r.inicio).toISOString().split('T')[0];
+    if (!dias[dia]) dias[dia] = { dia, conducao: 0, pausa: 0, registos: [] };
+    dias[dia][r.tipo] += (r.duracao_segundos||0);
+    dias[dia].registos.push(r);
+  });
+  const diasArr = Object.values(dias).sort((a,b) => a.dia.localeCompare(b.dia));
+  const totalCond = diasArr.reduce((s,d) => s+d.conducao, 0);
+  const totalPausa = diasArr.reduce((s,d) => s+d.pausa, 0);
+  const diasCompliance = diasArr.filter(d => d.conducao < SEG_10H).length;
+  const idCurto = (motorista.id||'').substring(0,8).toUpperCase();
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif';
+  wrap.innerHTML = `
+    <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
+      <table style="width:100%"><tr>
+        <td>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:22pt;font-weight:600">${empresa.nome||''}</div>
+          <div style="font-size:9pt;color:#666;margin-top:4pt">${empresa.morada||''}${empresa.codigo_postal?' · '+empresa.codigo_postal:''}</div>
+          <div style="font-size:9pt;color:#666">NIPC ${empresa.nipc||'—'} · Lic. TVDE ${empresa.licenca_tvde||'—'}</div>
+        </td>
+        <td style="text-align:right">
+          <div style="display:inline-block;font-size:8pt;color:#c8922a;letter-spacing:1.5pt;text-transform:uppercase;padding:4pt 10pt;background:rgba(200,146,42,0.08);border-radius:100px">Auditoria #${idCurto}</div><br>
+          <strong style="color:#000;font-size:13pt">Relatório de Tempos de Condução</strong><br>
+          <span style="font-size:10pt;color:#666">${new Date(ini).toLocaleDateString('pt-PT')} a ${new Date(fim).toLocaleDateString('pt-PT')}</span>
+        </td>
+      </tr></table>
+    </div>
+
+    <div style="padding:20pt 35pt">
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin-bottom:10pt">Dados do Motorista</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse"><tr>
+        <td style="width:30%;color:#666;padding:3pt 0">Nome</td><td style="font-weight:bold">${motorista.nome||''}</td>
+        <td style="width:30%;color:#666;padding:3pt 0">NIF</td><td>${motorista.nif||'—'}</td>
+      </tr><tr>
+        <td style="color:#666;padding:3pt 0">Email</td><td>${motorista.email||'—'}</td>
+        <td style="color:#666;padding:3pt 0">Licença TVDE</td><td>${motorista.licenca_tvde||'—'}</td>
+      </tr></table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Sumário do Período</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">Dias com atividade</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${diasArr.length}</td></tr>
+        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">Total condução</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${fmtHM(totalCond)} (${Math.round(totalCond/3600)}h)</td></tr>
+        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">Total pausas</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalPausa)}</td></tr>
+        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">Conformidade Lei TVDE (10h/dia)</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold;color:${diasCompliance===diasArr.length?'#2a8a3c':'#c73e3e'}">${diasCompliance}/${diasArr.length} dias ${diasCompliance===diasArr.length?'✓ CUMPRE':'⚠️ EXCEDEU'}</td></tr>
+      </table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Detalhe Diário</h2>
+      <table style="width:100%;font-size:9.5pt;border-collapse:collapse">
+        <thead><tr style="background:#1a1a1a;color:#c8922a">
+          <th style="padding:6pt 10pt;text-align:left;border:1px solid #333">Dia</th>
+          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Condução</th>
+          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Pausas</th>
+          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Sessões</th>
+          <th style="padding:6pt 10pt;text-align:center;border:1px solid #333">Lei TVDE</th>
+        </tr></thead>
+        <tbody>
+          ${diasArr.map((d,i) => {
+            const ok = d.conducao < SEG_10H;
+            return `
+            <tr style="background:${i%2?'#fafafa':'#fff'}">
+              <td style="padding:5pt 10pt;border:1px solid #ddd">${new Date(d.dia+'T00:00:00').toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>
+              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace;font-weight:bold;color:${ok?'#000':'#c73e3e'}">${fmtHM(d.conducao)}</td>
+              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.pausa)}</td>
+              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;color:#666">${d.registos.filter(r=>r.tipo==='conducao').length}</td>
+              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:center;font-weight:bold;color:${ok?'#2a8a3c':'#c73e3e'}">${ok?'✓':'⚠️'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="padding:20pt 35pt;margin-top:20pt;border-top:2px solid #c8922a">
+      <table style="width:100%"><tr>
+        <td style="width:50%;vertical-align:top">
+          <div style="font-size:8pt;color:#666;text-transform:uppercase;letter-spacing:.5pt;margin-bottom:30pt">Operador TVDE</div>
+          <div style="border-top:1px solid #000;padding-top:4pt;font-size:10pt;font-weight:bold">${empresa.nome||''}</div>
+          <div style="font-size:9pt;color:#666;margin-top:2pt">NIPC ${empresa.nipc||'—'}</div>
+        </td>
+        <td style="width:50%;vertical-align:top;padding-left:20pt">
+          <div style="font-size:8pt;color:#666;text-transform:uppercase;letter-spacing:.5pt;margin-bottom:30pt">Motorista</div>
+          <div style="border-top:1px solid #000;padding-top:4pt;font-size:10pt;font-weight:bold">${motorista.nome||''}</div>
+          <div style="font-size:9pt;color:#666;margin-top:2pt">NIF ${motorista.nif||'—'}</div>
+        </td>
+      </tr></table>
+
+      <div style="margin-top:24pt;padding:12pt 16pt;background:#fafaf3;border-left:3px solid #c8922a;font-size:8.5pt;color:#444;line-height:1.6">
+        <strong style="color:#000">🔒 Selo de Auditoria FleetPay</strong><br>
+        Relatório gerado em ${new Date().toLocaleString('pt-PT')} · Empresa ${empresa.nome||''} · Auditoria #${idCurto}<br>
+        Período: ${new Date(ini).toLocaleDateString('pt-PT')} a ${new Date(fim).toLocaleDateString('pt-PT')} · ${regs.length} registos · ${diasArr.length} dias com atividade.<br>
+        <em>Os dados acima são extraídos diretamente da base de dados FleetPay e refletem o que foi registado pelo motorista. Cumprimento da Lei n.º 45/2018 (TVDE).</em>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const fname = `Auditoria_Tempos_${(motorista.nome||'motorista').replace(/[^a-zA-Z0-9_-]/g,'_')}_${ini}_${fim}.pdf`;
+  await html2pdf().set({
+    margin: 0, filename: fname,
+    image: { type:'jpeg', quality: 0.94 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
+    pagebreak: { mode:['avoid-all','css','legacy'] }
+  }).from(wrap).save();
+  document.body.removeChild(wrap);
+  toast(`✅ PDF "${motorista.nome}" gerado`);
 }
 
 // ── CONDUÇÃO LIVE (admin) ──
