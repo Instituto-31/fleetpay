@@ -241,12 +241,10 @@ const themes = {
     if (btn) btn.textContent = (this.list.find(t => t.id === id) || this.list[0]).icon;
   },
   cycle() {
-    // Só cicla entre os que pode usar
-    const usaveis = this.list.filter(t => this.canUse(t.id)).map(t => t.id);
-    if (!usaveis.length) return;
+    // Toggle simples dark ↔ light (UX rápida no header).
+    // Tema completo escolhe-se em Configurações → Aparência.
     const cur = this.current();
-    const idx = usaveis.indexOf(cur);
-    const next = usaveis[(idx + 1) % usaveis.length];
+    const next = (cur === 'light') ? 'default' : 'light';
     this.apply(next);
     return next;
   },
