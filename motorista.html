@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FleetPay — Os meus recibos</title>
 <meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -631,7 +632,7 @@ function renderApp() {
 
   document.getElementById('app').innerHTML = `
     <div class="header">
-      <div class="logo">Fleet<em>Pay</em></div>
+      <div class="logo" style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 32 32" width="22" height="22" style="flex-shrink:0"><rect x="2" y="2" width="28" height="28" rx="6" fill="var(--gold)"/><path d="M 11 9 L 11 23 M 11 9 L 21 9 M 11 16 L 19 16" stroke="#0a0905" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>Fleet<em>Pay</em></span></div>
       <div class="user-info">
         <span class="user-name">${nome.split(' ')[0]}</span>
         <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:5px 8px;cursor:pointer;font-size:13px">🌙</button><button class="btn-logout" onclick="db.auth.signOut().then(()=>window.location.href='login.html')">Sair</button>
