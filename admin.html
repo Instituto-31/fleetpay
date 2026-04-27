@@ -2479,10 +2479,10 @@ async function renderPrio() {
       </div>
       <div style="padding:20px">
         <div class="upload-zone" onclick="document.getElementById('comb-file').click()" id="comb-zone">
-          <input type="file" id="comb-file" accept=".csv,.txt" style="display:none" onchange="processarUploadCombustivel(this.files[0])">
+          <input type="file" id="comb-file" accept=".csv,.txt" multiple style="display:none" onchange="processarMultiplosCSVCombustivel(this.files)">
           <div class="upload-icon">⛽</div>
-          <div class="upload-title">Arrasta CSV ou clica para escolher</div>
-          <div class="upload-sub">PRIO · Galp · BP · Repsol · Cepsa · MOBI.E · EDP · Outro</div>
+          <div class="upload-title">Arrasta um ou vários CSV</div>
+          <div class="upload-sub">Podes selecionar vários cartões de uma vez (Ctrl+click) · PRIO · Galp · BP · Repsol · Cepsa · MOBI.E · EDP</div>
         </div>
         <div id="comb-preview" style="margin-top:16px"></div>
       </div>
@@ -2543,39 +2543,78 @@ async function carregarResumoCombustivel() {
 }
 
 // === Upload + processamento ===
-async function processarUploadCombustivel(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async e => {
-    const text = e.target.result;
-    // Detectar separador
-    const firstLine = text.split('\n')[0];
-    const sep = firstLine.includes(';') ? ';' : ',';
-    const linhas = text.split(/\r?\n/).filter(l => l.trim());
-    if (!linhas.length) { toast('Ficheiro vazio','error'); return; }
+let _resolverMappingActual = null;
+let _filaCsvCombustivel = [];      // ficheiros pendentes (multi-upload)
+let _resumoMultiUpload = { ok:0, cancelados:0, erros:0, total:0 };
 
-    const header = linhas[0];
-    const colunas = header.split(sep).map(c => c.trim().replace(/^"|"$/g,''));
-    const dados = linhas.slice(1, 6).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g,'')));
-
-    // Tentar match com mapping existente
-    const mappingExistente = csvMappings.find(m =>
-      m.exemplo_header && m.exemplo_header.replace(/\s/g,'') === header.replace(/\s/g,'')
-    );
-
-    if (mappingExistente) {
-      // Auto-aplicar
-      toast(`✅ Detectado: ${mappingExistente.nome}. A processar...`);
-      await aplicarMappingCsv(text, mappingExistente, sep);
-    } else {
-      // Mostrar UI de mapping manual
-      mostrarMappingManual(text, header, colunas, dados, sep);
-    }
-  };
-  reader.readAsText(file, 'utf-8');
+async function processarMultiplosCSVCombustivel(files) {
+  if (!files || !files.length) return;
+  _filaCsvCombustivel = Array.from(files);
+  _resumoMultiUpload = { ok:0, cancelados:0, erros:0, total:_filaCsvCombustivel.length };
+  if (_filaCsvCombustivel.length > 1) toast(`⏳ A processar ${_filaCsvCombustivel.length} ficheiros...`);
+  await processarProximoCSV();
 }
 
-function mostrarMappingManual(textoCompleto, header, colunas, dados, sep) {
+async function processarProximoCSV() {
+  if (!_filaCsvCombustivel.length) {
+    // Fim da fila
+    if (_resumoMultiUpload.total > 1) {
+      toast(`✅ Concluído · ${_resumoMultiUpload.ok} importados, ${_resumoMultiUpload.cancelados} cancelados, ${_resumoMultiUpload.erros} erros`);
+    }
+    await carregarMappingsCSV();
+    await carregarResumoCombustivel();
+    return;
+  }
+  const file = _filaCsvCombustivel.shift();
+  try {
+    const result = await processarUploadCombustivel(file);
+    if (result?.ok) _resumoMultiUpload.ok++;
+    else if (result?.cancelado) _resumoMultiUpload.cancelados++;
+    else _resumoMultiUpload.erros++;
+  } catch (e) {
+    console.error('CSV erro:', e);
+    _resumoMultiUpload.erros++;
+  }
+  // Próximo
+  setTimeout(processarProximoCSV, 100);
+}
+
+async function processarUploadCombustivel(file) {
+  return new Promise((resolve) => {
+    if (!file) { resolve({ erro:true }); return; }
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const text = e.target.result;
+      const firstLine = (text.split('\n')[0] || '');
+      const sep = firstLine.includes(';') ? ';' : ',';
+      const linhas = text.split(/\r?\n/).filter(l => l.trim());
+      if (!linhas.length) { toast(`Ficheiro vazio: ${file.name}`,'error'); resolve({ erro:true }); return; }
+
+      const header = linhas[0];
+      const colunas = header.split(sep).map(c => c.trim().replace(/^"|"$/g,''));
+      const dados = linhas.slice(1, 6).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g,'')));
+
+      // Tentar match com mapping existente
+      const mappingExistente = csvMappings.find(m =>
+        m.exemplo_header && m.exemplo_header.replace(/\s/g,'') === header.replace(/\s/g,'')
+      );
+
+      if (mappingExistente) {
+        toast(`✅ ${file.name}: detectado ${mappingExistente.nome}`);
+        await aplicarMappingCsv(text, mappingExistente, sep);
+        resolve({ ok:true });
+      } else {
+        // Pedir mapping (modal)
+        _resolverMappingActual = resolve;
+        mostrarMappingManual(text, header, colunas, dados, sep, file.name);
+      }
+    };
+    reader.onerror = () => { toast(`Erro a ler ${file.name}`,'error'); resolve({ erro:true }); };
+    reader.readAsText(file, 'utf-8');
+  });
+}
+
+function mostrarMappingManual(textoCompleto, header, colunas, dados, sep, nomeFicheiro) {
   const tabelaPreview = `
     <div style="overflow-x:auto;margin-top:14px">
       <table style="font-size:11px;font-family:var(--mono);border-collapse:collapse;width:100%">
@@ -2603,8 +2642,8 @@ function mostrarMappingManual(textoCompleto, header, colunas, dados, sep) {
   const sEstacao = sug(['estac','station','site','posto','local']);
   const sCombustivel = sug(['combust','product','fuel','tipo']);
 
-  openModal('🗂️ Mapear colunas do CSV', `
-    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Detectámos ${dados.length} linhas de exemplo. Indica que coluna corresponde a cada campo. <strong style="color:var(--paper)">Vai ficar memorizado</strong> para próximas importações deste cartão.</p>
+  openModal('🗂️ Mapear colunas do CSV' + (nomeFicheiro ? ` — ${nomeFicheiro}` : ''), `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">${nomeFicheiro?`Ficheiro: <strong>${nomeFicheiro}</strong>. `:''}Detectámos ${dados.length} linhas de exemplo. Indica que coluna corresponde a cada campo. <strong style="color:var(--paper)">Vai ficar memorizado</strong> para próximas importações deste cartão.</p>
 
     <div class="field-row">
       <div class="field"><label>Cartão / Fornecedor</label>
@@ -2641,8 +2680,8 @@ function mostrarMappingManual(textoCompleto, header, colunas, dados, sep) {
       </div>
     </div>
   `, `
-    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-    <button class="btn btn-gold" onclick="confirmarMappingCsv()" data-texto-completo="0">💾 Memorizar e importar</button>
+    <button class="btn btn-ghost" onclick="cancelarMappingCsv()">Cancelar este ficheiro</button>
+    <button class="btn btn-gold" onclick="confirmarMappingCsv()">💾 Memorizar e importar</button>
   `);
 
   // Guardar texto do CSV no DOM (escapado)
@@ -2690,6 +2729,13 @@ async function confirmarMappingCsv() {
   closeModal();
   await aplicarMappingCsv(window._csvTextoTemporario, novoMapping, window._csvSepTemporario);
   await carregarMappingsCSV();
+  // Resolver Promise da fila multi-upload
+  if (_resolverMappingActual) { _resolverMappingActual({ ok:true }); _resolverMappingActual = null; }
+}
+
+function cancelarMappingCsv() {
+  closeModal();
+  if (_resolverMappingActual) { _resolverMappingActual({ cancelado:true }); _resolverMappingActual = null; }
 }
 
 async function aplicarMappingCsv(texto, mapping, sep) {
