@@ -914,7 +914,7 @@ function showPage(page) {
   const titles = {
     dashboard:'Dashboard', pagamentos:'Pagamentos', historico:'Histórico',
     motoristas:'Motoristas', frota:'Frota', contratos:'Contratos',
-    csv:'Carregar CSV', prio:'Carregamentos PRIO', viaverde:'Via Verde',
+    csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
@@ -2615,77 +2615,122 @@ async function processarUploadCombustivel(file) {
 }
 
 function mostrarMappingManual(textoCompleto, header, colunas, dados, sep, nomeFicheiro) {
-  const tabelaPreview = `
-    <div style="overflow-x:auto;margin-top:14px">
-      <table style="font-size:11px;font-family:var(--mono);border-collapse:collapse;width:100%">
-        <thead><tr>${colunas.map((c,i) => `<th style="padding:6px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--line);text-align:left">${i+1}. ${c}</th>`).join('')}</tr></thead>
-        <tbody>${dados.map(d => `<tr>${d.map(v => `<td style="padding:5px 10px;border:1px solid var(--line);color:var(--sub2)">${v}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>
-    </div>
-  `;
-
-  const presetOpts = Object.entries(FORNECEDORES_PRESET).map(([k,v]) => `<option value="${k}">${v.icon} ${v.nome}</option>`).join('');
-  const colOpts = '<option value="">— Não usar —</option>' + colunas.map((c,i) => `<option value="${i}">${i+1}. ${c}</option>`).join('');
-
-  // Auto-sugerir mapeamento baseado em palavras-chave
+  // Auto-sugerir
   const sug = (palavras) => {
     for (let i=0; i<colunas.length; i++) {
       const c = colunas[i].toLowerCase();
       if (palavras.some(p => c.includes(p))) return i;
     }
-    return '';
+    return null;
   };
   const sMatricula = sug(['matr','plate','vehicle','viatura','plac']);
   const sData = sug(['data','date']);
   const sLitros = sug(['litro','quant','liter','volume','kwh','energia']);
-  const sValor = sug(['total','valor','amount','montante','gross']);
+  const sValor = sug(['total','valor','amount','montante','gross','€']);
   const sEstacao = sug(['estac','station','site','posto','local']);
   const sCombustivel = sug(['combust','product','fuel','tipo']);
 
-  openModal('🗂️ Mapear colunas do CSV' + (nomeFicheiro ? ` — ${nomeFicheiro}` : ''), `
-    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">${nomeFicheiro?`Ficheiro: <strong>${nomeFicheiro}</strong>. `:''}Detectámos ${dados.length} linhas de exemplo. Indica que coluna corresponde a cada campo. <strong style="color:var(--paper)">Vai ficar memorizado</strong> para próximas importações deste cartão.</p>
+  const todosObrigatoriosOK = sMatricula !== null && sData !== null && sValor !== null;
 
-    <div class="field-row">
-      <div class="field"><label>Cartão / Fornecedor</label>
-        <select id="map-fornecedor">${presetOpts}</select>
+  // Auto-detect fornecedor pelo nome do ficheiro
+  let fornecedorSugerido = 'outro';
+  const nomeLower = (nomeFicheiro||'').toLowerCase();
+  Object.keys(FORNECEDORES_PRESET).forEach(k => {
+    if (nomeLower.includes(k)) fornecedorSugerido = k;
+  });
+
+  // Detect formato data automaticamente nas primeiras linhas
+  let fmtDataAuto = 'DD/MM/YYYY';
+  if (sData !== null && dados[0] && dados[0][sData]) {
+    const ex = dados[0][sData];
+    if (/^\d{4}-\d{2}-\d{2}/.test(ex)) fmtDataAuto = 'YYYY-MM-DD';
+    else if (/^\d{2}-\d{2}-\d{4}/.test(ex)) fmtDataAuto = 'DD-MM-YYYY';
+  }
+
+  const presetOpts = Object.entries(FORNECEDORES_PRESET).map(([k,v]) =>
+    `<option value="${k}" ${k===fornecedorSugerido?'selected':''}>${v.icon} ${v.nome}</option>`
+  ).join('');
+  const colOpts = (selecionado) => '<option value="">— Não usar —</option>' +
+    colunas.map((c,i) => `<option value="${i}" ${i===selecionado?'selected':''}>${i+1}. ${c}</option>`).join('');
+
+  // Card de detecção
+  const campoStatus = (label, idx) => {
+    const detected = idx !== null;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${detected?'rgba(39,201,63,0.08)':'rgba(232,148,58,0.08)'};border:1px solid ${detected?'rgba(39,201,63,0.3)':'rgba(232,148,58,0.3)'};border-radius:4px"><span style="font-size:14px;color:${detected?'var(--green)':'var(--orange)'}">${detected?'✓':'?'}</span><span style="font-size:11px;color:var(--paper);font-weight:500">${label}</span><span style="font-family:var(--mono);font-size:10px;color:var(--sub2);margin-left:auto">${detected?colunas[idx].substring(0,18):'não detectado'}</span></div>`;
+  };
+
+  const tabelaPreview = `
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:11px;color:var(--sub2);font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;padding:8px 0">▾ Pré-visualizar dados (${dados.length} linhas exemplo)</summary>
+      <div style="overflow-x:auto;margin-top:8px;max-height:200px">
+        <table style="font-size:10px;font-family:var(--mono);border-collapse:collapse;width:100%">
+          <thead><tr>${colunas.map((c,i) => `<th style="padding:5px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--line);text-align:left;white-space:nowrap">${i+1}. ${c}</th>`).join('')}</tr></thead>
+          <tbody>${dados.map(d => `<tr>${d.map(v => `<td style="padding:4px 8px;border:1px solid var(--line);color:var(--sub2);white-space:nowrap">${(v||'').substring(0,30)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
       </div>
-      <div class="field"><label>Nome (para memorizar)</label>
-        <input id="map-nome" placeholder="Ex: Galp Frota Empresa X">
+    </details>
+  `;
+
+  openModal('⛽ Importar CSV' + (nomeFicheiro ? ` — ${nomeFicheiro}` : ''), `
+    ${todosObrigatoriosOK ? `
+    <div style="background:rgba(39,201,63,0.08);border:1px solid rgba(39,201,63,0.3);border-radius:6px;padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:24px">✓</span>
+        <div>
+          <div style="font-size:13px;color:var(--green);font-weight:600">Tudo detectado automaticamente</div>
+          <div style="font-size:11px;color:var(--sub2)">Carrega "Importar agora" — ou ajusta primeiro abaixo se quiseres.</div>
+        </div>
       </div>
+    </div>` : `
+    <div style="background:rgba(232,148,58,0.08);border:1px solid rgba(232,148,58,0.3);border-radius:6px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:13px;color:var(--orange);font-weight:600;margin-bottom:4px">⚠️ Faltam campos obrigatórios</div>
+      <div style="font-size:11px;color:var(--sub2)">Indica abaixo quais colunas são Matrícula, Data e Valor.</div>
+    </div>`}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      ${campoStatus('Matrícula', sMatricula)}
+      ${campoStatus('Data', sData)}
+      ${campoStatus('Valor (€)', sValor)}
+      ${campoStatus('Litros/kWh', sLitros)}
     </div>
+
+    <details ${todosObrigatoriosOK?'':'open'} style="margin-bottom:10px">
+      <summary style="cursor:pointer;font-size:11px;color:var(--gold);font-family:var(--mono);text-transform:uppercase;letter-spacing:1px;padding:8px 0">▾ Ajustar mapeamento</summary>
+
+      <div class="field-row" style="margin-top:8px">
+        <div class="field"><label>Cartão / Fornecedor</label>
+          <select id="map-fornecedor">${presetOpts}</select>
+        </div>
+        <div class="field"><label>Formato data</label>
+          <select id="map-data-fmt">
+            <option value="DD/MM/YYYY" ${fmtDataAuto==='DD/MM/YYYY'?'selected':''}>DD/MM/YYYY (PT)</option>
+            <option value="YYYY-MM-DD" ${fmtDataAuto==='YYYY-MM-DD'?'selected':''}>YYYY-MM-DD (ISO)</option>
+            <option value="DD-MM-YYYY" ${fmtDataAuto==='DD-MM-YYYY'?'selected':''}>DD-MM-YYYY</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>Matrícula *</label><select id="map-col-matricula">${colOpts(sMatricula)}</select></div>
+        <div class="field"><label>Data *</label><select id="map-col-data">${colOpts(sData)}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Valor total (€) *</label><select id="map-col-valor">${colOpts(sValor)}</select></div>
+        <div class="field"><label>Litros / kWh</label><select id="map-col-litros">${colOpts(sLitros)}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Estação / Local</label><select id="map-col-estacao">${colOpts(sEstacao)}</select></div>
+        <div class="field"><label>Tipo combustível</label><select id="map-col-combustivel">${colOpts(sCombustivel)}</select></div>
+      </div>
+    </details>
 
     ${tabelaPreview}
-
-    <div style="margin-top:16px">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Mapeamento de colunas</div>
-      <div class="field-row">
-        <div class="field"><label>Matrícula *</label><select id="map-col-matricula" required>${colOpts.replace(`value="${sMatricula}"`, `value="${sMatricula}" selected`)}</select></div>
-        <div class="field"><label>Data *</label><select id="map-col-data" required>${colOpts.replace(`value="${sData}"`, `value="${sData}" selected`)}</select></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Valor total (€) *</label><select id="map-col-valor" required>${colOpts.replace(`value="${sValor}"`, `value="${sValor}" selected`)}</select></div>
-        <div class="field"><label>Litros / kWh</label><select id="map-col-litros">${colOpts.replace(`value="${sLitros}"`, `value="${sLitros}" selected`)}</select></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Estação / Local</label><select id="map-col-estacao">${colOpts.replace(`value="${sEstacao}"`, `value="${sEstacao}" selected`)}</select></div>
-        <div class="field"><label>Tipo combustível</label><select id="map-col-combustivel">${colOpts.replace(`value="${sCombustivel}"`, `value="${sCombustivel}" selected`)}</select></div>
-      </div>
-      <div class="field"><label>Formato da data</label>
-        <select id="map-data-fmt">
-          <option value="DD/MM/YYYY">DD/MM/YYYY (PT)</option>
-          <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
-          <option value="DD-MM-YYYY">DD-MM-YYYY</option>
-          <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
-        </select>
-      </div>
-    </div>
   `, `
-    <button class="btn btn-ghost" onclick="cancelarMappingCsv()">Cancelar este ficheiro</button>
-    <button class="btn btn-gold" onclick="confirmarMappingCsv()">💾 Memorizar e importar</button>
+    <button class="btn btn-ghost" onclick="cancelarMappingCsv()">✕ Cancelar</button>
+    <button class="btn btn-gold" onclick="confirmarMappingCsv()">${todosObrigatoriosOK?'⚡ Importar agora':'💾 Importar e memorizar'}</button>
   `);
 
-  // Guardar texto do CSV no DOM (escapado)
-  const btnConfirmar = document.querySelector('[data-texto-completo]');
   window._csvTextoTemporario = textoCompleto;
   window._csvSepTemporario = sep;
   window._csvHeaderTemporario = header;
