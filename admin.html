@@ -2465,31 +2465,100 @@ const FORNECEDORES_PRESET = {
 };
 
 async function renderPrio() {
-  document.getElementById('topbar-actions').innerHTML = `
-    <button class="btn btn-ghost btn-sm" onclick="modalGerirMappings()">⚙️ Mappings</button>
-  `;
+  document.getElementById('topbar-actions').innerHTML = '';
   await carregarMappingsCSV();
   document.getElementById('content').innerHTML = `
     <div class="table-wrap" style="margin-bottom:24px">
       <div class="table-header">
         <div>
-          <div class="table-title">⛽ Carregar combustível / energia</div>
-          <div class="table-sub">Suporta qualquer cartão (PRIO, Galp, BP, Repsol, MOBI.E, etc.). Sistema deteta automaticamente se já carregaste antes.</div>
+          <div class="table-title">⛽ Carregar CSV PRIO</div>
+          <div class="table-sub">Faz upload do ficheiro Transações_Detalhadas.csv exportado do portal PRIO Frota.</div>
         </div>
       </div>
       <div style="padding:20px">
         <div class="upload-zone" onclick="document.getElementById('comb-file').click()" id="comb-zone">
-          <input type="file" id="comb-file" accept=".csv,.txt" multiple style="display:none" onchange="processarMultiplosCSVCombustivel(this.files)">
+          <input type="file" id="comb-file" accept=".csv,.txt" style="display:none" onchange="processarUploadPRIO(this.files[0])">
           <div class="upload-icon">⛽</div>
-          <div class="upload-title">Arrasta um ou vários CSV</div>
-          <div class="upload-sub">Podes selecionar vários cartões de uma vez (Ctrl+click) · PRIO · Galp · BP · Repsol · Cepsa · MOBI.E · EDP</div>
+          <div class="upload-title">Arrasta o CSV da PRIO</div>
+          <div class="upload-sub">Transações_Detalhadas.csv · PRIO Frota</div>
         </div>
         <div id="comb-preview" style="margin-top:16px"></div>
       </div>
     </div>
+
+    <div style="background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:6px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:14px">
+      <div style="font-size:24px">💡</div>
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--paper);font-weight:500;margin-bottom:2px">Usas outro cartão de combustível?</div>
+        <div style="font-size:12px;color:var(--sub2);line-height:1.5">Galp Frota, BP Plus, Repsol, MOBI.E, EDP, Cepsa... Configuramos à medida da tua empresa. Contacta-nos.</div>
+      </div>
+      <a href="mailto:coordenacao@instituto31.pt?subject=Configurar%20cartão%20de%20combustível%20no%20FleetPay" class="btn btn-gold btn-sm" style="text-decoration:none;white-space:nowrap">✉️ Contactar</a>
+    </div>
+
     <div class="table-wrap" id="comb-resumo-wrap"></div>
   `;
   carregarResumoCombustivel();
+}
+
+// Upload simples PRIO (formato fixo conhecido)
+async function processarUploadPRIO(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const text = e.target.result;
+    const sep = (text.split('\n')[0]||'').includes(';') ? ';' : ',';
+    const linhas = text.split(/\r?\n/).filter(l => l.trim());
+    if (linhas.length < 2) { toast('Ficheiro vazio ou sem dados','error'); return; }
+
+    // Parser PRIO: header com nomes em PT
+    const header = linhas[0].split(sep).map(c => c.trim().replace(/^"|"$/g,'').toLowerCase());
+    const idxMatricula = header.findIndex(c => c.includes('matr') || c.includes('plate'));
+    const idxData = header.findIndex(c => c.includes('data') || c.includes('date'));
+    const idxValor = header.findIndex(c => c.includes('total') || c.includes('valor') || c.includes('montante'));
+    const idxLitros = header.findIndex(c => c.includes('litro') || c.includes('quant'));
+
+    if (idxMatricula < 0 || idxData < 0 || idxValor < 0) {
+      toast('CSV não tem colunas Matrícula/Data/Valor — verifica formato PRIO','error');
+      return;
+    }
+
+    const carregamentos = [];
+    linhas.slice(1).forEach(linha => {
+      const cols = linha.split(sep).map(c => c.trim().replace(/^"|"$/g,''));
+      const matricula = (cols[idxMatricula]||'').replace(/[\s-]/g,'').toUpperCase();
+      const dataRaw = cols[idxData]||'';
+      const valor = parseFloat((cols[idxValor]||'').replace(',','.').replace(/[^\d.-]/g,''));
+      if (!matricula || !valor || valor <= 0) return;
+
+      // Data PT: DD/MM/YYYY
+      let data = '';
+      const partes = dataRaw.split(/[\/\- ]/);
+      if (partes.length >= 3) {
+        if (partes[0].length === 4) data = `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].substring(0,2).padStart(2,'0')}`;
+        else data = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+      }
+      if (!data) data = new Date().toISOString().split('T')[0];
+
+      const veiculo = veiculos.find(v => v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
+      const litros = idxLitros >= 0 ? parseFloat((cols[idxLitros]||'').replace(',','.')) || null : null;
+
+      carregamentos.push({
+        empresa_id: empresa.id,
+        motorista_id: veiculo?.motorista_id || null,
+        matricula, data, valor,
+        litros, semana_inicio: semanaAtual,
+        fornecedor: 'prio'
+      });
+    });
+
+    if (!carregamentos.length) { toast('Nenhum carregamento válido encontrado','error'); return; }
+
+    const { error } = await db.from('prio_carregamentos').insert(carregamentos);
+    if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
+    toast(`✅ ${carregamentos.length} carregamentos PRIO importados`);
+    await carregarResumoCombustivel();
+  };
+  reader.readAsText(file, 'utf-8');
 }
 
 async function carregarMappingsCSV() {
