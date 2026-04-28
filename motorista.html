@@ -327,6 +327,7 @@ body.theme-default-dark { /* root - sem override */ }
 
 <!-- Supabase SDK + config central -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="fleetpay-config.js"></script>
 <script>
 
@@ -338,6 +339,7 @@ let filtroMes = null;
 let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
 let totalSegundosHoje = 0;            // soma de condução já fechada hoje
 let conducaoTickInterval = null;
+let eventosSemana = [];               // todos os registos dos últimos 7 dias (segunda→domingo)
 const LIMITE_LEGAL_SEG = 10 * 3600;
 const ALERTA_AMARELO = 8 * 3600;
 const ALERTA_LARANJA = 9.5 * 3600;
@@ -400,16 +402,24 @@ async function init() {
 
   // Buscar pagamentos + contratos + condução hoje em paralelo
   const hojeISO = new Date().toISOString().split('T')[0];
-  const [pagsRes, contRes, sessaoRes, eventosHojeRes] = await Promise.all([
+  // Início da semana (segunda)
+  const hoje = new Date();
+  const dia = hoje.getDay() || 7;
+  const segunda = new Date(hoje); segunda.setDate(hoje.getDate() - (dia-1)); segunda.setHours(0,0,0,0);
+  const domingoFim = new Date(segunda); domingoFim.setDate(segunda.getDate()+6); domingoFim.setHours(23,59,59,999);
+
+  const [pagsRes, contRes, sessaoRes, eventosHojeRes, eventosSemanaRes] = await Promise.all([
     db.from('pagamentos').select('*').eq('motorista_id', motorista.id).order('semana_inicio', { ascending: false }),
     db.from('contratos_assinados').select('*').eq('motorista_id', motorista.id).eq('estado','assinado').order('assinado_em', { ascending: false }),
     db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).is('fim', null).order('inicio', { ascending: false }).limit(1).maybeSingle(),
-    db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z').order('inicio')
+    db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).gte('inicio', hojeISO+'T00:00:00Z').lte('inicio', hojeISO+'T23:59:59Z').order('inicio'),
+    db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).gte('inicio', segunda.toISOString()).lte('inicio', domingoFim.toISOString()).order('inicio')
   ]);
   pagamentos = pagsRes.data || [];
   contratosMotorista = contRes.data || [];
   sessaoConducaoAtiva = sessaoRes.data || null;
   eventosHoje = eventosHojeRes.data || [];
+  eventosSemana = eventosSemanaRes.data || [];
   totalSegundosHoje = eventosHoje.filter(e => e.tipo === 'conducao' && e.fim).reduce((s,e) => s + (e.duracao_segundos||0), 0);
   renderApp();
 
@@ -650,6 +660,8 @@ function renderApp() {
     <div class="main">
       ${renderConducaoCard()}
 
+      ${renderSemanaCard()}
+
       ${ultimo ? renderSemanaAtual(ultimo) : ''}
 
       ${contratosMotorista.length ? renderContratosMotorista() : ''}
@@ -753,6 +765,192 @@ function renderListaAtividade() {
 }
 
 let eventosHoje = [];
+
+// ── Mini-gráfico semanal + PDF para fiscalização ──
+function calcularDiaSemana(data) {
+  // Devolve { conducao, pausa, outros_trabalhos, disponivel, outro_empregador } em segundos
+  const inicio = new Date(data); inicio.setHours(0,0,0,0);
+  const fim = new Date(inicio); fim.setDate(fim.getDate()+1);
+  const totais = { conducao:0, pausa:0, outros_trabalhos:0, disponivel:0, outro_empregador:0 };
+  eventosSemana.forEach(e => {
+    const ini = new Date(e.inicio).getTime();
+    if (ini < inicio.getTime() || ini >= fim.getTime()) return;
+    let dur;
+    if (e.fim) dur = e.duracao_segundos || Math.floor((new Date(e.fim).getTime()-ini)/1000);
+    else dur = Math.floor((Date.now()-ini)/1000);  // sessão activa
+    if (totais[e.tipo] !== undefined) totais[e.tipo] += dur;
+  });
+  return totais;
+}
+
+function renderSemanaCard() {
+  // Início e fim da semana
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia = hoje.getDay() || 7;
+  const segunda = new Date(hoje); segunda.setDate(hoje.getDate() - (dia-1));
+  const dias = [];
+  for (let i=0; i<7; i++) {
+    const d = new Date(segunda); d.setDate(segunda.getDate()+i);
+    dias.push(d);
+  }
+  const totaisDias = dias.map(d => ({ data:d, totais: calcularDiaSemana(d) }));
+  const condTotal = totaisDias.reduce((s,d) => s + d.totais.conducao, 0);
+  const dias6Letras = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const maxBarra = Math.max(LIMITE_LEGAL_SEG, ...totaisDias.map(d => d.totais.conducao));
+
+  return `
+    <div class="section-title">
+      <span class="section-title-line"></span>
+      <span class="section-title-text">Esta semana</span>
+    </div>
+    <div style="background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px">
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase">Total condução</div>
+          <div style="font-family:var(--serif);font-size:28px;font-weight:300;color:var(--gold);letter-spacing:-1px;line-height:1">${fmtHMS(condTotal).slice(0,5)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1px">Semana</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--paper)">${segunda.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'})} – ${dias[6].toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'})}</div>
+        </div>
+      </div>
+
+      <!-- Mini bar chart 7 dias -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:flex-end;height:90px;margin-bottom:8px">
+        ${totaisDias.map((d,i) => {
+          const seg = d.totais.conducao;
+          const pct = maxBarra > 0 ? (seg/maxBarra)*100 : 0;
+          const cor = seg >= LIMITE_LEGAL_SEG ? 'var(--red)' : seg >= ALERTA_LARANJA ? 'var(--orange)' : seg >= ALERTA_AMARELO ? '#c8a020' : 'var(--green)';
+          const isHoje = d.data.getTime() === hoje.getTime();
+          return `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--sub2);margin-bottom:4px">${seg>0?fmtHMS(seg).slice(0,5):'—'}</div>
+              <div style="width:100%;background:${cor};border-radius:3px 3px 0 0;height:${Math.max(2,pct)}%;min-height:2px;transition:height .4s;${isHoje?'box-shadow:0 0 0 1.5px var(--gold);':''}"></div>
+            </div>`;
+        }).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub)">
+        ${dias6Letras.map((l,i) => `<div style="${dias[i].getTime()===hoje.getTime()?'color:var(--gold);font-weight:700':''}">${l}</div>`).join('')}
+      </div>
+
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+        <button onclick="gerarPDFSemanalMotorista()" style="width:100%;padding:13px;background:rgba(255,255,255,0.04);color:var(--gold);border:1px solid var(--line);border-radius:6px;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:8px">📥 Relatório semanal (fiscalização)</button>
+      </div>
+    </div>
+  `;
+}
+
+async function gerarPDFSemanalMotorista() {
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia = hoje.getDay() || 7;
+  const segunda = new Date(hoje); segunda.setDate(hoje.getDate() - (dia-1));
+  const domingo = new Date(segunda); domingo.setDate(segunda.getDate()+6);
+
+  const dias6Letras = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const dias = [];
+  for (let i=0; i<7; i++) {
+    const d = new Date(segunda); d.setDate(segunda.getDate()+i);
+    const t = calcularDiaSemana(d);
+    dias.push({ data:d, totais:t, totalOp: t.conducao + t.outros_trabalhos + t.disponivel });
+  }
+  const totalCond = dias.reduce((s,d) => s+d.totais.conducao, 0);
+  const totalOutros = dias.reduce((s,d) => s+d.totais.outros_trabalhos, 0);
+  const totalDispo = dias.reduce((s,d) => s+d.totais.disponivel, 0);
+  const totalPausa = dias.reduce((s,d) => s+d.totais.pausa, 0);
+  const diasOk = dias.filter(d => d.totais.conducao < LIMITE_LEGAL_SEG && d.totais.conducao > 0).length;
+  const diasComAtividade = dias.filter(d => d.totais.conducao > 0).length;
+
+  const emp = motorista.empresas || {};
+  const idCurto = motorista.id.substring(0,8).toUpperCase();
+  const fmtHM = (s) => fmtHMS(s).slice(0,5);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif';
+  wrap.innerHTML = `
+    <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
+      <table style="width:100%"><tr>
+        <td style="vertical-align:middle">
+          <table><tr>
+            ${emp.logo_path ? `<td style="padding-right:14pt;vertical-align:middle"><img src="https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}" style="width:60pt;height:60pt;object-fit:contain"></td>` : ''}
+            <td style="vertical-align:middle">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome||'—'}</div>
+              <div style="font-size:9pt;color:#666;margin-top:3pt">NIPC ${emp.nipc||'—'} · Lic. TVDE ${emp.licenca_tvde||'—'}</div>
+            </td>
+          </tr></table>
+        </td>
+        <td style="text-align:right;vertical-align:middle">
+          <div style="display:inline-block;font-size:8pt;color:#c8922a;letter-spacing:1.5pt;text-transform:uppercase;padding:4pt 10pt;background:rgba(200,146,42,0.08);border-radius:100px">Relatório #${idCurto}</div><br>
+          <strong style="font-size:13pt">Tempos de Condução · Semanal</strong><br>
+          <span style="font-size:10pt;color:#666">${segunda.toLocaleDateString('pt-PT')} – ${domingo.toLocaleDateString('pt-PT')}</span>
+        </td>
+      </tr></table>
+    </div>
+
+    <div style="padding:20pt 35pt">
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin-bottom:10pt">Motorista</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse"><tr>
+        <td style="width:25%;color:#666;padding:3pt 0">Nome</td><td style="font-weight:bold">${motorista.nome||''}</td>
+        <td style="width:25%;color:#666;padding:3pt 0">NIF</td><td>${motorista.nif||'—'}</td>
+      </tr><tr>
+        <td style="color:#666;padding:3pt 0">Email</td><td>${motorista.email||'—'}</td>
+        <td style="color:#666;padding:3pt 0">Lic. TVDE</td><td>${motorista.licenca_tvde||'—'}</td>
+      </tr></table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Sumário Semanal</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">🚗 Total condução</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${fmtHM(totalCond)}</td><td style="padding:6pt 10pt;border:1px solid #ddd">⏸️ Pausas</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalPausa)}</td></tr>
+        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">🔧 Outros trabalhos</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalOutros)}</td><td style="padding:6pt 10pt;border:1px solid #ddd">⊠ Disponibilidade</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalDispo)}</td></tr>
+        <tr style="background:#fafaf3"><td colspan="2" style="padding:6pt 10pt;border:1px solid #ddd">Conformidade Lei TVDE (10h/dia)</td><td colspan="2" style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold;color:${diasOk===diasComAtividade?'#2a8a3c':'#c73e3e'}">${diasOk}/${diasComAtividade} dias com atividade ${diasOk===diasComAtividade?'✓ CUMPRE':'⚠️ EXCEDEU'}</td></tr>
+      </table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Detalhe Diário</h2>
+      <table style="width:100%;font-size:9pt;border-collapse:collapse">
+        <thead><tr style="background:#1a1a1a;color:#c8922a">
+          <th style="padding:6pt 8pt;text-align:left;border:1px solid #333">Dia</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🚗 Condução</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🔧 Trabalho</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">⊠ Dispon.</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🛏️ Pausa</th>
+          <th style="padding:6pt 8pt;text-align:center;border:1px solid #333">Lei TVDE</th>
+        </tr></thead>
+        <tbody>
+          ${dias.map((d,i) => {
+            const ok = d.totais.conducao < LIMITE_LEGAL_SEG;
+            return `
+            <tr style="background:${i%2?'#fafafa':'#fff'}">
+              <td style="padding:5pt 8pt;border:1px solid #ddd">${dias6Letras[i]} ${d.data.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'})}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;font-weight:bold;color:${d.totais.conducao>=LIMITE_LEGAL_SEG?'#c73e3e':'#000'}">${fmtHM(d.totais.conducao)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.totais.outros_trabalhos)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.totais.disponivel)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.totais.pausa)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:center;font-weight:bold;color:${d.totais.conducao>0?(ok?'#2a8a3c':'#c73e3e'):'#999'}">${d.totais.conducao>0?(ok?'✓':'⚠️'):'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="padding:20pt 35pt;margin-top:20pt;border-top:2px solid #c8922a">
+      <div style="margin-top:0;padding:14pt 18pt;background:#fafaf3;border-left:3px solid #c8922a;font-size:9pt;color:#444;line-height:1.7">
+        <strong style="color:#000">🔒 Selo de Validação · Documento Oficial para Fiscalização</strong><br>
+        Relatório auto-gerado em ${new Date().toLocaleString('pt-PT')} · Motorista ${motorista.nome||''} · ID #${idCurto}<br>
+        Período: <strong>${segunda.toLocaleDateString('pt-PT')} – ${domingo.toLocaleDateString('pt-PT')}</strong> · ${eventosSemana.length} registos.<br>
+        <em>Os dados são extraídos da plataforma FleetPay e refletem os registos efetuados pelo próprio motorista. Cumprimento da Lei n.º 45/2018 (TVDE) e Reg. (UE) 165/2014 (tacógrafo digital).</em>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${motorista.nome.split(' ')[0]}.pdf`;
+  await html2pdf().set({
+    margin: 0, filename: fname,
+    image: { type:'jpeg', quality: 0.94 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
+    pagebreak: { mode:['avoid-all','css','legacy'] }
+  }).from(wrap).save();
+  document.body.removeChild(wrap);
+}
 
 async function carregarEventosHoje() {
   const hojeISO = new Date().toISOString().split('T')[0];
