@@ -1260,9 +1260,11 @@ function setIntervalo(dias) {
 }
 
 async function gerarRelatorioTempos(formato) {
+  console.log('[REL] === INÍCIO gerarRelatorioTempos ===', { formato });
   const motoristaId = document.getElementById('aud-motorista').value;
   const dataIni = document.getElementById('aud-data-ini').value;
   const dataFim = document.getElementById('aud-data-fim').value;
+  console.log('[REL] filtros:', { motoristaId, dataIni, dataFim });
   if (!dataIni || !dataFim) { toast('Datas obrigatórias','error'); return; }
 
   toast('A gerar relatório...');
