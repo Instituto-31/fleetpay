@@ -4371,7 +4371,8 @@ async function processarUploadLogo(file) {
 
   toast('A carregar logo...');
   const ext = file.name.split('.').pop().toLowerCase();
-  const path = `${empresa.id}/logo.${ext}`;
+  // Cache-buster: muda o nome para forçar refresh do browser
+  const path = `${empresa.id}/logo-${Date.now()}.${ext}`;
 
   // Apagar logo anterior se existe
   if (empresa.logo_path && empresa.logo_path !== path) {
@@ -4380,7 +4381,7 @@ async function processarUploadLogo(file) {
 
   // Upload novo
   const { error: upErr } = await db.storage.from('empresa-logos').upload(path, file, {
-    contentType: file.type, upsert: true, cacheControl: '0'
+    contentType: file.type, upsert: true
   });
   if (upErr) { toast('Erro upload: '+upErr.message,'error'); return; }
 
@@ -4388,8 +4389,12 @@ async function processarUploadLogo(file) {
   const { error: dbErr } = await db.from('empresas').update({ logo_path: path }).eq('id', empresa.id);
   if (dbErr) { toast('Erro DB: '+dbErr.message,'error'); return; }
 
+  // Atualizar local (carregarDados() não recarrega empresa)
+  empresa.logo_path = path;
+  const idx = empresasDisponiveis.findIndex(e => e.id === empresa.id);
+  if (idx >= 0) empresasDisponiveis[idx].logo_path = path;
+
   toast('✅ Logo carregado!');
-  await carregarDados();
   renderConfig();
   renderEmpresaSelector();
 }
@@ -4400,8 +4405,10 @@ async function removerLogo() {
     await db.storage.from('empresa-logos').remove([empresa.logo_path]);
   }
   await db.from('empresas').update({ logo_path: null }).eq('id', empresa.id);
+  empresa.logo_path = null;
+  const idx = empresasDisponiveis.findIndex(e => e.id === empresa.id);
+  if (idx >= 0) empresasDisponiveis[idx].logo_path = null;
   toast('✅ Logo removido');
-  await carregarDados();
   renderConfig();
   renderEmpresaSelector();
 }
