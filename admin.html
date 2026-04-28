@@ -1335,24 +1335,41 @@ function downloadCSV(linhas, fname) {
 }
 
 async function exportarPDFAuditoria(regs, motoristaId, ini, fim) {
-  // Para "todos" gerar 1 PDF por motorista; para 1 só, gerar 1 PDF
+  // Helper: pega no motorista do array global OU do registo (fallback)
+  const acharMotorista = (motId, regs) => {
+    return motoristas.find(m => m.id === motId)
+      || (regs[0]?.motoristas ? { id: motId, ...regs[0].motoristas } : null);
+  };
+
   const isUmMotorista = motoristaId !== 'todos';
-  if (isUmMotorista) {
-    await gerarPDFMotorista(regs, motoristas.find(m => m.id === motoristaId), ini, fim);
-  } else {
-    // Agrupar por motorista
-    const porMot = {};
-    regs.forEach(r => { (porMot[r.motorista_id] = porMot[r.motorista_id] || []).push(r); });
-    for (const motId of Object.keys(porMot)) {
-      await gerarPDFMotorista(porMot[motId], motoristas.find(m => m.id === motId), ini, fim);
-      await new Promise(r => setTimeout(r, 300));   // espaçar downloads
+  try {
+    if (isUmMotorista) {
+      const m = acharMotorista(motoristaId, regs);
+      if (!m) { toast('Motorista não encontrado','error'); return; }
+      await gerarPDFMotorista(regs, m, ini, fim);
+      toast('✅ PDF gerado');
+    } else {
+      // Agrupar por motorista
+      const porMot = {};
+      regs.forEach(r => { (porMot[r.motorista_id] = porMot[r.motorista_id] || []).push(r); });
+      let count = 0;
+      for (const motId of Object.keys(porMot)) {
+        const m = acharMotorista(motId, porMot[motId]);
+        if (!m) { console.warn('Skipping unknown motorista', motId); continue; }
+        await gerarPDFMotorista(porMot[motId], m, ini, fim);
+        await new Promise(r => setTimeout(r, 400));
+        count++;
+      }
+      toast(`✅ ${count} PDF(s) gerado(s)`);
     }
-    toast(`✅ ${Object.keys(porMot).length} PDFs gerados`);
+  } catch (e) {
+    console.error('exportarPDFAuditoria:', e);
+    toast('Erro a gerar PDF: ' + (e.message||'desconhecido'), 'error');
   }
 }
 
 async function gerarPDFMotorista(regs, motorista, ini, fim) {
-  if (!motorista) return;
+  if (!motorista) { console.warn('gerarPDFMotorista: motorista vazio'); return; }
 
   // Agrupar por dia
   const dias = {};
@@ -1460,15 +1477,25 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
   document.body.appendChild(wrap);
 
   const fname = `Auditoria_Tempos_${(motorista.nome||'motorista').replace(/[^a-zA-Z0-9_-]/g,'_')}_${ini}_${fim}.pdf`;
-  await html2pdf().set({
-    margin: 0, filename: fname,
-    image: { type:'jpeg', quality: 0.94 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
-    pagebreak: { mode:['avoid-all','css','legacy'] }
-  }).from(wrap).save();
-  document.body.removeChild(wrap);
-  toast(`✅ PDF "${motorista.nome}" gerado`);
+  if (typeof html2pdf === 'undefined') {
+    document.body.removeChild(wrap);
+    toast('Erro: html2pdf não está carregado','error');
+    return;
+  }
+  try {
+    await html2pdf().set({
+      margin: 0, filename: fname,
+      image: { type:'jpeg', quality: 0.94 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true },
+      jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
+      pagebreak: { mode:['avoid-all','css','legacy'] }
+    }).from(wrap).save();
+  } catch (e) {
+    console.error('html2pdf falhou:', e);
+    toast('Erro PDF: ' + (e.message||'desconhecido'),'error');
+  } finally {
+    if (wrap.parentNode) document.body.removeChild(wrap);
+  }
 }
 
 // ── CONDUÇÃO LIVE (admin) ──
