@@ -1368,8 +1368,26 @@ async function exportarPDFAuditoria(regs, motoristaId, ini, fim) {
   }
 }
 
+// Converte URL de imagem para data URL (evita problemas CORS no html2pdf)
+async function imagemParaDataURL(url) {
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onloadend = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  } catch (e) { console.warn('Falha ao converter imagem:', e); return null; }
+}
+
 async function gerarPDFMotorista(regs, motorista, ini, fim) {
   if (!motorista) { console.warn('gerarPDFMotorista: motorista vazio'); return; }
+
+  // Pré-carregar logo como data URL (evita CORS no html2pdf)
+  const logoDataUrl = empresa?.logo_path ? await imagemParaDataURL(urlLogoEmpresa(empresa.logo_path)) : null;
 
   // Agrupar por dia
   const dias = {};
@@ -1393,7 +1411,7 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
       <table style="width:100%"><tr>
         <td>
           <table><tr>
-            ${empresa.logo_path ? `<td style="padding-right:14pt;vertical-align:middle"><img src="${urlLogoEmpresa(empresa.logo_path)}" style="width:64pt;height:64pt;object-fit:contain" crossorigin="anonymous"></td>` : ''}
+            ${logoDataUrl ? `<td style="padding-right:14pt;vertical-align:middle"><img src="${logoDataUrl}" style="width:64pt;height:64pt;object-fit:contain"></td>` : ''}
             <td style="vertical-align:middle">
               <div style="font-family:'Cormorant Garamond',serif;font-size:22pt;font-weight:600">${empresa.nome||''}</div>
               <div style="font-size:9pt;color:#666;margin-top:4pt">${empresa.morada||''}${empresa.codigo_postal?' · '+empresa.codigo_postal:''}</div>

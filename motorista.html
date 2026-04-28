@@ -840,11 +840,30 @@ function renderSemanaCard() {
   `;
 }
 
+async function imagemParaDataURL(url) {
+  try {
+    const res = await fetch(url, { mode:'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onloadend = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  } catch (e) { return null; }
+}
+
 async function gerarPDFSemanalMotorista() {
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const dia = hoje.getDay() || 7;
   const segunda = new Date(hoje); segunda.setDate(hoje.getDate() - (dia-1));
   const domingo = new Date(segunda); domingo.setDate(segunda.getDate()+6);
+
+  // Pré-carregar logo da empresa como data URL
+  const emp = motorista.empresas || {};
+  const logoUrl = emp.logo_path ? `https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}` : null;
+  const logoDataUrl = logoUrl ? await imagemParaDataURL(logoUrl) : null;
 
   const dias6Letras = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const dias = [];
@@ -860,7 +879,6 @@ async function gerarPDFSemanalMotorista() {
   const diasOk = dias.filter(d => d.totais.conducao < LIMITE_LEGAL_SEG && d.totais.conducao > 0).length;
   const diasComAtividade = dias.filter(d => d.totais.conducao > 0).length;
 
-  const emp = motorista.empresas || {};
   const idCurto = motorista.id.substring(0,8).toUpperCase();
   const fmtHM = (s) => fmtHMS(s).slice(0,5);
 
@@ -871,7 +889,7 @@ async function gerarPDFSemanalMotorista() {
       <table style="width:100%"><tr>
         <td style="vertical-align:middle">
           <table><tr>
-            ${emp.logo_path ? `<td style="padding-right:14pt;vertical-align:middle"><img src="https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}" style="width:60pt;height:60pt;object-fit:contain"></td>` : ''}
+            ${logoDataUrl ? `<td style="padding-right:14pt;vertical-align:middle"><img src="${logoDataUrl}" style="width:60pt;height:60pt;object-fit:contain"></td>` : ''}
             <td style="vertical-align:middle">
               <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome||'—'}</div>
               <div style="font-size:9pt;color:#666;margin-top:3pt">NIPC ${emp.nipc||'—'} · Lic. TVDE ${emp.licenca_tvde||'—'}</div>
@@ -941,15 +959,21 @@ async function gerarPDFSemanalMotorista() {
   `;
   document.body.appendChild(wrap);
 
-  const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${motorista.nome.split(' ')[0]}.pdf`;
-  await html2pdf().set({
-    margin: 0, filename: fname,
-    image: { type:'jpeg', quality: 0.94 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
-    pagebreak: { mode:['avoid-all','css','legacy'] }
-  }).from(wrap).save();
-  document.body.removeChild(wrap);
+  const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${(motorista.nome||'motorista').split(' ')[0]}.pdf`;
+  try {
+    await html2pdf().set({
+      margin: 0, filename: fname,
+      image: { type:'jpeg', quality: 0.94 },
+      html2canvas: { scale: 2, useCORS: true, allowTaint: true, logging: false },
+      jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
+      pagebreak: { mode:['avoid-all','css','legacy'] }
+    }).from(wrap).save();
+  } catch (e) {
+    console.error('PDF erro:', e);
+    alert('Erro a gerar PDF: ' + (e.message||'desconhecido'));
+  } finally {
+    if (wrap.parentNode) document.body.removeChild(wrap);
+  }
 }
 
 async function carregarEventosHoje() {
