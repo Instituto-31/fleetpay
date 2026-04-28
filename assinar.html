@@ -335,7 +335,7 @@ async function init() {
   }
   try {
     const { data: c, error } = await db.from('contratos_assinados')
-      .select('*, motoristas(nome, email), empresas(nome, nipc, morada, codigo_postal, licenca_tvde, telefone, email)')
+      .select('*, motoristas(nome, email), empresas(nome, nipc, morada, codigo_postal, licenca_tvde, telefone, email, logo_path)')
       .eq('link_token', TOKEN)
       .single();
     if (error || !c) return mostrarErro('Link inválido ou expirado', 'Este link de assinatura não foi encontrado ou foi cancelado.');
@@ -403,9 +403,12 @@ async function showStep1() {
 
   document.getElementById('wrap').innerHTML = `
     <div class="letterhead">
-      <div>
-        <div class="letterhead-empresa">${emp.nome || 'Empresa'}</div>
-        <div style="font-size:11px;color:var(--sub2);margin-top:4px">${emp.morada || ''}${emp.codigo_postal ? ' · ' + emp.codigo_postal : ''}</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        ${emp.logo_path ? `<img src="https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}" alt="" style="width:60px;height:60px;object-fit:contain;flex-shrink:0">` : ''}
+        <div>
+          <div class="letterhead-empresa">${emp.nome || 'Empresa'}</div>
+          <div style="font-size:11px;color:var(--sub2);margin-top:4px">${emp.morada || ''}${emp.codigo_postal ? ' · ' + emp.codigo_postal : ''}</div>
+        </div>
       </div>
       <div class="letterhead-meta">
         <div class="contract-id">Contrato #${idCurto}</div><br>
@@ -659,8 +662,13 @@ async function confirmarAssinatura() {
       <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a;margin-bottom:20pt">
         <table style="width:100%"><tr>
           <td>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome||''}</div>
-            <div style="font-size:9pt;color:#666;margin-top:4pt">${emp.morada||''}${emp.codigo_postal?' · '+emp.codigo_postal:''}</div>
+            <table><tr>
+              ${emp.logo_path ? `<td style="padding-right:14pt;vertical-align:middle"><img src="https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}" style="width:64pt;height:64pt;object-fit:contain"></td>` : ''}
+              <td style="vertical-align:middle">
+                <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome||''}</div>
+                <div style="font-size:9pt;color:#666;margin-top:4pt">${emp.morada||''}${emp.codigo_postal?' · '+emp.codigo_postal:''}</div>
+              </td>
+            </tr></table>
           </td>
           <td style="text-align:right;font-size:9pt;color:#666">
             <div style="display:inline-block;font-size:8pt;color:#c8922a;letter-spacing:1.5pt;text-transform:uppercase;padding:4pt 10pt;background:rgba(200,146,42,0.08);border-radius:100px">Contrato #${contrato.id.substring(0,8).toUpperCase()}</div><br>

@@ -382,7 +382,7 @@ async function init() {
 
   // Buscar dados do motorista
   const { data: mot } = await db.from('motoristas')
-    .select('*, empresas(nome, plano)')
+    .select('*, empresas(nome, plano, logo_path)')
     .eq('perfil_id', currentUser.id)
     .single();
 
@@ -630,9 +630,17 @@ function renderApp() {
   // Última semana
   const ultimo = pagamentos[0];
 
+  // Logo empresa (se carregado)
+  const logoEmpresa = motorista?.empresas?.logo_path
+    ? `https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${motorista.empresas.logo_path}`
+    : null;
+  const blocoLogoEmpresa = logoEmpresa
+    ? `<span style="display:inline-flex;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line);margin-left:4px"><img src="${logoEmpresa}" alt="" style="width:22px;height:22px;border-radius:4px;object-fit:contain"></span>`
+    : '';
+
   document.getElementById('app').innerHTML = `
     <div class="header">
-      <div class="logo" style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 32 32" width="22" height="22" style="flex-shrink:0"><rect x="2" y="2" width="28" height="28" rx="6" fill="var(--gold)"/><path d="M 11 9 L 11 23 M 11 9 L 21 9 M 11 16 L 19 16" stroke="#0a0905" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>Fleet<em>Pay</em></span></div>
+      <div class="logo" style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 32 32" width="22" height="22" style="flex-shrink:0"><rect x="2" y="2" width="28" height="28" rx="6" fill="var(--gold)"/><path d="M 11 9 L 11 23 M 11 9 L 21 9 M 11 16 L 19 16" stroke="#0a0905" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><span>Fleet<em>Pay</em></span>${blocoLogoEmpresa}</div>
       <div class="user-info">
         <span class="user-name">${nome.split(' ')[0]}</span>
         <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--line);border-radius:3px;color:var(--sub2);padding:5px 8px;cursor:pointer;font-size:13px">🌙</button><button class="btn-logout" onclick="db.auth.signOut().then(()=>window.location.href='login.html')">Sair</button>
