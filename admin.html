@@ -1413,7 +1413,7 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
   const idCurto = (motorista.id||'').substring(0,8).toUpperCase();
 
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif';
+  wrap.style.cssText = 'position:fixed;top:0;left:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif;visibility:hidden;z-index:-1';
   wrap.innerHTML = `
     <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
       <table style="width:100%"><tr>
@@ -1503,12 +1503,15 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
   document.body.appendChild(wrap);
 
   const fname = `Auditoria_Tempos_${(motorista.nome||'motorista').replace(/[^a-zA-Z0-9_-]/g,'_')}_${ini}_${fim}.pdf`;
-  console.log('[PDF] vai chamar html2pdf, fname:', fname, 'wrap.children:', wrap.children.length);
+  console.log('[PDF] vai chamar html2pdf, fname:', fname, 'wrap.children:', wrap.children.length, 'wrap.offsetWidth:', wrap.offsetWidth, 'wrap.offsetHeight:', wrap.offsetHeight);
+  // Aguardar 1 frame + 200ms para garantir que DOM está pintado e fontes carregadas
+  await new Promise(r => requestAnimationFrame(r));
+  await new Promise(r => setTimeout(r, 250));
   try {
     await html2pdf().set({
       margin: 0, filename: fname,
       image: { type:'jpeg', quality: 0.94 },
-      html2canvas: { scale: 1.5, useCORS: true, logging: true, allowTaint: true },
+      html2canvas: { scale: 1.5, useCORS: true, logging: false, allowTaint: true, backgroundColor:'#ffffff', scrollX:0, scrollY:0, windowWidth: 794 },
       jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
       pagebreak: { mode:['avoid-all','css','legacy'] }
     }).from(wrap).save();
