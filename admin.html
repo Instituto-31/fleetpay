@@ -1389,6 +1389,156 @@ async function imagemParaDataURL(url) {
   } catch (e) { console.warn('Falha ao converter imagem:', e); return null; }
 }
 
+async function gerarReciboPDFAdmin(pagamentoId) {
+  // Buscar pagamento completo + motorista + empresa
+  const { data: p, error } = await db.from('pagamentos')
+    .select('*, motoristas(*, empresas(nome,nipc,morada,codigo_postal,licenca_tvde,logo_path,telefone,email))')
+    .eq('id', pagamentoId).single();
+  if (error || !p) { toast('Erro ao carregar recibo', 'error'); return; }
+
+  const mot = p.motoristas || {};
+  const emp = mot.empresas || {};
+  const logoDataUrl = emp.logo_path ? await imagemParaDataURL(urlLogoEmpresa(emp.logo_path)) : null;
+
+  const fmtEur = (v) => (v == null || v === '') ? '—' : new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(Number(v));
+  const fmtD = (s) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
+
+  const linhasBruto = [
+    { lbl:'Uber Bruto', val:p.uber_bruto },
+    { lbl:'Uber Líquido', val:p.uber_liquido },
+    { lbl:'Bolt Líquido', val:p.bolt_liquido }
+  ].filter(l => l.val != null && l.val !== '' && Number(l.val) !== 0);
+
+  const linhasDed = [
+    { lbl:'Slot', val:p.slot_valor },
+    { lbl:'Aluguer', val:p.aluguer_valor },
+    { lbl:'PRIO Combustível', val:p.prio_valor },
+    { lbl:'Via Verde', val:p.viaverde_valor }
+  ].filter(l => l.val != null && l.val !== '' && Number(l.val) !== 0);
+
+  const reciboNum = `R-${(p.id || '').toString().substring(0,8).toUpperCase()}`;
+  const dataEmissao = new Date().toLocaleDateString('pt-PT');
+  const estadoLbl = p.estado === 'pago' ? 'PAGO' : 'PENDENTE';
+  const estadoCor = p.estado === 'pago' ? '#2a8a3c' : '#c8922a';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;top:0;left:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif;transform:translateX(100vw)';
+  wrap.innerHTML = `
+    <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
+      <table style="width:100%"><tr>
+        <td style="vertical-align:middle">
+          <table><tr>
+            ${logoDataUrl ? `<td style="padding-right:14pt;vertical-align:middle"><img src="${logoDataUrl}" style="width:60pt;height:60pt;object-fit:contain"></td>` : ''}
+            <td style="vertical-align:middle">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome||'—'}</div>
+              <div style="font-size:9pt;color:#666;margin-top:3pt">NIPC ${emp.nipc||'—'} · Lic. TVDE ${emp.licenca_tvde||'—'}</div>
+              ${emp.morada ? `<div style="font-size:9pt;color:#666;margin-top:1pt">${emp.morada}${emp.codigo_postal?` · ${emp.codigo_postal}`:''}</div>` : ''}
+            </td>
+          </tr></table>
+        </td>
+        <td style="text-align:right;vertical-align:middle">
+          <div style="display:inline-block;font-size:8pt;color:#c8922a;letter-spacing:1.5pt;text-transform:uppercase;padding:4pt 10pt;background:rgba(200,146,42,0.08);border-radius:100px">Recibo ${reciboNum}</div><br>
+          <strong style="font-size:13pt">Recibo de Pagamento</strong><br>
+          <span style="font-size:10pt;color:#666">Emitido em ${dataEmissao}</span><br>
+          <span style="display:inline-block;margin-top:6pt;padding:3pt 12pt;background:${estadoCor};color:#fff;font-size:9pt;font-weight:bold;letter-spacing:1pt;border-radius:3pt">${estadoLbl}</span>
+        </td>
+      </tr></table>
+    </div>
+
+    <div style="padding:20pt 35pt">
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin-bottom:10pt">Pagador a</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse"><tr>
+        <td style="width:25%;color:#666;padding:3pt 0">Nome</td><td style="font-weight:bold">${mot.nome||'—'}</td>
+        <td style="width:25%;color:#666;padding:3pt 0">NIF</td><td>${mot.nif||'—'}</td>
+      </tr><tr>
+        <td style="color:#666;padding:3pt 0">Email</td><td>${mot.email||'—'}</td>
+        <td style="color:#666;padding:3pt 0">Lic. TVDE</td><td>${mot.licenca_tvde||'—'}</td>
+      </tr>${mot.morada ? `<tr>
+        <td style="color:#666;padding:3pt 0">Morada</td><td colspan="3">${mot.morada}</td>
+      </tr>` : ''}${mot.iban ? `<tr>
+        <td style="color:#666;padding:3pt 0">IBAN</td><td colspan="3" style="font-family:monospace">${mot.iban}</td>
+      </tr>` : ''}</table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Período de referência</h2>
+      <table style="width:100%;font-size:11pt;border-collapse:collapse;background:#fafaf3">
+        <tr><td style="padding:10pt 14pt;width:50%"><strong>De</strong>: ${fmtD(p.semana_inicio)}</td>
+        <td style="padding:10pt 14pt"><strong>Até</strong>: ${fmtD(p.semana_fim)}</td></tr>
+        ${p.data_pagamento ? `<tr><td colspan="2" style="padding:10pt 14pt;border-top:1px solid #ddd"><strong>Data pagamento</strong>: ${fmtD(p.data_pagamento)}${p.referencia_transferencia?` · <strong>Ref</strong>: ${p.referencia_transferencia}`:''}</td></tr>` : ''}
+      </table>
+
+      ${linhasBruto.length ? `
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Receitas brutas</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        ${linhasBruto.map((l,i) => `
+        <tr style="background:${i%2?'#fff':'#fafaf3'}">
+          <td style="padding:6pt 12pt;border:1px solid #ddd">${l.lbl}</td>
+          <td style="padding:6pt 12pt;border:1px solid #ddd;text-align:right;font-family:monospace">${fmtEur(l.val)}</td>
+        </tr>`).join('')}
+      </table>` : ''}
+
+      ${linhasDed.length ? `
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Deduções</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        ${linhasDed.map((l,i) => `
+        <tr style="background:${i%2?'#fff':'#fafaf3'}">
+          <td style="padding:6pt 12pt;border:1px solid #ddd">${l.lbl}</td>
+          <td style="padding:6pt 12pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#c73e3e">- ${fmtEur(l.val)}</td>
+        </tr>`).join('')}
+      </table>` : ''}
+
+      ${(p.iva_cobrar != null && Number(p.iva_cobrar) !== 0) ? `
+      <table style="width:100%;font-size:10pt;border-collapse:collapse;margin-top:14pt">
+        <tr style="background:rgba(200,146,42,0.08)">
+          <td style="padding:8pt 12pt;border:1px solid #c8922a">IVA a cobrar</td>
+          <td style="padding:8pt 12pt;border:1px solid #c8922a;text-align:right;font-family:monospace;color:#c8922a;font-weight:bold">${fmtEur(p.iva_cobrar)}</td>
+        </tr>
+      </table>` : ''}
+
+      <div style="margin-top:20pt;padding:16pt 20pt;background:#1a1a1a;color:#fff;border-radius:4pt;display:table;width:100%;box-sizing:border-box">
+        <div style="display:table-cell;vertical-align:middle;font-size:11pt;letter-spacing:2pt;text-transform:uppercase;color:#c8922a">Total a receber</div>
+        <div style="display:table-cell;vertical-align:middle;text-align:right;font-family:'Cormorant Garamond',serif;font-size:28pt;color:#c8922a;font-weight:600">${fmtEur(p.valor_final)}</div>
+      </div>
+    </div>
+
+    <div style="padding:20pt 35pt;margin-top:20pt;border-top:2px solid #c8922a">
+      <div style="padding:14pt 18pt;background:#fafaf3;border-left:3px solid #c8922a;font-size:9pt;color:#444;line-height:1.7">
+        <strong style="color:#000">🔒 Documento gerado eletronicamente · FleetPay</strong><br>
+        Recibo ${reciboNum} · emitido em ${dataEmissao} · Motorista ${mot.nome||''} (${mot.nif||'sem NIF'})<br>
+        Período de pagamento: <strong>${fmtD(p.semana_inicio)} – ${fmtD(p.semana_fim)}</strong> · Estado: <strong>${estadoLbl}</strong>.<br>
+        <em>Documento informativo emitido pela plataforma FleetPay para registo do motorista. Não substitui fatura/recibo eletrónico oficial nos termos da legislação fiscal aplicável (CIVA + Decreto-Lei n.º 28/2019). Conservação fiscal: 10 anos.</em>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const fname = `Recibo_${reciboNum}_${(mot.nome||'motorista').split(' ')[0]}`;
+  const conteudoHTML = wrap.innerHTML;
+  if (wrap.parentNode) document.body.removeChild(wrap);
+
+  const printHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + fname + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">' +
+    '<style>' +
+      '*{box-sizing:border-box;margin:0;padding:0}' +
+      'body{font-family:Calibri,Segoe UI,Arial,sans-serif;color:#1a1a1a;background:#fff}' +
+      '@media print { @page { size: A4; margin: 0 } body{margin:0} .no-print{display:none !important} }' +
+      '.actions{position:fixed;top:14px;right:14px;display:flex;gap:8px;z-index:99}' +
+      '.btn{padding:9px 18px;background:#c8922a;color:#000;border:none;border-radius:4px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:Calibri,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2)}' +
+      '.btn-ghost{background:#fff;color:#666;border:1px solid #ddd}' +
+    '</style></head><body>' +
+    '<div class="actions no-print">' +
+      '<button class="btn btn-ghost" onclick="window.close()">✕ Fechar</button>' +
+      '<button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>' +
+    '</div>' +
+    '<div style="max-width:794px;margin:0 auto">' + conteudoHTML + '</div>' +
+    '<scr' + 'ipt>window.addEventListener("load", () => setTimeout(() => window.print(), 600));</scr' + 'ipt>' +
+    '</body></html>';
+
+  const win = window.open('', '_blank', 'width=900,height=1100');
+  if (!win) { alert('Popup bloqueado!'); return; }
+  win.document.write(printHTML);
+  win.document.close();
+}
+
 async function gerarPDFMotorista(regs, motorista, ini, fim) {
   console.log('[PDF] início gerarPDFMotorista', { motorista: motorista?.nome, regs: regs?.length, ini, fim });
   if (!motorista) { console.warn('[PDF] motorista vazio'); return; }
@@ -1846,6 +1996,7 @@ function renderLinhaPagamento(p) {
         <div style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" onclick='editarPagamento(${JSON.stringify(p.id)})'>✏️</button>
           ${p.estado!=='pago' ? `<button class="btn btn-ghost btn-sm" onclick='marcarPago("${p.id}")'>✅</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick='gerarReciboPDFAdmin(${JSON.stringify(p.id)})' title="Descarregar PDF do recibo">📄</button>
           <button class="btn btn-ghost btn-sm" onclick='enviarRecibo(${JSON.stringify(p)})'>📤</button>
         </div>
       </td>
