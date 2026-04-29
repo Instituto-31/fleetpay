@@ -883,7 +883,7 @@ async function gerarPDFSemanalMotorista() {
   const fmtHM = (s) => fmtHMS(s).slice(0,5);
 
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:0;left:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif;opacity:0;pointer-events:none;z-index:-1';
+  wrap.style.cssText = 'position:absolute;top:0;left:0;width:794px;background:#fff;color:#1a1a1a;font-family:Calibri,Arial,sans-serif;transform:translateX(100vw)';
   wrap.innerHTML = `
     <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
       <table style="width:100%"><tr>
@@ -961,8 +961,11 @@ async function gerarPDFSemanalMotorista() {
 
   const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${(motorista.nome||'motorista').split(' ')[0]}.pdf`;
   // Garantir que DOM foi pintado antes do html2canvas
-  await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => setTimeout(r, 250));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await new Promise(r => setTimeout(r, 400));
+  wrap.style.transform = 'none';
+  wrap.style.left = '-9999px';
+  await new Promise(r => setTimeout(r, 100));
   try {
     await html2pdf().set({
       margin: 0, filename: fname,
