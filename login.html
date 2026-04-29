@@ -221,6 +221,10 @@ body.theme-sage body::before { opacity:0.4; }
         </div>
         <button class="btn-submit" onclick="loginOperador()">Entrar</button>
 
+        <div style="text-align:center;margin-top:14px">
+          <a href="#" onclick="event.preventDefault();setTab('reset')" style="font-size:12px;color:var(--sub2);text-decoration:none;letter-spacing:.3px">Esqueci-me da palavra-passe</a>
+        </div>
+
         <div class="divider">
           <span class="divider-line"></span>
           <span class="divider-text">ou</span>
@@ -230,6 +234,38 @@ body.theme-sage body::before { opacity:0.4; }
         <button class="btn-magic" onclick="setTab('motorista')">
           Sou motorista →
         </button>
+      </div>
+
+      <!-- FORM RECUPERAR PASSWORD -->
+      <div id="form-reset" style="display:none">
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="reset-email" placeholder="operador@empresa.pt" autocomplete="email">
+        </div>
+        <button class="btn-submit" onclick="pedirReset()">Enviar link de recuperação</button>
+        <p style="font-size:12px;color:var(--sub2);margin-top:12px;line-height:1.6">
+          Receberás um email com link para definires uma nova palavra-passe.
+        </p>
+        <div style="text-align:center;margin-top:18px">
+          <a href="#" onclick="event.preventDefault();setTab('operador')" style="font-size:12px;color:var(--sub2);text-decoration:none">← Voltar ao login</a>
+        </div>
+      </div>
+
+      <!-- FORM DEFINIR NOVA PASSWORD (callback do email recovery) -->
+      <div id="form-nova" style="display:none">
+        <div style="background:rgba(200,146,42,0.08);border:1px solid var(--line);padding:14px;border-radius:4px;margin-bottom:24px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">🔑 Recuperação de password</div>
+          <div style="font-size:13px;color:var(--paper);line-height:1.5">Define a tua nova palavra-passe abaixo. Mín. 8 caracteres.</div>
+        </div>
+        <div class="field">
+          <label>Nova palavra-passe</label>
+          <input type="password" id="nova-pass" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Confirmar</label>
+          <input type="password" id="nova-pass2" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <button class="btn-submit" onclick="definirNovaPass()">Guardar nova password</button>
       </div>
 
       <!-- FORM MOTORISTA (magic link) -->
@@ -271,17 +307,62 @@ body.theme-sage body::before { opacity:0.4; }
 <script src="fleetpay-config.js"></script>
 <script>
 
-// Verificar se já está logado
-db.auth.getSession().then(({ data: { session } }) => {
-  if (session) redirectByRole();
-});
+// Detectar callback de password recovery (URL fragment ou query string)
+const hash = window.location.hash;
+const search = window.location.search;
+const isRecoveryCallback = (hash.includes('type=recovery') || search.includes('type=recovery'));
+
+if (isRecoveryCallback) {
+  // Mostrar form de definir nova password (a sessão temporária é estabelecida pelo Supabase SDK)
+  setTimeout(() => setTab('nova'), 100);
+} else {
+  // Fluxo normal: se já tem sessão activa, redireciona
+  db.auth.getSession().then(({ data: { session } }) => {
+    if (session) redirectByRole();
+  });
+}
 
 function setTab(tab) {
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='operador')||(i===1&&tab==='motorista')));
   document.getElementById('form-operador').style.display = tab === 'operador' ? '' : 'none';
   document.getElementById('form-motorista').style.display = tab === 'motorista' ? '' : 'none';
+  document.getElementById('form-reset').style.display = tab === 'reset' ? '' : 'none';
+  document.getElementById('form-nova').style.display = tab === 'nova' ? '' : 'none';
+  // Esconder tabs visuais quando estamos em reset/nova
+  document.querySelector('.tabs').style.display = (tab==='reset'||tab==='nova') ? 'none' : '';
   document.getElementById('magic-sent').classList.remove('show');
   hideMsg();
+}
+
+async function pedirReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  if (!email) { showMsg('Insere o teu email.'); return; }
+  setLoading(true); hideMsg();
+  try {
+    const redirectTo = new URL('login.html', window.location.href).href;
+    const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    showMsg('✅ Email enviado! Verifica a tua caixa de entrada.', 'success');
+    setTimeout(() => setTab('operador'), 3000);
+  } catch(e) {
+    showMsg('Erro ao enviar email. Tenta novamente.');
+  } finally { setLoading(false); }
+}
+
+async function definirNovaPass() {
+  const p1 = document.getElementById('nova-pass').value;
+  const p2 = document.getElementById('nova-pass2').value;
+  if (!p1 || p1.length < 8) { showMsg('A password tem de ter pelo menos 8 caracteres.'); return; }
+  if (p1 !== p2) { showMsg('As passwords não coincidem.'); return; }
+  setLoading(true); hideMsg();
+  try {
+    const { error } = await db.auth.updateUser({ password: p1 });
+    if (error) throw error;
+    showMsg('✅ Password definida! A entrar...', 'success');
+    setTimeout(() => redirectByRole(), 800);
+  } catch(e) {
+    showMsg(e.message || 'Erro ao definir password.');
+  } finally { setLoading(false); }
 }
 
 function showMsg(texto, tipo='error') {
