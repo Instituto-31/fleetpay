@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FleetPay — Acesso</title>
+<script>
+// Capturar estado da URL ANTES do Supabase JS limpar o hash (recovery flow)
+window.__IS_RECOVERY = window.location.hash.includes('type=recovery')
+  || window.location.search.includes('type=recovery')
+  || window.location.search.includes('code=')
+  || window.location.hash.includes('access_token=');
+</script>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -307,19 +314,34 @@ body.theme-sage body::before { opacity:0.4; }
 <script src="fleetpay-config.js"></script>
 <script>
 
-// Detectar callback de password recovery (URL fragment ou query string)
-const hash = window.location.hash;
-const search = window.location.search;
-const isRecoveryCallback = (hash.includes('type=recovery') || search.includes('type=recovery'));
+// Detectar callback de password recovery — a Supabase JS limpa o hash antes
+// do nosso código verificar, por isso usamos onAuthStateChange (método oficial).
+let recoveryDetected = false;
 
-if (isRecoveryCallback) {
-  // Mostrar form de definir nova password (a sessão temporária é estabelecida pelo Supabase SDK)
-  setTimeout(() => setTab('nova'), 100);
+db.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    recoveryDetected = true;
+    setTab('nova');
+  }
+});
+
+// Se a URL tem indicadores de recovery (capturados antes da Supabase limpar),
+// também mostramos o form. Funciona em fallback se onAuthStateChange falhar.
+const urlHasRecovery = (window.__IS_RECOVERY === true) ||
+                       window.location.hash.includes('type=recovery') ||
+                       window.location.search.includes('type=recovery') ||
+                       window.location.search.includes('code=');
+
+if (urlHasRecovery) {
+  setTimeout(() => { if (!recoveryDetected) setTab('nova'); }, 100);
 } else {
-  // Fluxo normal: se já tem sessão activa, redireciona
-  db.auth.getSession().then(({ data: { session } }) => {
-    if (session) redirectByRole();
-  });
+  // Aguardar 300ms para dar tempo ao SDK detectar recovery, depois redirecionar se ainda não estamos em nova
+  setTimeout(() => {
+    if (recoveryDetected) return;
+    db.auth.getSession().then(({ data: { session } }) => {
+      if (session) redirectByRole();
+    });
+  }, 300);
 }
 
 function setTab(tab) {
