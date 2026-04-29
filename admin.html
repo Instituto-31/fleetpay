@@ -1314,13 +1314,16 @@ function exportarCSVResumo(regs, ini, fim) {
     const motId = r.motorista_id;
     const motNome = r.motoristas?.nome || '—';
     const k = motId + '|' + dia;
-    if (!map[k]) map[k] = { motorista: motNome, dia, conducao: 0, pausa: 0 };
-    map[k][r.tipo] += (r.duracao_segundos||0);
+    if (!map[k]) map[k] = { motorista: motNome, dia, conducao:0, pausa:0, outros_trabalhos:0, disponivel:0, outro_empregador:0 };
+    if (map[k][r.tipo] !== undefined) map[k][r.tipo] += (r.duracao_segundos||0);
   });
-  const linhas = [['Motorista','Dia','Condução (HH:MM)','Pausas (HH:MM)','Total (HH:MM)','Cumpre 10h?']];
+  const linhas = [['Motorista','Dia','Condução','Outros trabalhos','Disponibilidade','Pausa/Descanso','Outro empregador','Total Op.','Cumpre 10h?']];
   Object.values(map).sort((a,b) => a.motorista.localeCompare(b.motorista) || a.dia.localeCompare(b.dia)).forEach(r => {
+    const totalOp = r.conducao + r.outros_trabalhos + r.disponivel;
     linhas.push([
-      r.motorista, r.dia, fmtHM(r.conducao), fmtHM(r.pausa), fmtHM(r.conducao+r.pausa),
+      r.motorista, r.dia,
+      fmtHM(r.conducao), fmtHM(r.outros_trabalhos), fmtHM(r.disponivel), fmtHM(r.pausa), fmtHM(r.outro_empregador),
+      fmtHM(totalOp),
       r.conducao < SEG_10H ? 'Sim' : 'NÃO'
     ]);
   });
@@ -1397,18 +1400,21 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
   const logoDataUrl = empresa?.logo_path ? await imagemParaDataURL(urlLogoEmpresa(empresa.logo_path)) : null;
   console.log('[PDF] logoDataUrl carregado?', !!logoDataUrl);
 
-  // Agrupar por dia
+  // Agrupar por dia (5 tipos oficiais Reg. UE 165/2014)
   const dias = {};
   regs.forEach(r => {
     if (!r.fim) return;
     const dia = new Date(r.inicio).toISOString().split('T')[0];
-    if (!dias[dia]) dias[dia] = { dia, conducao: 0, pausa: 0, registos: [] };
-    dias[dia][r.tipo] += (r.duracao_segundos||0);
+    if (!dias[dia]) dias[dia] = { dia, conducao:0, pausa:0, outros_trabalhos:0, disponivel:0, outro_empregador:0, registos:[] };
+    if (dias[dia][r.tipo] !== undefined) dias[dia][r.tipo] += (r.duracao_segundos||0);
     dias[dia].registos.push(r);
   });
   const diasArr = Object.values(dias).sort((a,b) => a.dia.localeCompare(b.dia));
   const totalCond = diasArr.reduce((s,d) => s+d.conducao, 0);
   const totalPausa = diasArr.reduce((s,d) => s+d.pausa, 0);
+  const totalOutros = diasArr.reduce((s,d) => s+d.outros_trabalhos, 0);
+  const totalDispo = diasArr.reduce((s,d) => s+d.disponivel, 0);
+  const totalOutroEmp = diasArr.reduce((s,d) => s+d.outro_empregador, 0);
   const diasCompliance = diasArr.filter(d => d.conducao < SEG_10H).length;
   const idCurto = (motorista.id||'').substring(0,8).toUpperCase();
 
@@ -1448,31 +1454,35 @@ async function gerarPDFMotorista(regs, motorista, ini, fim) {
 
       <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Sumário do Período</h2>
       <table style="width:100%;font-size:10pt;border-collapse:collapse">
-        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">Dias com atividade</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${diasArr.length}</td></tr>
-        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">Total condução</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${fmtHM(totalCond)} (${Math.round(totalCond/3600)}h)</td></tr>
-        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">Total pausas</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalPausa)}</td></tr>
-        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">Conformidade Lei TVDE (10h/dia)</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold;color:${diasCompliance===diasArr.length?'#2a8a3c':'#c73e3e'}">${diasCompliance}/${diasArr.length} dias ${diasCompliance===diasArr.length?'✓ CUMPRE':'⚠️ EXCEDEU'}</td></tr>
+        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">Dias com atividade</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${diasArr.length}</td><td style="padding:6pt 10pt;border:1px solid #ddd">🚗 Total condução</td><td style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold">${fmtHM(totalCond)}</td></tr>
+        <tr><td style="padding:6pt 10pt;border:1px solid #ddd">🔧 Outros trabalhos</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalOutros)}</td><td style="padding:6pt 10pt;border:1px solid #ddd">⊠ Disponibilidade</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalDispo)}</td></tr>
+        <tr style="background:#fafaf3"><td style="padding:6pt 10pt;border:1px solid #ddd">🛏️ Pausa / Descanso</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalPausa)}</td><td style="padding:6pt 10pt;border:1px solid #ddd"># Outro empregador</td><td style="padding:6pt 10pt;border:1px solid #ddd">${fmtHM(totalOutroEmp)}</td></tr>
+        <tr><td colspan="2" style="padding:6pt 10pt;border:1px solid #ddd">Conformidade Lei TVDE (10h/dia)</td><td colspan="2" style="padding:6pt 10pt;border:1px solid #ddd;font-weight:bold;color:${diasCompliance===diasArr.length?'#2a8a3c':'#c73e3e'}">${diasCompliance}/${diasArr.length} dias ${diasCompliance===diasArr.length?'✓ CUMPRE':'⚠️ EXCEDEU'}</td></tr>
       </table>
 
-      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Detalhe Diário</h2>
-      <table style="width:100%;font-size:9.5pt;border-collapse:collapse">
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Detalhe Diário · 5 estados oficiais (Reg. UE 165/2014)</h2>
+      <table style="width:100%;font-size:9pt;border-collapse:collapse">
         <thead><tr style="background:#1a1a1a;color:#c8922a">
-          <th style="padding:6pt 10pt;text-align:left;border:1px solid #333">Dia</th>
-          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Condução</th>
-          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Pausas</th>
-          <th style="padding:6pt 10pt;text-align:right;border:1px solid #333">Sessões</th>
-          <th style="padding:6pt 10pt;text-align:center;border:1px solid #333">Lei TVDE</th>
+          <th style="padding:6pt 8pt;text-align:left;border:1px solid #333">Dia</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🚗 Condução</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🔧 Outros</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">⊠ Dispon.</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333">🛏️ Pausa</th>
+          <th style="padding:6pt 8pt;text-align:right;border:1px solid #333"># Outro Emp.</th>
+          <th style="padding:6pt 8pt;text-align:center;border:1px solid #333">Lei TVDE</th>
         </tr></thead>
         <tbody>
           ${diasArr.map((d,i) => {
             const ok = d.conducao < SEG_10H;
             return `
             <tr style="background:${i%2?'#fafafa':'#fff'}">
-              <td style="padding:5pt 10pt;border:1px solid #ddd">${new Date(d.dia+'T00:00:00').toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>
-              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace;font-weight:bold;color:${ok?'#000':'#c73e3e'}">${fmtHM(d.conducao)}</td>
-              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.pausa)}</td>
-              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;color:#666">${d.registos.filter(r=>r.tipo==='conducao').length}</td>
-              <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:center;font-weight:bold;color:${ok?'#2a8a3c':'#c73e3e'}">${ok?'✓':'⚠️'}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd">${new Date(d.dia+'T00:00:00').toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'2-digit'})}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;font-weight:bold;color:${ok?'#000':'#c73e3e'}">${fmtHM(d.conducao)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.outros_trabalhos)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.disponivel)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.pausa)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:right;font-family:monospace;color:#666">${fmtHM(d.outro_empregador)}</td>
+              <td style="padding:5pt 8pt;border:1px solid #ddd;text-align:center;font-weight:bold;color:${ok?'#2a8a3c':'#c73e3e'}">${ok?'✓':'⚠️'}</td>
             </tr>`;
           }).join('')}
         </tbody>
