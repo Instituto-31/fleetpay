@@ -959,27 +959,34 @@ async function gerarPDFSemanalMotorista() {
   `;
   document.body.appendChild(wrap);
 
-  const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${(motorista.nome||'motorista').split(' ')[0]}.pdf`;
-  // Garantir que DOM foi pintado antes do html2canvas
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  await new Promise(r => setTimeout(r, 400));
-  wrap.style.transform = 'none';
-  wrap.style.left = '-9999px';
-  await new Promise(r => setTimeout(r, 100));
-  try {
-    await html2pdf().set({
-      margin: 0, filename: fname,
-      image: { type:'jpeg', quality: 0.94 },
-      html2canvas: { scale: 1.5, useCORS: true, allowTaint: true, logging: false, backgroundColor:'#ffffff', scrollX:0, scrollY:0, windowWidth: 794 },
-      jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
-      pagebreak: { mode:['avoid-all','css','legacy'] }
-    }).from(wrap).save();
-  } catch (e) {
-    console.error('PDF erro:', e);
-    alert('Erro a gerar PDF: ' + (e.message||'desconhecido'));
-  } finally {
-    if (wrap.parentNode) document.body.removeChild(wrap);
-  }
+  const fname = `Tempos_Semana_${segunda.toISOString().split('T')[0]}_${(motorista.nome||'motorista').split(' ')[0]}`;
+  // Usar diálogo nativo de impressão (gera PDF perfeito, sem html2pdf)
+  const html = wrap.innerHTML;
+  document.body.removeChild(wrap);
+
+  const printHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fname}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff}
+      @media print { @page { size: A4; margin: 0 } body{margin:0} .no-print{display:none !important} }
+      .actions{position:fixed;top:14px;right:14px;display:flex;gap:8px;z-index:99}
+      .btn{padding:9px 18px;background:#c8922a;color:#000;border:none;border-radius:4px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:Calibri,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+      .btn-ghost{background:#fff;color:#666;border:1px solid #ddd}
+    </style>
+    </head><body>
+    <div class="actions no-print">
+      <button class="btn btn-ghost" onclick="window.close()">✕ Fechar</button>
+      <button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    </div>
+    <div style="max-width:794px;margin:0 auto">${html}</div>
+    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 600));</script>
+    </body></html>`;
+
+  const win = window.open('', '_blank', 'width=900,height=1100');
+  if (!win) { alert('Popup bloqueado! Permite popups para este site e tenta de novo.'); return; }
+  win.document.write(printHTML);
+  win.document.close();
 }
 
 async function carregarEventosHoje() {
