@@ -3620,13 +3620,18 @@ async function downloadContrato() {
 }
 
 function renderTemplatesList() {
+  const isSuperadmin = perfil?.role === 'superadmin';
+  const hasOutrasEmpresas = empresasDisponiveis.length > 1;
   return `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:8px;flex-wrap:wrap">
       <div>
         <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${contratosTemplates.length} template(s) para esta empresa</div>
         <div style="font-size:11px;color:var(--sub2)">Templates .docx com placeholders no formato «NOME_DO_CAMPO»</div>
       </div>
-      <button class="btn btn-gold btn-sm" onclick="document.getElementById('tpl-file').click()">+ Carregar template</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${isSuperadmin && hasOutrasEmpresas && contratosTemplates.length>0 ? `<button class="btn btn-ghost btn-sm" onclick="modalCopiarTemplates()">📋 Copiar p/ outra empresa</button>` : ''}
+        <button class="btn btn-gold btn-sm" onclick="document.getElementById('tpl-file').click()">+ Carregar template</button>
+      </div>
       <input type="file" id="tpl-file" accept=".docx" style="display:none" onchange="processarUploadTemplate(this.files[0])">
     </div>
 
@@ -3664,6 +3669,92 @@ function renderTemplatesList() {
       </div>
     `}
   `;
+}
+
+function modalCopiarTemplates() {
+  const outras = empresasDisponiveis.filter(e => e.id !== empresa.id);
+  if (!outras.length) { toast('Sem outras empresas disponíveis','error'); return; }
+
+  openModal('📋 Copiar templates para outra empresa', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Os templates seleccionados serão duplicados para a empresa destino (novo path no Storage + novo registo na BD).</p>
+
+    <div class="field"><label>Empresa destino</label>
+      <select id="cp-empresa">
+        ${outras.map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
+      </select>
+    </div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Templates a copiar</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub2);margin-bottom:6px;cursor:pointer">
+        <input type="checkbox" id="cp-all" onchange="document.querySelectorAll('[data-tpl-id]').forEach(c => c.checked = this.checked)" checked>
+        <span>Selecionar todos</span>
+      </label>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding:8px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px">
+        ${contratosTemplates.map(t => `
+          <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:3px;cursor:pointer">
+            <input type="checkbox" data-tpl-id="${t.id}" checked>
+            <span style="flex:1;font-size:12px;color:var(--paper)">${t.nome}</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--sub2)">${(t.placeholders||[]).length} placeholders</span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="executarCopiaTemplates()">📋 Copiar agora</button>
+  `);
+}
+
+async function executarCopiaTemplates() {
+  const empresaDestinoId = document.getElementById('cp-empresa').value;
+  const ids = [...document.querySelectorAll('[data-tpl-id]:checked')].map(c => c.dataset.tplId);
+  if (!ids.length) { toast('Selecionar pelo menos 1 template','error'); return; }
+
+  closeModal();
+  toast(`A copiar ${ids.length} template(s)...`);
+
+  let sucesso = 0, erro = 0;
+  for (const tplId of ids) {
+    const tpl = contratosTemplates.find(t => t.id === tplId);
+    if (!tpl?.ficheiro_path) { erro++; continue; }
+    try {
+      // 1. Download do ficheiro original
+      const { data: file, error: dlErr } = await db.storage.from('contratos-templates').download(tpl.ficheiro_path);
+      if (dlErr) throw dlErr;
+
+      // 2. Inserir registo na empresa destino (sem path ainda)
+      const { data: novoTpl, error: insErr } = await db.from('contratos_templates').insert({
+        empresa_id: empresaDestinoId,
+        tipo: tpl.tipo,
+        nome: tpl.nome,
+        placeholders: tpl.placeholders,
+        ficheiro_path: 'pending',
+        ativo: tpl.ativo
+      }).select().single();
+      if (insErr) throw insErr;
+
+      // 3. Upload com novo path
+      const novoPath = `${empresaDestinoId}/${novoTpl.id}.docx`;
+      const { error: upErr } = await db.storage.from('contratos-templates').upload(novoPath, file, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        upsert: true
+      });
+      if (upErr) {
+        await db.from('contratos_templates').delete().eq('id', novoTpl.id);
+        throw upErr;
+      }
+
+      // 4. Atualizar path
+      await db.from('contratos_templates').update({ ficheiro_path: novoPath }).eq('id', novoTpl.id);
+      sucesso++;
+    } catch (e) {
+      console.error('Erro a copiar template '+tplId, e);
+      erro++;
+    }
+  }
+
+  toast(`✅ ${sucesso} copiado(s)${erro?` · ⚠️ ${erro} erro(s)`:''}`);
 }
 
 async function processarUploadTemplate(file) {
