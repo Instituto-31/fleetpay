@@ -158,28 +158,27 @@ serve(async (req) => {
       const list: any[] = [];
       let firstResp: any = null;
       let offset = 0;
-      let useMs = true;
+      const startSec = Math.floor(startMs / 1000);
+      const endSec = Math.floor(endMs / 1000);
 
       while (true) {
         const body: any = {
           company_id: companyId,
-          start_ts: useMs ? startMs : Math.floor(startMs / 1000),
-          end_ts: useMs ? endMs : Math.floor(endMs / 1000),
+          start_ts: startSec,  // Bolt quer Unix timestamp em segundos
+          end_ts: endSec,
           offset,
           limit: maxPerPage,
         };
-        let resp: any;
-        try {
-          resp = await boltCall(endpoint, accessToken, body);
-        } catch (e) {
-          if (offset === 0 && useMs) {
-            console.log(`[bolt-sync] ${endpoint} falhou em ms, retry em segundos...`);
-            useMs = false;
-            continue;
-          }
-          throw e;
-        }
+        const resp = await boltCall(endpoint, accessToken, body);
         if (offset === 0 && firstResp === null) firstResp = resp;
+
+        // Detectar erro de validação Bolt (HTTP 200 mas com code de erro)
+        if (resp?.code && resp.code !== 0 && resp.code !== 200) {
+          const errMsg = `${resp.message || 'erro'} (code ${resp.code})`;
+          const validationDetails = resp.validation_errors?.map((v: any) => `${v.property}: ${v.error}`).join('; ') || '';
+          throw new Error(`Bolt ${endpoint}: ${errMsg}${validationDetails ? ' | ' + validationDetails : ''}`);
+        }
+
         const batch = extractList(resp, key);
         list.push(...batch);
         if (batch.length < maxPerPage) break;
