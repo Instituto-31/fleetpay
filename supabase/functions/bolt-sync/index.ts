@@ -120,34 +120,65 @@ serve(async (req) => {
       throw new Error('Credenciais Bolt não configuradas (Configurações → Integração Bolt API)');
     }
 
+    if (!emp.bolt_company_id) {
+      throw new Error('Bolt Company ID em falta. Vai a Configurações → Integração Bolt API e preenche o Company ID (numérico, vê em fleets.bolt.eu → Settings ou no URL).');
+    }
+    const companyId = Number(emp.bolt_company_id);
+    if (!companyId || Number.isNaN(companyId)) {
+      throw new Error(`Bolt Company ID inválido: "${emp.bolt_company_id}" (tem que ser um número).`);
+    }
+
     // 4) OAuth Bolt
     const accessToken = await getBoltToken(emp.bolt_client_id, emp.bolt_client_secret);
 
-    // 5) Get drivers from Bolt
-    // Note: payload exato pode variar. Tentamos com company_ids[]; se 400, tentamos sem.
-    const driversBody: any = {};
-    if (emp.bolt_company_id) driversBody.company_ids = [Number(emp.bolt_company_id) || emp.bolt_company_id];
-    let driversResp: any;
-    try {
-      driversResp = await boltCall('getDriversForApiCalls', accessToken, driversBody);
-    } catch (e1) {
-      // fallback: sem company_ids
-      try { driversResp = await boltCall('getDriversForApiCalls', accessToken, {}); }
-      catch (e2) { throw new Error(`getDrivers falhou: ${(e1 as Error).message} | fallback: ${(e2 as Error).message}`); }
-    }
-    const boltDrivers: any[] = driversResp?.data?.drivers || driversResp?.drivers || driversResp?.data || [];
+    // Time range: drivers/veículos ativos no último ano
+    const nowSec = Math.floor(Date.now() / 1000);
+    const oneYearAgoSec = nowSec - 365 * 24 * 3600;
 
-    // 6) Get vehicles from Bolt
-    const vehiclesBody: any = {};
-    if (emp.bolt_company_id) vehiclesBody.company_ids = [Number(emp.bolt_company_id) || emp.bolt_company_id];
-    let vehiclesResp: any;
-    try {
-      vehiclesResp = await boltCall('getVehiclesForApiCalls', accessToken, vehiclesBody);
-    } catch (e1) {
-      try { vehiclesResp = await boltCall('getVehiclesForApiCalls', accessToken, {}); }
-      catch (e2) { /* veículos é opcional — não bloqueia se falhar */ vehiclesResp = { data: { vehicles: [] } }; }
+    // 5) Get drivers (paginated)
+    const boltDrivers: any[] = [];
+    {
+      const limit = 1000;
+      let offset = 0;
+      while (true) {
+        const resp = await boltCall('getDrivers', accessToken, {
+          company_id: companyId,
+          start_ts: oneYearAgoSec,
+          end_ts: nowSec,
+          offset,
+          limit,
+        });
+        const batch: any[] = resp?.data?.drivers || resp?.drivers || resp?.data?.list || [];
+        boltDrivers.push(...batch);
+        if (batch.length < limit) break;
+        offset += batch.length;
+        if (offset > 50000) break; // safeguard
+      }
     }
-    const boltVehicles: any[] = vehiclesResp?.data?.vehicles || vehiclesResp?.vehicles || vehiclesResp?.data || [];
+
+    // 6) Get vehicles (paginated, limit max 100)
+    const boltVehicles: any[] = [];
+    try {
+      const limit = 100;
+      let offset = 0;
+      while (true) {
+        const resp = await boltCall('getVehicles', accessToken, {
+          company_id: companyId,
+          start_ts: oneYearAgoSec,
+          end_ts: nowSec,
+          offset,
+          limit,
+        });
+        const batch: any[] = resp?.data?.vehicles || resp?.vehicles || resp?.data?.list || [];
+        boltVehicles.push(...batch);
+        if (batch.length < limit) break;
+        offset += batch.length;
+        if (offset > 5000) break; // safeguard
+      }
+    } catch (e) {
+      // veículos é opcional — não bloqueia se falhar
+      console.error('[bolt-sync] getVehicles falhou:', (e as Error).message);
+    }
 
     // 7) Upsert drivers
     const summary = {
