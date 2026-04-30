@@ -5724,16 +5724,22 @@ function renderAjudaBolt() {
       </div>
 
       <div class="aj-warn">
-        ⚠️ <strong>Limitação</strong>: a sincronização cobre os últimos <strong>6 meses</strong> (em janelas de 30 dias). Motoristas inactivos há mais de 6 meses não vêm — terás que adicionar manualmente.
+        ⚠️ <strong>Limitação</strong>: a sincronização cobre os últimos <strong>6 meses</strong>. Motoristas inactivos há mais de 6 meses não vêm — terás que adicionar manualmente.
       </div>
 
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">Resolução de problemas</h3>
-      <ul style="font-size:13px;color:var(--paper);line-height:1.8;padding-left:20px">
-        <li><strong>"Bolt OAuth 401"</strong> → credenciais erradas. Renova no portal Bolt e cola novas.</li>
-        <li><strong>"INVALID_DATE_RANGE"</strong> → bug do FleetPay (já corrigido com janelas de 30 dias).</li>
-        <li><strong>"Failed to fetch"</strong> → Edge Function timeout. Confirma que o último deploy tem o código actual (com <code>fetchPaginated</code>).</li>
-        <li><strong>"0 motoristas mas portal Bolt mostra N"</strong> → janela temporal demasiado curta. Vê os logs em Supabase → Edge Functions → bolt-sync → Logs.</li>
-      </ul>
+      <div class="aj-info">
+        💡 Se algo não funcionar, contacta <a href="mailto:suporte@fleetpay.pt">suporte@fleetpay.pt</a> com o erro que apareceu. A nossa equipa técnica resolve.
+      </div>
+
+      ${perfil?.role === 'superadmin' ? `
+        <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">🛠️ Troubleshooting <span class="aj-status" style="background:rgba(200,146,42,0.15);color:var(--gold);border:1px solid var(--gold);margin-left:8px">Uso interno</span></h3>
+        <ul style="font-size:13px;color:var(--paper);line-height:1.8;padding-left:20px">
+          <li><strong>"Bolt OAuth 401"</strong> → credenciais erradas. Renova no portal Bolt e cola novas.</li>
+          <li><strong>"INVALID_DATE_RANGE"</strong> → bug do FleetPay (já corrigido com janelas de 30 dias).</li>
+          <li><strong>"Failed to fetch"</strong> → Edge Function timeout. Confirma que o último deploy tem o código actual (com <code>fetchPaginated</code>).</li>
+          <li><strong>"0 motoristas mas portal Bolt mostra N"</strong> → janela temporal demasiado curta. Vê os logs em Supabase → Edge Functions → bolt-sync → Logs.</li>
+        </ul>
+      ` : ''}
     </div>
   `;
 }
@@ -5963,42 +5969,67 @@ function renderAjudaCupoes() {
 }
 
 function renderAjudaSuporte() {
-  return `
+  const isAdminInterno = perfil?.role === 'superadmin';
+  const empresaNome = empresa?.nome || '—';
+  const planoBadge = empresa?.plano ? ' · Plano <strong>' + empresa.plano.toUpperCase() + '</strong>' : '';
+
+  const blocoCliente = `
     <div class="aj-card">
-      <h2>💬 Suporte e Recursos</h2>
-      <div class="aj-sub">Onde pedir ajuda quando algo não funcionar.</div>
+      <h2>💬 Suporte FleetPay</h2>
+      <div class="aj-sub">Como pedir ajuda quando algo não funcionar.</div>
 
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Repositório de código</h3>
-      <p style="font-size:13px;color:var(--paper);line-height:1.7">Todo o FleetPay é open-source: <a href="https://github.com/Instituto-31/fleetpay" target="_blank">github.com/Instituto-31/fleetpay</a></p>
+      <div style="background:rgba(200,146,42,0.08);border:1px solid var(--gold);border-radius:6px;padding:18px;margin:14px 0">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📞 Contacto Directo</div>
+        <ul style="font-size:14px;color:var(--paper);line-height:2;padding-left:20px;margin:0">
+          <li>📧 Email: <a href="mailto:suporte@fleetpay.pt">suporte@fleetpay.pt</a></li>
+          <li>💬 WhatsApp: ao gestor de conta</li>
+          <li>⚡ Resposta típica: <strong>até 24h em dias úteis</strong></li>
+        </ul>
+      </div>
 
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Documentação completa</h3>
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Suporte das plataformas externas</h3>
       <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
-        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">UBER_SETUP.md</a> — guia 9 passos para integração Uber</li>
-        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">RESEND_SETUP.md</a> — guia setup emails Resend</li>
-        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/sql" target="_blank">sql/</a> — todos os schemas BD</li>
-        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/supabase/functions" target="_blank">supabase/functions/</a> — todas as Edge Functions</li>
-      </ul>
-
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Logs e debug</h3>
-      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
-        <li><strong>Frontend</strong>: F12 → Console → procura linhas com prefixo <code>[bolt-sync]</code>, <code>[uber-sync]</code>, <code>[oferta]</code>, etc.</li>
-        <li><strong>Edge Functions</strong>: Supabase Dashboard → Edge Functions → escolhe função → tab <strong>Logs</strong></li>
-        <li><strong>BD</strong>: Supabase Dashboard → Table Editor → vê dados directamente</li>
-      </ul>
-
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Suporte externo</h3>
-      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
-        <li><strong>Bolt</strong>: <a href="https://help.bolt.eu/fleet-owners" target="_blank">help.bolt.eu/fleet-owners</a></li>
-        <li><strong>Uber</strong>: <a href="https://help.uber.com/h/business" target="_blank">help.uber.com/h/business</a></li>
-        <li><strong>Supabase</strong>: <a href="https://supabase.com/docs" target="_blank">supabase.com/docs</a> · <a href="https://supabase.com/dashboard/support/new" target="_blank">Submit ticket</a></li>
-        <li><strong>Resend</strong>: <a href="https://resend.com/docs" target="_blank">resend.com/docs</a> · <code>support@resend.com</code></li>
+        <li><strong>Problemas com a conta Bolt</strong> (motoristas, pagamentos): <a href="https://help.bolt.eu/fleet-owners" target="_blank">help.bolt.eu/fleet-owners</a></li>
+        <li><strong>Problemas com a conta Uber</strong>: <a href="https://help.uber.com/h/business" target="_blank">help.uber.com/h/business</a></li>
       </ul>
 
       <div class="aj-ok">
-        ✨ <strong>Versão FleetPay</strong>: 2.0.0 · Empresa actual: <strong>${empresa?.nome || '—'}</strong>${empresa?.plano ? ' · Plano <strong>'+empresa.plano.toUpperCase()+'</strong>' : ''}
+        ✨ <strong>FleetPay v2.0</strong> · Empresa: <strong>${empresaNome}</strong>${planoBadge}
       </div>
     </div>
   `;
+
+  const blocoInterno = `
+    <div class="aj-card">
+      <h2>🛠️ Recursos Técnicos <span class="aj-status" style="background:rgba(200,146,42,0.15);color:var(--gold);border:1px solid var(--gold)">Uso interno</span></h2>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:14px 0 10px;color:var(--paper)">Repositório</h3>
+      <p style="font-size:13px;color:var(--paper);line-height:1.7"><a href="https://github.com/Instituto-31/fleetpay" target="_blank">github.com/Instituto-31/fleetpay</a></p>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:14px 0 10px;color:var(--paper)">Docs</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">UBER_SETUP.md</a></li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">RESEND_SETUP.md</a></li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/sql" target="_blank">sql/</a> — schemas BD</li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/supabase/functions" target="_blank">supabase/functions/</a></li>
+      </ul>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:14px 0 10px;color:var(--paper)">Logs e debug</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><strong>Frontend</strong>: F12 → Console → prefixos <code>[bolt-sync]</code>, <code>[uber-sync]</code>, <code>[oferta]</code></li>
+        <li><strong>Edge Functions</strong>: Supabase → Edge Functions → função → tab Logs</li>
+        <li><strong>BD</strong>: Supabase Table Editor</li>
+      </ul>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:14px 0 10px;color:var(--paper)">Suporte plataformas</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><strong>Supabase</strong>: <a href="https://supabase.com/docs" target="_blank">docs</a> · <a href="https://supabase.com/dashboard/support/new" target="_blank">ticket</a></li>
+        <li><strong>Resend</strong>: <a href="https://resend.com/docs" target="_blank">docs</a> · support@resend.com</li>
+      </ul>
+    </div>
+  `;
+
+  return isAdminInterno ? blocoCliente + blocoInterno : blocoCliente;
 }
 
 
