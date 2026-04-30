@@ -233,6 +233,27 @@ async function submeterContacto() {
 
   indicacao.contactado_em = new Date().toISOString();
   indicacao.indicado_email = email;
+  indicacao.indicado_nome = nome;
+  indicacao.indicado_telefone = tel;
+  indicacao.indicado_notas = notas;
+
+  // Disparar Edge Function (best-effort — não bloqueia UI se falhar)
+  try {
+    fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/send-oferta-emails`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${FLEETPAY_CONFIG.supabase.anonKey}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({
+        indicacao_id: indicacao.id,
+        oferta_url: location.href,
+        admin_url: location.origin + location.pathname.replace(/[^/]+$/, '') + 'admin.html',
+      }),
+    }).then(r => r.json()).then(d => console.log('[oferta] email envio:', d)).catch(e => console.warn('[oferta] email falhou:', e));
+  } catch(e) { console.warn('[oferta] fetch:', e); }
+
   pintar();
 }
 

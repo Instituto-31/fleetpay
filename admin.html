@@ -639,8 +639,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('tempos')">
           <span class="nav-icon">⏱️</span> Tempos
         </button>
-        <button class="nav-item" onclick="showPage('cupoes')">
+        <button class="nav-item" onclick="showPage('cupoes')" id="nav-cupoes">
           <span class="nav-icon">🎟️</span> Cupões
+          <span class="nav-badge" id="badge-cupoes" style="display:none">0</span>
         </button>
       </div>
       <div class="nav-section">
@@ -915,6 +916,29 @@ async function calcularAlertas() {
     badge.textContent = alertas.length;
     badge.style.display = '';
   } else badge.style.display = 'none';
+
+  // Badge de leads novos (Cupões → Indicações)
+  await calcularBadgeCupoes();
+}
+
+async function calcularBadgeCupoes() {
+  try {
+    const lastSeen = localStorage.getItem(`fp-cupoes-last-seen-${empresa.id}`) || '1970-01-01T00:00:00Z';
+    const { count } = await db.from('cupoes_indicacoes')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresa.id)
+      .not('contactado_em', 'is', null)
+      .is('convertido_em', null)
+      .gt('contactado_em', lastSeen);
+    const badge = document.getElementById('badge-cupoes');
+    if (!badge) return;
+    if (count && count > 0) {
+      badge.textContent = count;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) { /* tabela ainda não existe — silencioso */ }
 }
 
 async function logout() {
@@ -4844,7 +4868,13 @@ function cupoesSetTab(tab) {
   if (!el) return;
   if (tab === 'catalogo') el.innerHTML = renderCupoesCatalogo();
   else if (tab === 'redencoes') el.innerHTML = renderCupoesRedencoes();
-  else if (tab === 'indicacoes') el.innerHTML = renderCupoesIndicacoes();
+  else if (tab === 'indicacoes') {
+    el.innerHTML = renderCupoesIndicacoes();
+    // Operador viu os leads — limpa badge
+    localStorage.setItem(`fp-cupoes-last-seen-${empresa.id}`, new Date().toISOString());
+    const badge = document.getElementById('badge-cupoes');
+    if (badge) badge.style.display = 'none';
+  }
   else el.innerHTML = renderCupoesStats();
 }
 
