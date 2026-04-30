@@ -5741,20 +5741,49 @@ function renderAjudaBolt() {
 function renderAjudaUber() {
   const e = empresa || {};
   const ativo = !!e.uber_client_id;
-  return `
+  const isAdminInterno = perfil?.role === 'superadmin';
+  const statusBadge = ativo
+    ? '<span class="aj-status aj-status-pending">Aguarda aprovação Uber</span>'
+    : '<span class="aj-status aj-status-blocked">Por configurar</span>';
+
+  // Caixa para clientes FleetPay (operadores externos): contactar departamento
+  const caixaContacto = `
+    <div class="aj-card" style="border:1px solid var(--gold);background:linear-gradient(135deg,rgba(200,146,42,0.06),rgba(200,146,42,0.02))">
+      <h2>🚙 Integração Uber API ${statusBadge}</h2>
+      <div class="aj-sub">A integração com a Uber Vehicle Suppliers API é gerida pelo nosso departamento técnico — é um processo que envolve aprovação manual da Uber e configuração técnica complexa.</div>
+
+      <div style="background:rgba(200,146,42,0.08);border:1px solid var(--gold);border-radius:6px;padding:18px;margin:14px 0">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📞 Como pedir a integração</div>
+        <p style="font-size:14px;color:var(--paper);line-height:1.7;margin:0 0 12px">Para activar a sincronização automática Uber na tua frota, <strong>contacta o nosso departamento técnico</strong>:</p>
+        <ul style="font-size:13px;color:var(--paper);line-height:2;padding-left:20px;margin:0">
+          <li>📧 <strong>Email</strong>: <a href="mailto:suporte@fleetpay.pt">suporte@fleetpay.pt</a></li>
+          <li>💬 <strong>WhatsApp / Telefone</strong>: pedir ao gestor de conta</li>
+          <li>📝 <strong>Pedido</strong>: indica o NIPC, licença TVDE e nome da empresa Uber Fleet</li>
+        </ul>
+        <p style="font-size:12px;color:var(--sub);line-height:1.6;margin:14px 0 0">A integração é feita 1x por empresa, demora cerca de 1-2 semanas (depende do tempo de aprovação da Uber) e é incluída no plano <strong>Pro</strong> do FleetPay.</p>
+      </div>
+
+      <div class="aj-info">
+        💡 <strong>Entretanto</strong>: o upload manual do CSV semanal Uber continua a funcionar normalmente. Vai a <a href="#" onclick="showPage('csv');return false">📂 Carregar CSV</a> para importar pagamentos.
+      </div>
+    </div>
+  `;
+
+  // Para uso interno (superadmin) — guia técnico completo
+  const guiaTecnico = `
     <div class="aj-card">
-      <h2>🚙 Integração Uber Vehicle Suppliers API ${ativo?'<span class="aj-status aj-status-pending">Aguarda aprovação Uber</span>':'<span class="aj-status aj-status-blocked">Por configurar</span>'}</h2>
-      <div class="aj-sub">Sincroniza motoristas e viaturas da Uber. <a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">Guia completo no GitHub</a> · <a href="https://developer.uber.com/docs/vehicles/introduction" target="_blank">Docs API Uber</a></div>
+      <h2>🛠️ Guia técnico Uber API <span class="aj-status" style="background:rgba(200,146,42,0.15);color:var(--gold);border:1px solid var(--gold)">Uso interno</span></h2>
+      <div class="aj-sub">Visível só para superadmin. <a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">Guia completo no GitHub</a> · <a href="https://developer.uber.com/docs/vehicles/introduction" target="_blank">Docs API Uber</a></div>
 
       <div class="aj-warn">
-        ⚠️ <strong>Atenção</strong>: a Vehicle Suppliers API requer <strong>aprovação manual da Uber</strong>. Não é self-service como a Bolt. Aprovação típica: 1-7 dias úteis. Operadores TVDE pequenos podem ser rejeitados.
+        ⚠️ A Vehicle Suppliers API requer aprovação manual da Uber (1-7 dias úteis). Operadores TVDE pequenos podem ser rejeitados.
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">1</div>
         <div class="aj-step-body">
           <strong>Verificar elegibilidade</strong><br>
-          Tens conta activa em <a href="https://supplier.uber.com" target="_blank">supplier.uber.com</a> como <strong>Owner ou Admin</strong>? Se sim, prossegue. Se não, pede ao Owner.
+          Cliente tem conta activa em <a href="https://supplier.uber.com" target="_blank">supplier.uber.com</a> como Owner/Admin? Sem isso não dá.
         </div>
       </div>
 
@@ -5762,7 +5791,7 @@ function renderAjudaUber() {
         <div class="aj-step-num">2</div>
         <div class="aj-step-body">
           <strong>Criar conta Developer Uber</strong><br>
-          Abre <a href="https://developer.uber.com" target="_blank">developer.uber.com</a> → Sign In com a mesma conta de supplier.uber.com. Ao entrar no Dashboard, copia o <strong>Org ID</strong> que aparece no URL (UUID após <code>/organization/</code>).
+          <a href="https://developer.uber.com" target="_blank">developer.uber.com</a> → Sign In. Org ID está no URL (UUID após <code>/organization/</code>).
         </div>
       </div>
 
@@ -5770,9 +5799,7 @@ function renderAjudaUber() {
         <div class="aj-step-num">3</div>
         <div class="aj-step-body">
           <strong>Pedir aprovação à Uber</strong><br>
-          Como a API é restrita, contacta <a href="https://help.uber.com/h/business" target="_blank">Uber Business Support</a> com mensagem tipo:<br>
-          <em>"Sou operador TVDE em Portugal (NIPC X, licença IMT Y). Org ID supplier.uber.com: [UUID]. Peço acesso à Vehicle Suppliers API para integrar com sistema interno de gestão. Casos de uso: sync motoristas, viaturas, pagamentos."</em><br>
-          Aguarda 1-7 dias.
+          <a href="https://help.uber.com/h/business" target="_blank">help.uber.com/h/business</a> → mensagem com NIPC, licença IMT, Org ID e caso de uso. Aguarda 1-7 dias.
         </div>
       </div>
 
@@ -5780,15 +5807,15 @@ function renderAjudaUber() {
         <div class="aj-step-num">4</div>
         <div class="aj-step-body">
           <strong>Após aprovação — criar app</strong><br>
-          Em developer.uber.com → Applications → <strong>Create Application</strong> → escolhe a <strong>API Suite que a Uber te indicar</strong> (ex: Vehicles, Suppliers). Preenche nome (sem "Uber"), descrição (10-400 chars). Submete.
+          Applications → Create Application → API Suite que a Uber indicar. Nome sem "Uber".
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">5</div>
         <div class="aj-step-body">
-          <strong>Copiar Client ID + Secret</strong><br>
-          Na app criada → <strong>Application ID</strong> = Client ID. Em <strong>Authentication → Client Secret</strong> → carrega no 👁 → copia. Guarda em gestor de passwords.
+          <strong>Copiar credenciais</strong><br>
+          Application ID = Client ID. Authentication → Client Secret → 👁 revelar → copiar.
         </div>
       </div>
 
@@ -5796,95 +5823,110 @@ function renderAjudaUber() {
         <div class="aj-step-num">6</div>
         <div class="aj-step-body">
           <strong>Configurar no FleetPay</strong><br>
-          <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> → <strong>Integração Uber API</strong> → cola Client ID + Secret + Org ID → 💾 Guardar → 🔄 Sincronizar.
+          <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> → Integração Uber API → 3 campos → 💾 Guardar → 🔄 Sincronizar.
         </div>
       </div>
 
-      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">Resolução de problemas</h3>
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">Troubleshooting</h3>
       <ul style="font-size:13px;color:var(--paper);line-height:1.8;padding-left:20px">
-        <li><strong>"invalid_scope"</strong> → app criada com API Suite "Others" não tem acesso à Vehicle Suppliers API. Precisa criar nova app com a suite correta após aprovação Uber.</li>
-        <li><strong>"403 Forbidden"</strong> → Vehicle Suppliers API não foi aprovada para a tua conta. Insiste com a Uber.</li>
-        <li><strong>"Empresa não encontrada"</strong> → Org ID errado. Confirma o UUID no URL de developer.uber.com.</li>
+        <li><strong>"invalid_scope"</strong> → app com API Suite "Others", precisa nova app com Vehicles/Suppliers após aprovação.</li>
+        <li><strong>"403 Forbidden"</strong> → API não aprovada — insistir com Uber.</li>
+        <li><strong>"Empresa não encontrada"</strong> → Org ID errado.</li>
       </ul>
     </div>
   `;
+
+  return isAdminInterno ? caixaContacto + guiaTecnico : caixaContacto;
 }
 
 function renderAjudaEmails() {
-  return `
-    <div class="aj-card">
-      <h2>📧 Emails automáticos via Resend <span class="aj-status aj-status-pending">Setup pendente</span></h2>
-      <div class="aj-sub">Envia 2 emails automáticos quando alguém preenche o form em oferta.html (Programa Embaixadores): 1 ao Lead com info do cupão, 1 ao Operador com alerta de lead novo. <a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">Guia completo</a>.</div>
+  const isAdminInterno = perfil?.role === 'superadmin';
 
-      <div class="aj-info">
-        💡 Sem este setup, o Programa Embaixadores funciona na mesma — leads aparecem em <a href="#" onclick="showPage('cupoes');return false">🎟️ Cupões → Indicações ★</a>, vês o badge dourado e tratas manualmente.
+  const caixaContacto = `
+    <div class="aj-card" style="border:1px solid var(--gold);background:linear-gradient(135deg,rgba(200,146,42,0.06),rgba(200,146,42,0.02))">
+      <h2>📧 Emails automáticos <span class="aj-status aj-status-pending">Setup técnico pendente</span></h2>
+      <div class="aj-sub">Quando activado, envia 2 emails automáticos a cada lead do <strong>Programa Embaixadores</strong>: ao amigo (cupão + info parceiro) e ao operador (alerta de lead novo).</div>
+
+      <div style="background:rgba(200,146,42,0.08);border:1px solid var(--gold);border-radius:6px;padding:18px;margin:14px 0">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">📞 Como activar</div>
+        <p style="font-size:14px;color:var(--paper);line-height:1.7;margin:0 0 12px">Setup envolve domínio próprio, registos DNS, conta Resend e Edge Function — gerido pelo nosso departamento técnico. Para activar:</p>
+        <ul style="font-size:13px;color:var(--paper);line-height:2;padding-left:20px;margin:0">
+          <li>📧 <strong>Email</strong>: <a href="mailto:suporte@fleetpay.pt">suporte@fleetpay.pt</a></li>
+          <li>📝 <strong>Pedido</strong>: indica o domínio que queres usar para enviar emails (ex: <code>frota.exemplo.pt</code>)</li>
+        </ul>
+        <p style="font-size:12px;color:var(--sub);line-height:1.6;margin:14px 0 0">Setup demora cerca de 1 dia (incluindo propagação DNS). Incluído no plano <strong>Pro</strong>.</p>
       </div>
+
+      <div class="aj-ok">
+        ✅ <strong>Sem este setup, o Programa Embaixadores funciona na mesma!</strong> Leads aparecem em <a href="#" onclick="showPage('cupoes');return false">🎟️ Cupões → Indicações ★</a>, vês badge dourado e tratas manualmente (telefonas, mandas WhatsApp, etc.).
+      </div>
+    </div>
+  `;
+
+  const guiaTecnico = `
+    <div class="aj-card">
+      <h2>🛠️ Guia técnico Resend <span class="aj-status" style="background:rgba(200,146,42,0.15);color:var(--gold);border:1px solid var(--gold)">Uso interno</span></h2>
+      <div class="aj-sub">Visível só para superadmin. <a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">Guia completo no GitHub</a>.</div>
 
       <div class="aj-step">
         <div class="aj-step-num">1</div>
         <div class="aj-step-body">
-          <strong>Criar conta Resend</strong><br>
-          <a href="https://resend.com/signup" target="_blank">resend.com/signup</a> com email da empresa. Free: 100 emails/dia, 3000/mês. <strong>Cada empresa cliente FleetPay precisa da sua própria conta Resend</strong> (ou organização se tiver Pro).
+          <strong>Conta Resend</strong> → <a href="https://resend.com/signup" target="_blank">resend.com/signup</a> (free: 100/dia, 3000/mês).
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">2</div>
         <div class="aj-step-body">
-          <strong>Adicionar domínio</strong><br>
-          Resend → Domains → <strong>Add Domain</strong> → escreve <code>fleetpay.pt</code> (ou o teu domínio) → Region <strong>Ireland</strong>. Vão aparecer 4 registos DNS (DKIM, SPF, MX, DMARC).
+          <strong>Add Domain</strong> → Resend → Domains → escreve domínio → Ireland → 4 registos DNS (DKIM/SPF/MX/DMARC).
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">3</div>
         <div class="aj-step-body">
-          <strong>Adicionar registos DNS no provedor do domínio</strong><br>
-          No registrar (ex: dominios.pt → Gestão DNS) cola os 4 registos. Espera 10-30 min para propagar. Volta ao Resend → "Verify" no domínio → fica verde.
+          <strong>Adicionar DNS no registrar</strong> → cola os 4 registos no provedor de DNS (dominios.pt, Cloudflare, etc.). Espera 10-30 min.
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">4</div>
         <div class="aj-step-body">
-          <strong>Gerar API Key</strong><br>
-          Resend → API Keys → Create → nome <code>fleetpay</code> → permissão <strong>Sending access</strong> → copia (formato <code>re_...</code>).
+          <strong>API Key</strong> → Resend → API Keys → Create → permissão Sending → copia <code>re_...</code>.
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">5</div>
         <div class="aj-step-body">
-          <strong>Aplicar SQL na Supabase</strong><br>
-          Cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/sql/oferta_emails_fix.sql" target="_blank">oferta_emails_fix.sql</a> em SQL Editor → Run.
+          <strong>SQL</strong> → cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/sql/oferta_emails_fix.sql" target="_blank">oferta_emails_fix.sql</a> em SQL Editor → Run.
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">6</div>
         <div class="aj-step-body">
-          <strong>Deploy Edge Function</strong><br>
-          Supabase → Edge Functions → Deploy a new function → nome <code>send-oferta-emails</code> → cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/supabase/functions/send-oferta-emails/index.ts" target="_blank">código</a> → Deploy.
+          <strong>Deploy Edge Function</strong> → nome <code>send-oferta-emails</code> → cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/supabase/functions/send-oferta-emails/index.ts" target="_blank">código</a>.
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">7</div>
         <div class="aj-step-body">
-          <strong>Adicionar secret RESEND_API_KEY</strong><br>
-          Supabase → Project Settings → Edge Functions → Secrets → Add → name <code>RESEND_API_KEY</code> → value (cola a key) → Save. Opcional: <code>RESEND_FROM</code> = <code>FleetPay &lt;noreply@fleetpay.pt&gt;</code>.
+          <strong>Secrets</strong> → Project Settings → Edge Functions → <code>RESEND_API_KEY</code> = a key. Opcional <code>RESEND_FROM</code> = <code>FleetPay &lt;noreply@dominio.pt&gt;</code>.
         </div>
       </div>
 
       <div class="aj-step">
         <div class="aj-step-num">8</div>
         <div class="aj-step-body">
-          <strong>Garantir empresa.email preenchido</strong><br>
-          O email do operador (onde vão chegar os alertas de lead) está na linha <code>empresas.email</code>. Edita em <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> ou directo na Supabase Table Editor.
+          <strong>empresa.email preenchido</strong> → Configurações ou Supabase Table Editor.
         </div>
       </div>
     </div>
   `;
+
+  return isAdminInterno ? caixaContacto + guiaTecnico : caixaContacto;
 }
 
 function renderAjudaCupoes() {
