@@ -131,15 +131,17 @@ serve(async (req) => {
     // 4) OAuth Bolt
     const accessToken = await getBoltToken(emp.bolt_client_id, emp.bolt_client_secret);
 
-    // Time range — Bolt rejeita janelas muito grandes (INVALID_DATE_RANGE para 1 ano).
-    // Usamos 7 dias que cobre motoristas activos da última semana.
+    // Time range — Bolt rejeita janelas grandes (INVALID_DATE_RANGE para 365 dias).
+    // Estratégia: cobrir 6 meses com janelas de 30 dias cada (6 chamadas).
+    // Deduplicação por ID garante que motoristas vistos em múltiplas janelas
+    // só aparecem uma vez no resultado final.
     const nowMs = Date.now();
-    const sevenDaysAgoMs = nowMs - 7 * 24 * 3600 * 1000;
-    const nowSec = Math.floor(nowMs / 1000);
-    const sevenDaysAgoSec = nowSec - 7 * 24 * 3600;
+    const WINDOW_DAYS = 30;
+    const TOTAL_MONTHS = 6;
+    const NUM_WINDOWS = Math.ceil((TOTAL_MONTHS * 30) / WINDOW_DAYS);
+    const windowMs = WINDOW_DAYS * 24 * 3600 * 1000;
 
     function extractList(resp: any, key: string): any[] {
-      // Tenta várias shapes comuns na Bolt API
       return resp?.data?.[key]
         || resp?.[key]
         || resp?.data?.list
@@ -152,17 +154,17 @@ serve(async (req) => {
         || [];
     }
 
-    async function fetchPaginated(endpoint: string, key: string, maxPerPage: number, safeguard: number): Promise<{ list: any[], rawSamples: any[] }> {
+    async function fetchOneWindow(endpoint: string, key: string, maxPerPage: number, startMs: number, endMs: number): Promise<{ list: any[], firstResp: any }> {
       const list: any[] = [];
-      const rawSamples: any[] = [];
+      let firstResp: any = null;
       let offset = 0;
-      let useMs = true; // primeira tentativa: milliseconds
+      let useMs = true;
 
       while (true) {
         const body: any = {
           company_id: companyId,
-          start_ts: useMs ? sevenDaysAgoMs : sevenDaysAgoSec,
-          end_ts: useMs ? nowMs : nowSec,
+          start_ts: useMs ? startMs : Math.floor(startMs / 1000),
+          end_ts: useMs ? endMs : Math.floor(endMs / 1000),
           offset,
           limit: maxPerPage,
         };
@@ -171,48 +173,67 @@ serve(async (req) => {
           resp = await boltCall(endpoint, accessToken, body);
         } catch (e) {
           if (offset === 0 && useMs) {
-            // tenta em segundos
             console.log(`[bolt-sync] ${endpoint} falhou em ms, retry em segundos...`);
             useMs = false;
             continue;
           }
           throw e;
         }
+        if (offset === 0 && firstResp === null) firstResp = resp;
         const batch = extractList(resp, key);
-        if (offset === 0 && batch.length === 0 && useMs) {
-          // resposta veio com 0 mas em ms — talvez a API quer segundos
-          console.log(`[bolt-sync] ${endpoint} vazio em ms, raw:`, JSON.stringify(resp).slice(0, 800));
-          console.log(`[bolt-sync] ${endpoint} retry em segundos...`);
-          useMs = false;
-          continue;
-        }
-        if (offset === 0) rawSamples.push(resp); // primeiro sample para debug
         list.push(...batch);
         if (batch.length < maxPerPage) break;
         offset += batch.length;
-        if (offset > safeguard) break;
+        if (offset > 50000) break;
       }
-      return { list, rawSamples };
+      return { list, firstResp };
     }
 
-    // 5) Get drivers (paginated)
-    const driversResult = await fetchPaginated('getDrivers', 'drivers', 1000, 50000);
+    async function fetchAllWindows(endpoint: string, key: string, maxPerPage: number, idField: string): Promise<{ list: any[], firstResp: any }> {
+      const seen = new Set<string>();
+      const merged: any[] = [];
+      let firstResp: any = null;
+
+      for (let i = 0; i < NUM_WINDOWS; i++) {
+        const endMs = nowMs - i * windowMs;
+        const startMs = endMs - windowMs;
+        try {
+          const { list, firstResp: fr } = await fetchOneWindow(endpoint, key, maxPerPage, startMs, endMs);
+          if (i === 0 && firstResp === null) firstResp = fr;
+          for (const item of list) {
+            const id = String(item.id || item[idField] || item.uuid || JSON.stringify(item).slice(0, 50));
+            if (!seen.has(id)) {
+              seen.add(id);
+              merged.push(item);
+            }
+          }
+          console.log(`[bolt-sync] ${endpoint} janela ${i + 1}/${NUM_WINDOWS}: +${list.length} (total único: ${merged.length})`);
+        } catch (e) {
+          console.error(`[bolt-sync] ${endpoint} janela ${i + 1} falhou:`, (e as Error).message);
+          // Não bloqueia — continua para a próxima janela
+        }
+      }
+      return { list: merged, firstResp };
+    }
+
+    // 5) Get drivers (multi-window 6 meses)
+    const driversResult = await fetchAllWindows('getDrivers', 'drivers', 1000, 'driver_id');
     const boltDrivers: any[] = driversResult.list;
 
-    // 6) Get vehicles (paginated)
+    // 6) Get vehicles (multi-window 6 meses)
     let boltVehicles: any[] = [];
     let vehiclesRawSample: any = null;
     try {
-      const r = await fetchPaginated('getVehicles', 'vehicles', 100, 5000);
+      const r = await fetchAllWindows('getVehicles', 'vehicles', 100, 'car_id');
       boltVehicles = r.list;
-      vehiclesRawSample = r.rawSamples[0];
+      vehiclesRawSample = r.firstResp;
     } catch (e) {
       console.error('[bolt-sync] getVehicles falhou:', (e as Error).message);
     }
 
     // Log raw samples para debug
     if (boltDrivers.length === 0) {
-      console.log('[bolt-sync] DRIVERS retornou 0. Raw sample:', JSON.stringify(driversResult.rawSamples[0] || {}).slice(0, 1000));
+      console.log('[bolt-sync] DRIVERS retornou 0. Raw sample:', JSON.stringify(driversResult.firstResp || {}).slice(0, 1000));
     }
     if (boltVehicles.length === 0 && vehiclesRawSample) {
       console.log('[bolt-sync] VEHICLES retornou 0. Raw sample:', JSON.stringify(vehiclesRawSample).slice(0, 1000));
