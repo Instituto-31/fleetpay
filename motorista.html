@@ -551,16 +551,40 @@ function mostrarModalTermos(versao) {
 
 async function aceitarTermos(versaoId) {
   const btn = document.getElementById('btn-aceitar-termos');
+  const restaurar = () => { btn.disabled = false; btn.textContent = '✓ Aceitar e continuar'; btn.style.opacity = '1'; };
   btn.disabled = true; btn.textContent = '⏳ A registar...';
-  const { error } = await db.from('termos_aceitacoes').insert({
-    motorista_id: motorista.id,
-    termos_versao_id: versaoId,
-    user_agent: navigator.userAgent
-  });
-  if (error) { alert('Erro: '+error.message); btn.disabled = false; btn.textContent = '✓ Aceitar e continuar'; return; }
-  document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
-  // Continuar para checklist
-  setTimeout(() => verificarCompliance(), 200);
+
+  console.log('[termos] motorista.id:', motorista?.id, 'versaoId:', versaoId);
+
+  try {
+    // Timeout de 15s para evitar UI presa se a rede/RLS pendurar
+    const insert = db.from('termos_aceitacoes').insert({
+      motorista_id: motorista.id,
+      termos_versao_id: versaoId,
+      user_agent: navigator.userAgent
+    });
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout (15s)')), 15000));
+    const { error } = await Promise.race([insert, timeout]);
+
+    if (error) {
+      console.error('[termos] erro insert:', error);
+      // Tratamento especial: já tinha aceite (UNIQUE constraint) → seguir em frente
+      if (error.code === '23505' || /duplicate|unique/i.test(error.message||'')) {
+        console.log('[termos] já tinha aceite — seguir');
+      } else {
+        alert('Não foi possível registar a aceitação:\n\n' + (error.message || JSON.stringify(error)) + '\n\nTenta de novo. Se continuar, faz print desta janela e envia ao operador.');
+        restaurar();
+        return;
+      }
+    }
+
+    document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
+    setTimeout(() => verificarCompliance(), 200);
+  } catch (e) {
+    console.error('[termos] exceção:', e);
+    alert('Erro inesperado: ' + (e.message || e) + '\n\nVerifica a tua ligação e tenta de novo.');
+    restaurar();
+  }
 }
 
 function mostrarBannerChecklist() {
