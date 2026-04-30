@@ -4122,8 +4122,24 @@ function renderConfig() {
         <div style="padding:24px">
           <div class="field"><label>Bolt Client ID</label><input id="cfg-bolt-id" value="${empresa?.bolt_client_id||''}" placeholder="Client ID do portal Bolt"></div>
           <div class="field"><label>Bolt Client Secret</label><input type="password" id="cfg-bolt-secret" value="${empresa?.bolt_client_secret||''}" placeholder="Secret do portal Bolt"></div>
-          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials</p>
-          <button class="btn btn-gold" onclick="guardarConfigBolt()">Guardar Bolt API</button>
+          <div class="field"><label>Bolt Company ID (numérico)</label><input id="cfg-bolt-company" value="${empresa?.bolt_company_id||''}" placeholder="ex: 12345 (vê em fleets.bolt.eu → Settings)"></div>
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials. Company ID está visível no URL ou em Settings → Company.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-gold" onclick="guardarConfigBolt()">💾 Guardar credenciais</button>
+            <button class="btn btn-ghost" onclick="sincronizarBolt()" ${!empresa?.bolt_client_id?'disabled':''}>🔄 Sincronizar agora</button>
+          </div>
+          ${empresa?.bolt_last_sync_at ? `
+            <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;font-size:12px;color:var(--sub)">
+              Última sincronização: <strong style="color:var(--paper)">${new Date(empresa.bolt_last_sync_at).toLocaleString('pt-PT')}</strong>
+              ${empresa.bolt_last_sync_summary ? `
+                <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:11px">
+                  <span>👤 ${empresa.bolt_last_sync_summary.drivers_received||0} motoristas (<span style="color:#27c93f">+${empresa.bolt_last_sync_summary.drivers_created||0}</span> · <span style="color:var(--gold)">~${empresa.bolt_last_sync_summary.drivers_updated||0}</span>)</span>
+                  <span>🚗 ${empresa.bolt_last_sync_summary.vehicles_received||0} viaturas (<span style="color:#27c93f">+${empresa.bolt_last_sync_summary.vehicles_created||0}</span> · <span style="color:var(--gold)">~${empresa.bolt_last_sync_summary.vehicles_updated||0}</span>)</span>
+                  ${empresa.bolt_last_sync_summary.errors?.length ? `<span style="color:#e85a5a">⚠️ ${empresa.bolt_last_sync_summary.errors.length} erros</span>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -4781,13 +4797,52 @@ async function guardarConfig() {
 }
 
 async function guardarConfigBolt() {
-  const { error } = await db.from('empresas').update({
-    bolt_client_id: document.getElementById('cfg-bolt-id').value,
-    bolt_client_secret: document.getElementById('cfg-bolt-secret').value,
-    bolt_api_ativo: !!document.getElementById('cfg-bolt-id').value,
-  }).eq('id', empresa.id);
-  if (error) { toast('Erro ao guardar','error'); return; }
-  toast('✅ Bolt API configurada!');
+  const payload = {
+    bolt_client_id: document.getElementById('cfg-bolt-id').value.trim(),
+    bolt_client_secret: document.getElementById('cfg-bolt-secret').value.trim(),
+    bolt_company_id: document.getElementById('cfg-bolt-company').value.trim() || null,
+    bolt_api_ativo: !!document.getElementById('cfg-bolt-id').value.trim(),
+  };
+  const { error } = await db.from('empresas').update(payload).eq('id', empresa.id);
+  if (error) { toast('Erro ao guardar: '+error.message,'error'); return; }
+  Object.assign(empresa, payload);
+  toast('✅ Credenciais Bolt guardadas');
+  renderConfig();
+}
+
+async function sincronizarBolt() {
+  if (!confirm('Vai puxar motoristas e viaturas da Bolt e atualizar a tua BD. Continuar?')) return;
+  toast('🔄 Sincronização em curso...');
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { toast('Sessão expirou — recarrega a página','error'); return; }
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/bolt-sync`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({ empresa_id: empresa.id }),
+    });
+    const data = await r.json();
+    console.log('[bolt-sync] resposta:', data);
+    if (!r.ok) {
+      alert('Erro Bolt:\n\n' + (data.error || JSON.stringify(data)));
+      return;
+    }
+    const s = data.summary || {};
+    const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} erros (ver consola)` : '';
+    alert(`✅ Sincronização concluída\n\n👤 Motoristas: ${s.drivers_received||0} recebidos (${s.drivers_created||0} novos, ${s.drivers_updated||0} atualizados)\n🚗 Viaturas: ${s.vehicles_received||0} recebidas (${s.vehicles_created||0} novas, ${s.vehicles_updated||0} atualizadas)${erros}`);
+    // Recarrega empresa para mostrar novo last_sync
+    const { data: emp } = await db.from('empresas').select('*').eq('id', empresa.id).single();
+    if (emp) Object.assign(empresa, emp);
+    await carregarDados();
+    renderConfig();
+  } catch (e) {
+    console.error('[bolt-sync]', e);
+    alert('Erro inesperado: '+e.message);
+  }
 }
 
 
