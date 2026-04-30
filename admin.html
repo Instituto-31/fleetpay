@@ -4142,6 +4142,31 @@ function renderConfig() {
           ` : ''}
         </div>
       </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><div class="table-title">Integração Uber API</div></div>
+        <div style="padding:24px">
+          <div class="field"><label>Uber Client ID</label><input id="cfg-uber-id" value="${empresa?.uber_client_id||''}" placeholder="Client ID de developer.uber.com"></div>
+          <div class="field"><label>Uber Client Secret</label><input type="password" id="cfg-uber-secret" value="${empresa?.uber_client_secret||''}" placeholder="Secret de developer.uber.com"></div>
+          <div class="field"><label>Uber Org ID (UUID)</label><input id="cfg-uber-org" value="${empresa?.uber_org_id||''}" placeholder="ex: cdfbe538-f52e-4c3f-83a3-64b14ceef7e9"></div>
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em developer.uber.com → Dashboard → Applications. Org ID está no URL: /organization/&lt;UUID&gt;/applications. Requer aprovação da Vehicle Suppliers API pela Uber.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-gold" onclick="guardarConfigUber()">💾 Guardar credenciais</button>
+            <button class="btn btn-ghost" onclick="sincronizarUber()" ${!empresa?.uber_client_id?'disabled':''}>🔄 Sincronizar agora</button>
+          </div>
+          ${empresa?.uber_last_sync_at ? `
+            <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;font-size:12px;color:var(--sub)">
+              Última sincronização: <strong style="color:var(--paper)">${new Date(empresa.uber_last_sync_at).toLocaleString('pt-PT')}</strong>
+              ${empresa.uber_last_sync_summary ? `
+                <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:11px">
+                  <span>👤 ${empresa.uber_last_sync_summary.drivers_received||0} motoristas (<span style="color:#27c93f">+${empresa.uber_last_sync_summary.drivers_new||0}</span> · <span style="color:var(--gold)">~${empresa.uber_last_sync_summary.drivers_updated||0}</span>)</span>
+                  <span>🚗 ${empresa.uber_last_sync_summary.vehicles_received||0} viaturas (<span style="color:#27c93f">+${empresa.uber_last_sync_summary.vehicles_new||0}</span> · <span style="color:var(--gold)">~${empresa.uber_last_sync_summary.vehicles_updated||0}</span>)</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -4841,6 +4866,53 @@ async function sincronizarBolt() {
     renderConfig();
   } catch (e) {
     console.error('[bolt-sync]', e);
+    alert('Erro inesperado: '+e.message);
+  }
+}
+
+async function guardarConfigUber() {
+  const payload = {
+    uber_client_id: document.getElementById('cfg-uber-id').value.trim(),
+    uber_client_secret: document.getElementById('cfg-uber-secret').value.trim(),
+    uber_org_id: document.getElementById('cfg-uber-org').value.trim() || null,
+    uber_api_ativo: !!document.getElementById('cfg-uber-id').value.trim(),
+  };
+  const { error } = await db.from('empresas').update(payload).eq('id', empresa.id);
+  if (error) { toast('Erro ao guardar: '+error.message,'error'); return; }
+  Object.assign(empresa, payload);
+  toast('✅ Credenciais Uber guardadas');
+  renderConfig();
+}
+
+async function sincronizarUber() {
+  if (!confirm('Vai puxar motoristas e viaturas da Uber e atualizar a tua BD. Continuar?')) return;
+  toast('🔄 Sincronização Uber em curso...');
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { toast('Sessão expirou — recarrega a página','error'); return; }
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/uber-sync`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({ empresa_id: empresa.id }),
+    });
+    const data = await r.json();
+    console.log('[uber-sync] resposta:', data);
+    if (!r.ok) {
+      alert('Erro Uber:\n\n' + (data.error || JSON.stringify(data)));
+      return;
+    }
+    const s = data.summary || {};
+    alert(`✅ Sincronização Uber concluída\n\n👤 Motoristas: ${s.drivers_received||0} recebidos (${s.drivers_new||0} novos, ${s.drivers_updated||0} atualizados)\n🚗 Viaturas: ${s.vehicles_received||0} recebidas (${s.vehicles_new||0} novas, ${s.vehicles_updated||0} atualizadas)`);
+    const { data: emp } = await db.from('empresas').select('*').eq('id', empresa.id).single();
+    if (emp) Object.assign(empresa, emp);
+    await carregarDados();
+    renderConfig();
+  } catch (e) {
+    console.error('[uber-sync]', e);
     alert('Erro inesperado: '+e.message);
   }
 }
