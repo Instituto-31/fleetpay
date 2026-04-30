@@ -4982,8 +4982,11 @@ async function renderCupoes() {
 }
 
 async function carregarCupoesData() {
+  // Cupoes: sem filtro empresa_id explícito — RLS filtra automaticamente:
+  //   - operador vê cupões da SUA empresa + cupões PSI/Formação activos de qualquer empresa (cross-sell Inst31)
+  //   - superadmin vê todos
   const [cRes, rRes, iRes] = await Promise.all([
-    db.from('cupoes').select('*').eq('empresa_id', empresa.id).order('destaque', {ascending:false}).order('criado_em', {ascending:false}),
+    db.from('cupoes').select('*').order('destaque', {ascending:false}).order('criado_em', {ascending:false}),
     db.from('cupoes_redencoes').select('*, cupoes(titulo, codigo, categoria), motoristas(nome, email)').eq('empresa_id', empresa.id).order('reservado_em', {ascending:false}).limit(200),
     db.from('cupoes_indicacoes').select('*, cupoes(titulo, codigo, categoria), motoristas:indicador_motorista_id(nome, email)').eq('empresa_id', empresa.id).order('partilhado_em', {ascending:false}).limit(300)
   ]);

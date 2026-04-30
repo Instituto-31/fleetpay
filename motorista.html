@@ -449,12 +449,12 @@ async function carregarAvisosECupoes() {
     avisos = data || [];
   } catch(e) { avisos = []; }
 
-  // Cupões disponíveis para motoristas
+  // Cupões disponíveis: cupões da empresa do motorista + cupões PSI/Formação activos de
+  // qualquer empresa (cross-sell Inst31). RLS filtra automaticamente — sem filtro empresa_id explícito.
   try {
     const hoje = hojeISO.split('T')[0];
     const { data } = await db.from('cupoes')
       .select('*')
-      .eq('empresa_id', motorista.empresa_id)
       .eq('ativo', true)
       .eq('para_motoristas', true)
       .or(`valido_ate.is.null,valido_ate.gte.${hoje}`)
