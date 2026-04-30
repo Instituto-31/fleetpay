@@ -131,11 +131,12 @@ serve(async (req) => {
     // 4) OAuth Bolt
     const accessToken = await getBoltToken(emp.bolt_client_id, emp.bolt_client_secret);
 
-    // Time range — tentamos AMBOS (segundos e milissegundos) porque docs Bolt são ambíguos
+    // Time range — Bolt rejeita janelas muito grandes (INVALID_DATE_RANGE para 1 ano).
+    // Usamos 7 dias que cobre motoristas activos da última semana.
     const nowMs = Date.now();
-    const oneYearAgoMs = nowMs - 365 * 24 * 3600 * 1000;
+    const sevenDaysAgoMs = nowMs - 7 * 24 * 3600 * 1000;
     const nowSec = Math.floor(nowMs / 1000);
-    const oneYearAgoSec = nowSec - 365 * 24 * 3600;
+    const sevenDaysAgoSec = nowSec - 7 * 24 * 3600;
 
     function extractList(resp: any, key: string): any[] {
       // Tenta várias shapes comuns na Bolt API
@@ -160,7 +161,7 @@ serve(async (req) => {
       while (true) {
         const body: any = {
           company_id: companyId,
-          start_ts: useMs ? oneYearAgoMs : oneYearAgoSec,
+          start_ts: useMs ? sevenDaysAgoMs : sevenDaysAgoSec,
           end_ts: useMs ? nowMs : nowSec,
           offset,
           limit: maxPerPage,
