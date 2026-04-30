@@ -5131,6 +5131,7 @@ function renderCupoesCatalogo() {
   if (!cupoesData.length) {
     return `<div class="cup-empty">Sem cupões. Cria o primeiro com o botão <strong>+ Novo cupão</strong>.</div>`;
   }
+  const isSuperadmin = perfil?.role === 'superadmin';
   return `<div class="cup-grid">${cupoesData.map(c => {
     const cat = CATEGORIAS_CUPAO[c.categoria] || CATEGORIAS_CUPAO.outro;
     const tipo = TIPOS_CUPAO[c.tipo];
@@ -5139,6 +5140,8 @@ function renderCupoesCatalogo() {
       : c.tipo === 'oferta' ? 'OFERTA'
       : `${c.tipo === 'percentagem' ? c.valor + '%' : fmt(c.valor)}`;
     const usos = c.max_utilizacoes ? `${c.utilizacoes_count}/${c.max_utilizacoes}` : `${c.utilizacoes_count} usos`;
+    // PSI/Formação: só superadmin pode editar/desativar/apagar
+    const restritoEdicao = (c.categoria === 'psi' || c.categoria === 'formacao') && !isSuperadmin;
     return `
       <div class="cup-card ${c.destaque?'destaque':''} ${!c.ativo||expirado?'inativo':''}">
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
@@ -5146,6 +5149,7 @@ function renderCupoesCatalogo() {
           ${c.destaque?'<span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1px">★ DESTAQUE</span>':''}
           ${expirado?'<span style="font-family:var(--mono);font-size:9px;color:#e8943a;letter-spacing:1px">EXPIRADO</span>':''}
           ${!c.ativo?'<span style="font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:1px">INATIVO</span>':''}
+          ${restritoEdicao?'<span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1px" title="Cupão Instituto 31 — só superadmin pode editar">🔒 INST 31</span>':''}
         </div>
         <div>
           <h3>${c.titulo}</h3>
@@ -5159,9 +5163,9 @@ function renderCupoesCatalogo() {
           <span>${c.valido_ate ? 'até '+fmtDshort(c.valido_ate) : 'sem expiração'}</span>
         </div>
         <div class="cup-actions">
-          <button class="btn btn-ghost btn-sm" onclick="modalCupao('${c.id}')">Editar</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleCupaoAtivo('${c.id}', ${!c.ativo})">${c.ativo?'Desativar':'Ativar'}</button>
-          <button class="btn btn-ghost btn-sm" onclick="apagarCupao('${c.id}')" style="color:#e85a5a">✕</button>
+          <button class="btn btn-ghost btn-sm" onclick="modalCupao('${c.id}')" ${restritoEdicao?'disabled title="Só o administrador pode editar cupões PSI/Formação"':''}>Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleCupaoAtivo('${c.id}', ${!c.ativo})" ${restritoEdicao?'disabled':''}>${c.ativo?'Desativar':'Ativar'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="apagarCupao('${c.id}')" style="color:#e85a5a" ${restritoEdicao?'disabled':''}>✕</button>
         </div>
       </div>`;
   }).join('')}</div>`;
@@ -5302,7 +5306,18 @@ function renderTopEmbaixadores() {
 function modalCupao(id) {
   const c = id ? cupoesData.find(x => x.id === id) : null;
   const isEdit = !!c;
-  const cats = Object.entries(CATEGORIAS_CUPAO).map(([k,v]) => `<option value="${k}" ${c?.categoria===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const isSuperadmin = perfil?.role === 'superadmin';
+
+  // Bloquear edição se operador tenta editar cupão psi/formacao (RLS rejeitaria de qualquer forma)
+  if (isEdit && !isSuperadmin && (c.categoria === 'psi' || c.categoria === 'formacao')) {
+    toast('Cupões PSI e Formação só podem ser editados pelo administrador', 'error');
+    return;
+  }
+
+  // Filtrar categorias: PSI e Formação só superadmin pode usar (regra de negócio Instituto 31)
+  const cats = Object.entries(CATEGORIAS_CUPAO)
+    .filter(([k, v]) => isSuperadmin || (k !== 'psi' && k !== 'formacao'))
+    .map(([k,v]) => `<option value="${k}" ${c?.categoria===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
   const tps = Object.entries(TIPOS_CUPAO).map(([k,v]) => `<option value="${k}" ${c?.tipo===k?'selected':''}>${v.label}</option>`).join('');
   const body = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
