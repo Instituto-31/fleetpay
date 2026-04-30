@@ -5616,6 +5616,18 @@ function ajudaSetTab(tab) {
 
 function renderAjudaVisao() {
   const e = empresa || {};
+  const boltStatus = e.bolt_api_ativo
+    ? '<span class="aj-status aj-status-ok">Activo</span>'
+    : '<span class="aj-status aj-status-blocked">Inactivo</span>';
+  const boltSync = e.bolt_last_sync_at
+    ? 'Última sync: ' + new Date(e.bolt_last_sync_at).toLocaleString('pt-PT')
+    : 'Nunca sincronizado. <a href="#" onclick="ajudaSetTab(\'bolt\');return false">Como configurar →</a>';
+  const uberStatus = e.uber_api_ativo
+    ? '<span class="aj-status aj-status-ok">Activo</span>'
+    : '<span class="aj-status aj-status-blocked">Inactivo</span>';
+  const uberSync = e.uber_last_sync_at
+    ? 'Última sync: ' + new Date(e.uber_last_sync_at).toLocaleString('pt-PT')
+    : 'Requer aprovação Uber. <a href="#" onclick="ajudaSetTab(\'uber\');return false">Como pedir →</a>';
   return `
     <div class="aj-card">
       <h2>Bem-vinda ao FleetPay</h2>
@@ -5626,24 +5638,16 @@ function renderAjudaVisao() {
         <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:5px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <strong style="font-size:14px">🚗 Bolt API</strong>
-            ${e.bolt_api_ativo ? '<span class="aj-status aj-status-ok">Activo</span>' : '<span class="aj-status aj-status-blocked">Inactivo</span>'}
+            ${boltStatus}
           </div>
-          <div style="font-size:12px;color:var(--sub);line-height:1.5">
-            ${e.bolt_last_sync_at
-              ? `Última sync: ${new Date(e.bolt_last_sync_at).toLocaleString('pt-PT')}`
-              : `Nunca sincronizado. <a href="#" onclick="ajudaSetTab('bolt');return false">Como configurar →</a>`}
-          </div>
+          <div style="font-size:12px;color:var(--sub);line-height:1.5">${boltSync}</div>
         </div>
         <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:5px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <strong style="font-size:14px">🚙 Uber API</strong>
-            ${e.uber_api_ativo ? '<span class="aj-status aj-status-ok">Activo</span>' : '<span class="aj-status aj-status-blocked">Inactivo</span>'}
+            ${uberStatus}
           </div>
-          <div style="font-size:12px;color:var(--sub);line-height:1.5">
-            ${e.uber_last_sync_at
-              ? `Última sync: ${new Date(e.uber_last_sync_at).toLocaleString('pt-PT')}`
-              : `Requer aprovação Uber. <a href="#" onclick="ajudaSetTab('uber');return false">Como pedir →</a>`}
-          </div>
+          <div style="font-size:12px;color:var(--sub);line-height:1.5">${uberSync}</div>
         </div>
       </div>
 
