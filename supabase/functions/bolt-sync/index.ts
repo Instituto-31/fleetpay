@@ -131,53 +131,90 @@ serve(async (req) => {
     // 4) OAuth Bolt
     const accessToken = await getBoltToken(emp.bolt_client_id, emp.bolt_client_secret);
 
-    // Time range: drivers/veículos ativos no último ano
-    const nowSec = Math.floor(Date.now() / 1000);
+    // Time range — tentamos AMBOS (segundos e milissegundos) porque docs Bolt são ambíguos
+    const nowMs = Date.now();
+    const oneYearAgoMs = nowMs - 365 * 24 * 3600 * 1000;
+    const nowSec = Math.floor(nowMs / 1000);
     const oneYearAgoSec = nowSec - 365 * 24 * 3600;
 
-    // 5) Get drivers (paginated)
-    const boltDrivers: any[] = [];
-    {
-      const limit = 1000;
-      let offset = 0;
-      while (true) {
-        const resp = await boltCall('getDrivers', accessToken, {
-          company_id: companyId,
-          start_ts: oneYearAgoSec,
-          end_ts: nowSec,
-          offset,
-          limit,
-        });
-        const batch: any[] = resp?.data?.drivers || resp?.drivers || resp?.data?.list || [];
-        boltDrivers.push(...batch);
-        if (batch.length < limit) break;
-        offset += batch.length;
-        if (offset > 50000) break; // safeguard
-      }
+    function extractList(resp: any, key: string): any[] {
+      // Tenta várias shapes comuns na Bolt API
+      return resp?.data?.[key]
+        || resp?.[key]
+        || resp?.data?.list
+        || resp?.list
+        || resp?.data?.items
+        || resp?.items
+        || resp?.results
+        || (Array.isArray(resp?.data) ? resp.data : null)
+        || (Array.isArray(resp) ? resp : null)
+        || [];
     }
 
-    // 6) Get vehicles (paginated, limit max 100)
-    const boltVehicles: any[] = [];
-    try {
-      const limit = 100;
+    async function fetchPaginated(endpoint: string, key: string, maxPerPage: number, safeguard: number): Promise<{ list: any[], rawSamples: any[] }> {
+      const list: any[] = [];
+      const rawSamples: any[] = [];
       let offset = 0;
+      let useMs = true; // primeira tentativa: milliseconds
+
       while (true) {
-        const resp = await boltCall('getVehicles', accessToken, {
+        const body: any = {
           company_id: companyId,
-          start_ts: oneYearAgoSec,
-          end_ts: nowSec,
+          start_ts: useMs ? oneYearAgoMs : oneYearAgoSec,
+          end_ts: useMs ? nowMs : nowSec,
           offset,
-          limit,
-        });
-        const batch: any[] = resp?.data?.vehicles || resp?.vehicles || resp?.data?.list || [];
-        boltVehicles.push(...batch);
-        if (batch.length < limit) break;
+          limit: maxPerPage,
+        };
+        let resp: any;
+        try {
+          resp = await boltCall(endpoint, accessToken, body);
+        } catch (e) {
+          if (offset === 0 && useMs) {
+            // tenta em segundos
+            console.log(`[bolt-sync] ${endpoint} falhou em ms, retry em segundos...`);
+            useMs = false;
+            continue;
+          }
+          throw e;
+        }
+        const batch = extractList(resp, key);
+        if (offset === 0 && batch.length === 0 && useMs) {
+          // resposta veio com 0 mas em ms — talvez a API quer segundos
+          console.log(`[bolt-sync] ${endpoint} vazio em ms, raw:`, JSON.stringify(resp).slice(0, 800));
+          console.log(`[bolt-sync] ${endpoint} retry em segundos...`);
+          useMs = false;
+          continue;
+        }
+        if (offset === 0) rawSamples.push(resp); // primeiro sample para debug
+        list.push(...batch);
+        if (batch.length < maxPerPage) break;
         offset += batch.length;
-        if (offset > 5000) break; // safeguard
+        if (offset > safeguard) break;
       }
+      return { list, rawSamples };
+    }
+
+    // 5) Get drivers (paginated)
+    const driversResult = await fetchPaginated('getDrivers', 'drivers', 1000, 50000);
+    const boltDrivers: any[] = driversResult.list;
+
+    // 6) Get vehicles (paginated)
+    let boltVehicles: any[] = [];
+    let vehiclesRawSample: any = null;
+    try {
+      const r = await fetchPaginated('getVehicles', 'vehicles', 100, 5000);
+      boltVehicles = r.list;
+      vehiclesRawSample = r.rawSamples[0];
     } catch (e) {
-      // veículos é opcional — não bloqueia se falhar
       console.error('[bolt-sync] getVehicles falhou:', (e as Error).message);
+    }
+
+    // Log raw samples para debug
+    if (boltDrivers.length === 0) {
+      console.log('[bolt-sync] DRIVERS retornou 0. Raw sample:', JSON.stringify(driversResult.rawSamples[0] || {}).slice(0, 1000));
+    }
+    if (boltVehicles.length === 0 && vehiclesRawSample) {
+      console.log('[bolt-sync] VEHICLES retornou 0. Raw sample:', JSON.stringify(vehiclesRawSample).slice(0, 1000));
     }
 
     // 7) Upsert drivers
