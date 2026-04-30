@@ -143,7 +143,7 @@ body{font-family:var(--sans);background:var(--ink);color:var(--paper);min-height
   display:flex;z-index:100;
 }
 .nav-item{
-  flex:1;padding:14px 8px;
+  flex:1;padding:14px 8px;position:relative;
   display:flex;flex-direction:column;align-items:center;gap:5px;
   background:none;border:none;cursor:pointer;color:var(--sub);
   font-family:var(--sans);font-size:10px;letter-spacing:.5px;
@@ -340,6 +340,9 @@ let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
 let totalSegundosHoje = 0;            // soma de condução já fechada hoje
 let conducaoTickInterval = null;
 let eventosSemana = [];               // todos os registos dos últimos 7 dias (segunda→domingo)
+let avisos = [];                      // comunicacoes ativas do operador
+let cupoesDisponiveis = [];           // cupões ativos da empresa visíveis ao motorista
+let minhasRedencoes = [];             // redenções já feitas pelo motorista
 const LIMITE_LEGAL_SEG = 10 * 3600;
 const ALERTA_AMARELO = 8 * 3600;
 const ALERTA_LARANJA = 9.5 * 3600;
@@ -421,10 +424,52 @@ async function init() {
   eventosHoje = eventosHojeRes.data || [];
   eventosSemana = eventosSemanaRes.data || [];
   totalSegundosHoje = eventosHoje.filter(e => e.tipo === 'conducao' && e.fim).reduce((s,e) => s + (e.duracao_segundos||0), 0);
+
+  // Avisos + cupões (não-bloqueantes; falham silenciosamente se tabelas ainda não existirem)
+  await carregarAvisosECupoes();
   renderApp();
 
   // ── COMPLIANCE: validar Termos aceites + check diário ──
   await verificarCompliance();
+}
+
+async function carregarAvisosECupoes() {
+  const hojeISO = new Date().toISOString();
+  // Avisos ativos não expirados
+  try {
+    const { data } = await db.from('comunicacoes')
+      .select('*')
+      .eq('empresa_id', motorista.empresa_id)
+      .eq('ativo', true)
+      .or(`expira_em.is.null,expira_em.gte.${hojeISO}`)
+      .order('fixado', { ascending: false })
+      .order('criado_em', { ascending: false })
+      .limit(10);
+    avisos = data || [];
+  } catch(e) { avisos = []; }
+
+  // Cupões disponíveis para motoristas
+  try {
+    const hoje = hojeISO.split('T')[0];
+    const { data } = await db.from('cupoes')
+      .select('*')
+      .eq('empresa_id', motorista.empresa_id)
+      .eq('ativo', true)
+      .eq('para_motoristas', true)
+      .or(`valido_ate.is.null,valido_ate.gte.${hoje}`)
+      .order('destaque', { ascending: false })
+      .order('criado_em', { ascending: false });
+    cupoesDisponiveis = data || [];
+  } catch(e) { cupoesDisponiveis = []; }
+
+  // Minhas redenções (para mostrar quais já reservei)
+  try {
+    const { data } = await db.from('cupoes_redencoes')
+      .select('id, cupao_id, estado, token, reservado_em, usado_em')
+      .eq('motorista_id', motorista.id)
+      .order('reservado_em', { ascending: false });
+    minhasRedencoes = data || [];
+  } catch(e) { minhasRedencoes = []; }
 }
 
 async function verificarCompliance() {
@@ -658,6 +703,8 @@ function renderApp() {
     </div>
 
     <div class="main">
+      ${renderAvisosCard()}
+
       ${renderConducaoCard()}
 
       ${renderSemanaCard()}
@@ -686,6 +733,11 @@ function renderApp() {
       <button class="nav-item active">
         <span class="nav-icon">💶</span>
         Recibos
+      </button>
+      <button class="nav-item" onclick="abrirCupoes()">
+        <span class="nav-icon">🎟️</span>
+        Vantagens
+        ${cupoesDisponiveis.length ? `<span style="position:absolute;top:6px;right:18px;background:var(--gold);color:#000;border-radius:100px;font-size:9px;padding:1px 6px;font-family:var(--mono);font-weight:700">${cupoesDisponiveis.length}</span>` : ''}
       </button>
       <button class="nav-item" onclick="abrirPerfil()">
         <span class="nav-icon">👤</span>
@@ -1718,6 +1770,228 @@ async function abrirViatura() {
 }
 
 // Iniciar
+// ═══════════════════════════════════════════════════════════
+// ── AVISOS (canal interno) + CUPÕES (vantagens) ──
+// ═══════════════════════════════════════════════════════════
+const PRIORIDADE_AVISO = {
+  info:    { cor:'#5A7DC8', icon:'ℹ️' },
+  aviso:   { cor:'#e8943a', icon:'⚠️' },
+  urgente: { cor:'#e85a5a', icon:'🚨' },
+};
+const CATEGORIAS_CUP_M = {
+  psi:'🧠', formacao:'🎓', slot:'⏰', combustivel:'⛽',
+  seguro:'🛡️', oficina:'🔧', saas:'💻', servico:'✨', outro:'🎟️'
+};
+
+function renderAvisosCard() {
+  if (!avisos.length) return '';
+  const lidos = JSON.parse(localStorage.getItem('fp-avisos-lidos')||'[]');
+  const novos = avisos.filter(a => !lidos.includes(a.id)).length;
+  const fixados = avisos.filter(a => a.fixado);
+  const naoFixados = avisos.filter(a => !a.fixado).slice(0,2);
+  const visiveis = [...fixados, ...naoFixados];
+  return `
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase">📣 Avisos do operador</div>
+        ${novos ? `<span style="background:var(--gold);color:#000;border-radius:100px;font-size:9px;padding:2px 8px;font-family:var(--mono);font-weight:700">${novos} NOVO${novos>1?'S':''}</span>` : ''}
+      </div>
+      ${visiveis.map(a => {
+        const p = PRIORIDADE_AVISO[a.prioridade] || PRIORIDADE_AVISO.info;
+        return `
+        <div style="border-left:3px solid ${p.cor};padding:10px 12px;background:rgba(255,255,255,0.02);border-radius:4px;margin-bottom:8px;cursor:pointer" onclick="abrirAviso('${a.id}')">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span>${p.icon}</span>
+            <strong style="font-size:13px;color:var(--paper)">${a.titulo}</strong>
+            ${a.fixado?'<span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1px;margin-left:auto">📌</span>':''}
+          </div>
+          <div style="font-size:12px;color:var(--sub);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${a.mensagem}</div>
+        </div>`;
+      }).join('')}
+      ${avisos.length > visiveis.length ? `<button onclick="abrirTodosAvisos()" style="width:100%;background:none;border:none;color:var(--gold);padding:6px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;cursor:pointer">VER OS ${avisos.length} AVISOS →</button>` : ''}
+    </div>
+  `;
+}
+
+function abrirAviso(id) {
+  const a = avisos.find(x => x.id === id);
+  if (!a) return;
+  // Marca como lido localmente
+  const lidos = JSON.parse(localStorage.getItem('fp-avisos-lidos')||'[]');
+  if (!lidos.includes(id)) { lidos.push(id); localStorage.setItem('fp-avisos-lidos', JSON.stringify(lidos)); }
+  // Marca lido na BD (best-effort)
+  db.from('comunicacoes_lidas').insert({ comunicacao_id: id, motorista_id: motorista.id }).then(()=>{}).catch(()=>{});
+
+  const p = PRIORIDADE_AVISO[a.prioridade] || PRIORIDADE_AVISO.info;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:520px;width:100%;border-top:3px solid ${p.cor}">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span>${p.icon}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:${p.cor};letter-spacing:1px;text-transform:uppercase">${a.prioridade}</span>
+        </div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:22px">
+        <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0 0 12px;color:var(--paper)">${a.titulo}</h2>
+        <div style="font-size:14px;color:var(--paper);line-height:1.7;white-space:pre-wrap">${a.mensagem}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:.5px;margin-top:18px">${new Date(a.criado_em).toLocaleString('pt-PT')}</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  // Re-render para tirar o badge "novos"
+  renderApp();
+}
+
+function abrirTodosAvisos() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:400;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;max-width:520px;width:100%;max-height:85vh;display:flex;flex-direction:column">
+      <div style="padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <h2 style="font-family:var(--serif);font-weight:300;font-size:20px;margin:0">📣 Todos os avisos</h2>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:14px 18px;overflow-y:auto;flex:1">
+        ${avisos.map(a => {
+          const p = PRIORIDADE_AVISO[a.prioridade] || PRIORIDADE_AVISO.info;
+          return `
+          <div style="border-left:3px solid ${p.cor};padding:12px 14px;background:rgba(255,255,255,0.02);border-radius:4px;margin-bottom:10px;cursor:pointer" onclick="this.closest('[style*=\\'position:fixed\\']').remove();abrirAviso('${a.id}')">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+              <span>${p.icon}</span>
+              <strong style="font-size:13px;color:var(--paper)">${a.titulo}</strong>
+              ${a.fixado?'<span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1px;margin-left:auto">📌</span>':''}
+            </div>
+            <div style="font-size:12px;color:var(--sub);line-height:1.5">${a.mensagem.length>120?a.mensagem.slice(0,120)+'…':a.mensagem}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:.5px;margin-top:6px">${new Date(a.criado_em).toLocaleDateString('pt-PT')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// ── Cupões / Vantagens ──
+function abrirCupoes() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);z-index:400;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;max-width:520px;width:100%;max-height:90vh;display:flex;flex-direction:column">
+      <div style="padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div>
+          <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0">🎟️ Vantagens</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:2px">Descontos exclusivos do operador e parceiros</div>
+        </div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:14px 18px;overflow-y:auto;flex:1">
+        ${cupoesDisponiveis.length === 0 ? `
+          <div style="text-align:center;padding:40px 20px;color:var(--sub2);font-family:var(--mono);font-size:12px;letter-spacing:.5px">
+            Sem vantagens disponíveis no momento.
+          </div>
+        ` : cupoesDisponiveis.map(c => renderCupaoMotorista(c)).join('')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function renderCupaoMotorista(c) {
+  const icon = CATEGORIAS_CUP_M[c.categoria] || '🎟️';
+  const valorTxt = c.tipo === 'gratis' ? 'GRÁTIS'
+    : c.tipo === 'oferta' ? 'OFERTA'
+    : c.tipo === 'percentagem' ? `${c.valor}%`
+    : `${c.valor}€`;
+  const minha = minhasRedencoes.find(r => r.cupao_id === c.id && (r.estado==='reservado' || r.estado==='usado'));
+  const limiteAtingido = minha && c.max_por_motorista && minhasRedencoes.filter(r => r.cupao_id===c.id && r.estado!=='cancelado').length >= c.max_por_motorista;
+  return `
+    <div style="background:var(--ink);border:1px solid ${c.destaque?'var(--gold)':'var(--line)'};border-radius:8px;padding:16px;margin-bottom:10px;${c.destaque?'box-shadow:0 0 0 1px var(--gold) inset':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:18px">${icon}</span>
+            ${c.destaque?'<span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1px">★ DESTAQUE</span>':''}
+          </div>
+          <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 4px;color:var(--paper)">${c.titulo}</h3>
+          ${c.parceiro_nome?`<div style="font-size:11px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px;margin-bottom:6px">↳ ${c.parceiro_nome}</div>`:''}
+          ${c.descricao?`<div style="font-size:12px;color:var(--sub);line-height:1.5;margin-bottom:8px">${c.descricao}</div>`:''}
+          ${c.valido_ate?`<div style="font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:.5px">Válido até ${new Date(c.valido_ate).toLocaleDateString('pt-PT')}</div>`:''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--serif);font-weight:300;font-size:24px;color:var(--gold);line-height:1">${valorTxt}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        ${minha
+          ? `<button onclick="mostrarMeuCupao('${minha.token}','${c.id}')" style="width:100%;padding:10px;background:rgba(39,201,63,0.12);color:#27c93f;border:1px solid #27c93f;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">✓ ${minha.estado==='usado'?'JÁ USADO':'JÁ RESERVADO — VER CÓDIGO'}</button>`
+          : limiteAtingido
+            ? `<button disabled style="width:100%;padding:10px;background:rgba(255,255,255,0.04);color:var(--sub2);border:1px solid var(--line);border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:not-allowed">LIMITE ATINGIDO</button>`
+            : `<button onclick="reservarCupao('${c.id}')" style="width:100%;padding:10px;background:var(--gold);color:#000;border:none;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-weight:700">RESERVAR CUPÃO</button>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+async function reservarCupao(cupaoId) {
+  const c = cupoesDisponiveis.find(x => x.id === cupaoId);
+  if (!c) return;
+  if (!confirm(`Reservar "${c.titulo}"?\n\nVais receber um código que mostras ao parceiro para usar.`)) return;
+  const { data, error } = await db.from('cupoes_redencoes').insert({
+    cupao_id: cupaoId,
+    motorista_id: motorista.id,
+    empresa_id: motorista.empresa_id,
+    estado: 'reservado',
+  }).select().single();
+  if (error) { alert('Erro ao reservar: '+error.message); return; }
+  // Recarregar e abrir o código
+  await carregarAvisosECupoes();
+  document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
+  mostrarMeuCupao(data.token, cupaoId);
+}
+
+function mostrarMeuCupao(token, cupaoId) {
+  const c = cupoesDisponiveis.find(x => x.id === cupaoId);
+  if (!c) return;
+  const icon = CATEGORIAS_CUP_M[c.categoria] || '🎟️';
+  const valorTxt = c.tipo === 'gratis' ? 'GRÁTIS'
+    : c.tipo === 'oferta' ? 'OFERTA'
+    : c.tipo === 'percentagem' ? `${c.valor}%`
+    : `${c.valor}€`;
+  const link = `${location.origin}${location.pathname.replace(/[^/]+$/,'')}validar.html?t=${token}`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:2px solid var(--gold);border-radius:12px;max-width:400px;width:100%;text-align:center;padding:32px 24px;position:relative">
+      <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--sub);font-size:20px;cursor:pointer">✕</button>
+      <div style="font-size:42px;margin-bottom:8px">${icon}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;margin-bottom:6px">CUPÃO RESERVADO</div>
+      <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0 0 4px;color:var(--paper)">${c.titulo}</h2>
+      ${c.parceiro_nome?`<div style="font-size:12px;color:var(--sub);margin-bottom:14px">${c.parceiro_nome}</div>`:''}
+      <div style="font-family:var(--serif);font-weight:300;font-size:48px;color:var(--gold);line-height:1;margin:14px 0">${valorTxt}</div>
+      <div style="background:#fff;border-radius:8px;padding:18px;margin:20px 0">
+        <div id="qr-cupao-${token.slice(0,8)}" style="display:flex;justify-content:center"></div>
+        <div style="font-family:var(--mono);font-size:11px;color:#000;letter-spacing:1px;margin-top:10px;font-weight:700">${token.slice(0,8).toUpperCase()}</div>
+      </div>
+      <div style="font-size:11px;color:var(--sub);line-height:1.5;margin-bottom:14px">Mostra este código ao parceiro. Ele valida em <strong style="color:var(--gold)">validar.html</strong> com o link.</div>
+      <button onclick="navigator.clipboard.writeText('${link}').then(()=>this.textContent='✓ COPIADO')" style="width:100%;padding:12px;background:rgba(255,255,255,0.04);color:var(--gold);border:1px solid var(--line);border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">📋 Copiar link parceiro</button>
+      ${c.parceiro_link?`<a href="${c.parceiro_link}" target="_blank" style="display:block;margin-top:8px;padding:12px;background:var(--gold);color:#000;border:none;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-weight:700;text-decoration:none">↗ ABRIR ${c.parceiro_nome||'PARCEIRO'}</a>`:''}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  // QR code via API pública (sem dependência js extra)
+  const qrEl = overlay.querySelector(`#qr-cupao-${token.slice(0,8)}`);
+  if (qrEl) qrEl.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}" alt="QR" width="180" height="180" style="display:block">`;
+}
+
 init();
 </script>
 </body>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validar Cupão · FleetPay</title>
+<meta name="theme-color" content="#0a0905">
+<style>
+  :root{
+    --gold:#c8922a;--paper:#f7f4ef;--ink:#0a0905;--card:#13110b;
+    --line:rgba(200,146,42,0.12);--sub:#a89c87;--sub2:#6b6157;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans);background:var(--ink);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    max-width:480px;width:100%;padding:32px 28px;
+  }
+  .logo{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:18px}
+  .logo span{font-family:var(--serif);font-size:22px;font-weight:300;letter-spacing:.5px}
+  .logo em{font-style:italic;color:var(--gold)}
+  h1{font-family:var(--serif);font-weight:300;font-size:24px;text-align:center;margin-bottom:6px}
+  .sub{text-align:center;color:var(--sub);font-size:13px;margin-bottom:24px}
+  .badge{display:inline-block;padding:3px 10px;background:rgba(255,255,255,0.05);border-radius:100px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase}
+  .estado{padding:14px;border-radius:6px;margin:18px 0;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  .ok{background:rgba(39,201,63,0.12);color:#27c93f;border:1px solid #27c93f}
+  .warn{background:rgba(232,148,58,0.12);color:#e8943a;border:1px solid #e8943a}
+  .err{background:rgba(232,90,90,0.12);color:#e85a5a;border:1px solid #e85a5a}
+  .valor{font-family:var(--serif);font-weight:300;font-size:48px;color:var(--gold);text-align:center;line-height:1;margin:14px 0}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+  .field input,.field textarea{width:100%;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:13px}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--gold)}
+  .btn{width:100%;padding:13px;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:none;font-weight:700;transition:all .2s}
+  .btn-gold{background:var(--gold);color:#000}
+  .btn-gold:hover{background:#b07f1f}
+  .btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .row:last-child{border:none}
+  .row strong{color:var(--paper);font-weight:500}
+  .row span{color:var(--sub)}
+  .spinner{width:32px;height:32px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;margin:24px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" width="22" height="22" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </div>
+  <div id="content">
+    <div class="spinner"></div>
+    <p style="text-align:center;color:var(--sub);font-size:12px">A carregar cupão...</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get('t');
+
+const CATS = { psi:'🧠', formacao:'🎓', slot:'⏰', combustivel:'⛽', seguro:'🛡️', oficina:'🔧', saas:'💻', servico:'✨', outro:'🎟️' };
+
+async function load() {
+  const c = document.getElementById('content');
+  if (!token) {
+    c.innerHTML = `<div class="estado err">Token em falta</div><p style="text-align:center;color:var(--sub);font-size:12px">Esta página deve ser aberta a partir do link recebido pelo motorista.</p>`;
+    return;
+  }
+  // Buscar redenção pelo token (RLS permite anon)
+  const { data: red, error } = await db.from('cupoes_redencoes')
+    .select('*, cupoes(*)')
+    .eq('token', token)
+    .maybeSingle();
+  if (error || !red) {
+    c.innerHTML = `<div class="estado err">Cupão não encontrado</div><p style="text-align:center;color:var(--sub);font-size:12px">O código pode estar incorreto ou ter sido cancelado.</p>`;
+    return;
+  }
+  pintar(red);
+}
+
+function pintar(red) {
+  const c = document.getElementById('content');
+  const cup = red.cupoes;
+  const icon = CATS[cup.categoria] || '🎟️';
+  const valorTxt = cup.tipo === 'gratis' ? 'GRÁTIS'
+    : cup.tipo === 'oferta' ? 'OFERTA'
+    : cup.tipo === 'percentagem' ? `${cup.valor}%`
+    : `${cup.valor}€`;
+
+  let estadoBadge = '';
+  let acoes = '';
+
+  if (red.estado === 'usado') {
+    estadoBadge = `<div class="estado warn">⚠️ Já usado em ${new Date(red.usado_em).toLocaleString('pt-PT')}</div>`;
+    if (red.validado_por) estadoBadge += `<p style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub2);margin-top:-8px;margin-bottom:14px">por ${red.validado_por}</p>`;
+  } else if (red.estado === 'cancelado' || red.estado === 'expirado') {
+    estadoBadge = `<div class="estado err">✕ Cupão ${red.estado}</div>`;
+  } else {
+    estadoBadge = `<div class="estado ok">✓ Cupão válido — pronto a usar</div>`;
+    acoes = `
+      <div class="field">
+        <label>O teu nome (parceiro/funcionário) *</label>
+        <input id="val-por" placeholder="ex: João — Loja Lisboa">
+      </div>
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <textarea id="val-notas" rows="2" placeholder="ex: balcão 3, fatura 12345"></textarea>
+      </div>
+      <button class="btn btn-gold" id="btn-confirmar" onclick="confirmarUso('${red.id}')">✓ CONFIRMAR USO DO CUPÃO</button>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="if(confirm('Cancelar este cupão? O motorista vai precisar de reservar outro.')) cancelarCupao('${red.id}')">Cancelar cupão</button>
+    `;
+  }
+
+  c.innerHTML = `
+    <div style="text-align:center;font-size:36px;margin-bottom:6px">${icon}</div>
+    <h1>${cup.titulo}</h1>
+    ${cup.parceiro_nome ? `<p class="sub">${cup.parceiro_nome}</p>` : ''}
+    <div class="valor">${valorTxt}</div>
+    ${cup.descricao ? `<p style="text-align:center;color:var(--sub);font-size:13px;line-height:1.6;margin-bottom:18px">${cup.descricao}</p>` : ''}
+    ${estadoBadge}
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:14px;margin:14px 0">
+      <div class="row"><span>Código</span><strong style="font-family:var(--mono)">${cup.codigo}</strong></div>
+      ${cup.valor_minimo ? `<div class="row"><span>Compra mínima</span><strong>${cup.valor_minimo}€</strong></div>` : ''}
+      ${cup.valido_ate ? `<div class="row"><span>Válido até</span><strong>${new Date(cup.valido_ate).toLocaleDateString('pt-PT')}</strong></div>` : ''}
+      <div class="row"><span>Reservado em</span><strong>${new Date(red.reservado_em).toLocaleString('pt-PT')}</strong></div>
+      <div class="row"><span>Token</span><strong style="font-family:var(--mono);font-size:11px">${token.slice(0,8).toUpperCase()}…</strong></div>
+    </div>
+    ${acoes}
+  `;
+}
+
+async function confirmarUso(redencaoId) {
+  const por = document.getElementById('val-por').value.trim();
+  if (!por) { alert('Por favor identifica-te (nome do parceiro/funcionário).'); return; }
+  const notas = document.getElementById('val-notas').value.trim() || null;
+  const btn = document.getElementById('btn-confirmar');
+  btn.disabled = true; btn.textContent = 'A confirmar...';
+
+  const { error } = await db.from('cupoes_redencoes')
+    .update({
+      estado: 'usado',
+      usado_em: new Date().toISOString(),
+      validado_por: por,
+      validado_user_agent: navigator.userAgent.slice(0,200),
+      notas
+    })
+    .eq('id', redencaoId);
+  if (error) { alert('Erro: '+error.message); btn.disabled = false; btn.textContent = '✓ CONFIRMAR USO DO CUPÃO'; return; }
+  load(); // recarregar com estado atualizado
+}
+
+async function cancelarCupao(redencaoId) {
+  const { error } = await db.from('cupoes_redencoes')
+    .update({ estado: 'cancelado' })
+    .eq('id', redencaoId);
+  if (error) { alert('Erro: '+error.message); return; }
+  load();
+}
+
+load();
+</script>
+</body>
+</html>
