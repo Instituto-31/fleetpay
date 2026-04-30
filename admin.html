@@ -5631,7 +5631,7 @@ function renderAjudaVisao() {
           <div style="font-size:12px;color:var(--sub);line-height:1.5">
             ${e.bolt_last_sync_at
               ? `Última sync: ${new Date(e.bolt_last_sync_at).toLocaleString('pt-PT')}`
-              : 'Nunca sincronizado. <a href="#" onclick="ajudaSetTab(\\'bolt\\');return false">Como configurar →</a>'}
+              : `Nunca sincronizado. <a href="#" onclick="ajudaSetTab('bolt');return false">Como configurar →</a>`}
           </div>
         </div>
         <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:5px">
@@ -5642,7 +5642,7 @@ function renderAjudaVisao() {
           <div style="font-size:12px;color:var(--sub);line-height:1.5">
             ${e.uber_last_sync_at
               ? `Última sync: ${new Date(e.uber_last_sync_at).toLocaleString('pt-PT')}`
-              : 'Requer aprovação Uber. <a href="#" onclick="ajudaSetTab(\\'uber\\');return false">Como pedir →</a>'}
+              : `Requer aprovação Uber. <a href="#" onclick="ajudaSetTab('uber');return false">Como pedir →</a>`}
           </div>
         </div>
       </div>
