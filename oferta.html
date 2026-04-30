@@ -161,7 +161,7 @@ function pintar() {
     acao = `
       <div class="estado-ok">
         <h3>✓ Já manifestaste interesse</h3>
-        <p>${cupao.parceiro_nome || 'O parceiro'} vai contactar-te em breve. ${indicacao.indicado_email ? 'Confirmação enviada para '+indicacao.indicado_email+'.' : ''}</p>
+        <p>${cupao.parceiro_nome || 'O parceiro'} vai contactar-te em breve no telefone que indicaste${indicacao.indicado_email ? ' ou no email '+indicacao.indicado_email : ''}.</p>
       </div>
       ${cupao.parceiro_link ? `<a href="${cupao.parceiro_link}" target="_blank" style="display:block;margin-top:14px"><button class="btn btn-gold">↗ ABRIR ${cupao.parceiro_nome||'PARCEIRO'}</button></a>` : ''}
     `;
