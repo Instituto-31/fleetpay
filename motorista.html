@@ -343,6 +343,7 @@ let eventosSemana = [];               // todos os registos dos últimos 7 dias (
 let avisos = [];                      // comunicacoes ativas do operador
 let cupoesDisponiveis = [];           // cupões ativos da empresa visíveis ao motorista
 let minhasRedencoes = [];             // redenções já feitas pelo motorista
+let minhasIndicacoes = [];            // indicações que o motorista partilhou (referrals)
 const LIMITE_LEGAL_SEG = 10 * 3600;
 const ALERTA_AMARELO = 8 * 3600;
 const ALERTA_LARANJA = 9.5 * 3600;
@@ -470,6 +471,18 @@ async function carregarAvisosECupoes() {
       .order('reservado_em', { ascending: false });
     minhasRedencoes = data || [];
   } catch(e) { minhasRedencoes = []; }
+
+  // Minhas indicações + créditos atualizados
+  try {
+    const { data } = await db.from('cupoes_indicacoes')
+      .select('*, cupoes(titulo, codigo, categoria)')
+      .eq('indicador_motorista_id', motorista.id)
+      .order('partilhado_em', { ascending: false });
+    minhasIndicacoes = data || [];
+    // Recarrega motorista para refrescar créditos
+    const { data: m } = await db.from('motoristas').select('creditos').eq('id', motorista.id).single();
+    if (m) motorista.creditos = m.creditos || 0;
+  } catch(e) { minhasIndicacoes = []; }
 }
 
 async function verificarCompliance() {
@@ -1567,6 +1580,8 @@ async function abrirPerfil() {
           ${motorista?.empresas?.nome ? `<div style="font-size:12px;color:var(--sub2);margin-top:2px">🏢 ${motorista.empresas.nome}</div>` : ''}
         </div>
 
+        ${(motorista?.creditos > 0 || minhasIndicacoes.length > 0) ? renderBlocoCreditos() : ''}
+
         <div style="margin-bottom:24px">
           <div style="font-family:var(--mono);font-size:9px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Os meus contratos (${contratos.length})</div>
           ${contratos.length === 0 ? `
@@ -1928,16 +1943,159 @@ function renderCupaoMotorista(c) {
           <div style="font-family:var(--serif);font-weight:300;font-size:24px;color:var(--gold);line-height:1">${valorTxt}</div>
         </div>
       </div>
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px">
         ${minha
           ? `<button onclick="mostrarMeuCupao('${minha.token}','${c.id}')" style="width:100%;padding:10px;background:rgba(39,201,63,0.12);color:#27c93f;border:1px solid #27c93f;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">✓ ${minha.estado==='usado'?'JÁ USADO':'JÁ RESERVADO — VER CÓDIGO'}</button>`
           : limiteAtingido
             ? `<button disabled style="width:100%;padding:10px;background:rgba(255,255,255,0.04);color:var(--sub2);border:1px solid var(--line);border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:not-allowed">LIMITE ATINGIDO</button>`
             : `<button onclick="reservarCupao('${c.id}')" style="width:100%;padding:10px;background:var(--gold);color:#000;border:none;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-weight:700">RESERVAR CUPÃO</button>`
         }
+        ${c.partilhavel !== false ? `
+          <button onclick="partilharCupao('${c.id}')" style="width:100%;padding:9px;background:rgba(200,146,42,0.08);color:var(--gold);border:1px solid var(--line);border-radius:5px;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">
+            📤 Partilhar com amigo${c.bonus_indicador ? ' · ganha '+c.bonus_indicador+(c.bonus_indicador_tipo==='percentagem'?'%':'€') : ''}
+          </button>
+        ` : ''}
       </div>
     </div>
   `;
+}
+
+// ── Partilhar cupão (cria indicação trackeada + Web Share API) ──
+async function partilharCupao(cupaoId) {
+  const c = cupoesDisponiveis.find(x => x.id === cupaoId);
+  if (!c) return;
+
+  // Cria indicação no servidor (gera token)
+  const { data, error } = await db.from('cupoes_indicacoes').insert({
+    cupao_id: cupaoId,
+    indicador_motorista_id: motorista.id,
+    empresa_id: motorista.empresa_id,
+  }).select().single();
+  if (error) { alert('Erro ao criar partilha: '+error.message); return; }
+
+  const link = `${location.origin}${location.pathname.replace(/[^/]+$/,'')}oferta.html?t=${data.token}`;
+  const valorTxt = c.tipo === 'gratis' ? 'GRÁTIS'
+    : c.tipo === 'oferta' ? 'OFERTA'
+    : c.tipo === 'percentagem' ? `${c.valor}%`
+    : `${c.valor}€`;
+  const msg = `Olá! Encontrei esta oferta no FleetPay e lembrei-me de ti:\n\n${c.titulo}\n${valorTxt} de desconto${c.parceiro_nome?' · '+c.parceiro_nome:''}\n\n${link}`;
+
+  // Tenta Web Share API (mobile)
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: c.titulo,
+        text: msg,
+        url: link
+      });
+      return;
+    } catch(e) { /* user cancelou — cai para fallback */ }
+  }
+
+  // Fallback: modal com botões WhatsApp / Email / Copiar
+  mostrarModalPartilha(c, link, msg);
+}
+
+function renderBlocoCreditos() {
+  const credits = motorista?.creditos || 0;
+  // Funil
+  const partilhadas = minhasIndicacoes.length;
+  const visualizadas = minhasIndicacoes.filter(i => i.visualizado_em).length;
+  const contactadas = minhasIndicacoes.filter(i => i.contactado_em).length;
+  const convertidas = minhasIndicacoes.filter(i => i.convertido_em).length;
+  return `
+    <div style="margin-bottom:24px;background:linear-gradient(135deg,rgba(200,146,42,0.1),rgba(200,146,42,0.02));border:1px solid var(--gold);border-radius:8px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase">★ Programa Embaixadores</div>
+        <button onclick="abrirMinhasIndicacoes()" style="background:transparent;border:1px solid var(--line);color:var(--gold);font-family:var(--mono);font-size:9px;letter-spacing:.5px;padding:4px 9px;border-radius:3px;cursor:pointer">VER TUDO →</button>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:14px">
+        <div style="font-family:var(--serif);font-weight:300;font-size:36px;color:var(--gold);line-height:1">${credits.toFixed(2)}€</div>
+        <div style="font-size:12px;color:var(--sub);font-family:var(--mono);letter-spacing:.5px">em créditos</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:var(--mono);font-size:10px">
+        <div style="text-align:center"><div style="color:var(--paper);font-size:18px;font-weight:500">${partilhadas}</div><div style="color:var(--sub2);letter-spacing:.5px;text-transform:uppercase;margin-top:2px">Partilhei</div></div>
+        <div style="text-align:center"><div style="color:var(--paper);font-size:18px;font-weight:500">${visualizadas}</div><div style="color:var(--sub2);letter-spacing:.5px;text-transform:uppercase;margin-top:2px">Visto</div></div>
+        <div style="text-align:center"><div style="color:var(--paper);font-size:18px;font-weight:500">${contactadas}</div><div style="color:var(--sub2);letter-spacing:.5px;text-transform:uppercase;margin-top:2px">Lead</div></div>
+        <div style="text-align:center"><div style="color:#27c93f;font-size:18px;font-weight:600">${convertidas}</div><div style="color:var(--sub2);letter-spacing:.5px;text-transform:uppercase;margin-top:2px">Conv.</div></div>
+      </div>
+      ${credits > 0 ? '<div style="font-size:11px;color:var(--sub);margin-top:12px;padding-top:12px;border-top:1px solid var(--line);line-height:1.5">💰 Os teus créditos são usados pelo operador no próximo pagamento.</div>' : ''}
+    </div>
+  `;
+}
+
+function abrirMinhasIndicacoes() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  const items = minhasIndicacoes;
+  const corEstado = i =>
+    i.convertido_em ? '#27c93f'
+    : i.contactado_em ? '#e8943a'
+    : i.visualizado_em ? '#5A7DC8'
+    : '#9aa3a8';
+  const labelEstado = i =>
+    i.convertido_em ? '✓ CONVERTIDO'
+    : i.contactado_em ? '📞 LEAD CONTACTADO'
+    : i.visualizado_em ? '👀 VISUALIZADO'
+    : '📤 PARTILHADO';
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column">
+      <div style="padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h2 style="font-family:var(--serif);font-weight:300;font-size:20px;margin:0">★ As minhas partilhas</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:2px">${items.length} indicações · ${(motorista?.creditos||0).toFixed(2)}€ em créditos</div>
+        </div>
+        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:14px 18px;overflow-y:auto;flex:1">
+        ${items.length === 0 ? `
+          <div style="text-align:center;padding:40px 20px;color:var(--sub2);font-family:var(--mono);font-size:12px;letter-spacing:.5px">
+            Ainda não partilhaste nenhum cupão.<br><br>
+            Carrega em <strong style="color:var(--gold)">📤 Partilhar com amigo</strong> num cupão para começar.
+          </div>
+        ` : items.map(i => `
+          <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-left:3px solid ${corEstado(i)};border-radius:6px;padding:13px 15px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+              <div style="flex:1">
+                <div style="font-size:13px;color:var(--paper);font-weight:500">${i.cupoes?.titulo||'—'}</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:.5px;margin-top:3px">${i.cupoes?.codigo||''} · ${new Date(i.partilhado_em).toLocaleDateString('pt-PT')}</div>
+              </div>
+              <span style="font-family:var(--mono);font-size:9px;color:${corEstado(i)};letter-spacing:1px;flex-shrink:0">${labelEstado(i)}</span>
+            </div>
+            ${i.indicado_nome ? `<div style="font-size:12px;color:var(--sub);margin-top:6px">→ ${i.indicado_nome}${i.indicado_telefone?' · '+i.indicado_telefone:''}</div>` : ''}
+            ${i.bonus_valor ? `<div style="font-size:11px;color:#27c93f;font-family:var(--mono);letter-spacing:.5px;margin-top:6px">+${i.bonus_valor.toFixed(2)}€ ganhos</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function mostrarModalPartilha(c, link, msg) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px;max-width:420px;width:100%;padding:24px;text-align:center">
+      <div style="font-size:36px;margin-bottom:8px">📤</div>
+      <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0 0 6px">Partilhar oferta</h2>
+      <p style="font-size:13px;color:var(--sub);margin-bottom:18px;line-height:1.5">${c.titulo}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" style="text-decoration:none">
+          <button style="width:100%;padding:14px;background:#25d366;color:#fff;border:none;border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-weight:700">💬 WhatsApp</button>
+        </a>
+        <a href="mailto:?subject=${encodeURIComponent('Oferta '+c.titulo)}&body=${encodeURIComponent(msg)}" style="text-decoration:none">
+          <button style="width:100%;padding:14px;background:rgba(255,255,255,0.05);color:var(--paper);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer">✉️ Email</button>
+        </a>
+      </div>
+      <button onclick="navigator.clipboard.writeText('${link}').then(()=>{this.innerHTML='✓ COPIADO';this.style.color='#27c93f'})" style="width:100%;padding:13px;background:transparent;color:var(--gold);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:8px">📋 Copiar link</button>
+      <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="width:100%;padding:11px;background:none;color:var(--sub);border:none;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:1px">Fechar</button>
+      <div style="margin-top:14px;font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px">${c.bonus_indicador?`★ Quando o teu amigo usar, ganhas ${c.bonus_indicador}${c.bonus_indicador_tipo==='percentagem'?'%':'€'} em créditos`:''}</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 async function reservarCupao(cupaoId) {

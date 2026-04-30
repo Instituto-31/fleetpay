@@ -4770,7 +4770,7 @@ async function guardarConfigBolt() {
 // ═══════════════════════════════════════════════════════════
 // ── PÁGINA: CUPÕES (cross-selling PSI/Formação/Parceiros) ──
 // ═══════════════════════════════════════════════════════════
-let cupoesData = [], cupoesRedencoes = [], cupoesTab = 'catalogo';
+let cupoesData = [], cupoesRedencoes = [], cupoesIndicacoes = [], cupoesTab = 'catalogo';
 
 const CATEGORIAS_CUPAO = {
   psi:          { label:'PSI',          icon:'🧠', cor:'#7C84DD' },
@@ -4796,9 +4796,10 @@ async function renderCupoes() {
     <button class="btn btn-gold btn-sm" onclick="modalCupao()">+ Novo cupão</button>
   `;
   document.getElementById('content').innerHTML = `
-    <div style="display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px">
+    <div style="display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto">
       <button class="cup-tab" data-tab="catalogo" onclick="cupoesSetTab('catalogo')">Catálogo</button>
       <button class="cup-tab" data-tab="redencoes" onclick="cupoesSetTab('redencoes')">Redenções</button>
+      <button class="cup-tab" data-tab="indicacoes" onclick="cupoesSetTab('indicacoes')">Indicações ★</button>
       <button class="cup-tab" data-tab="stats" onclick="cupoesSetTab('stats')">Estatísticas</button>
     </div>
     <style>
@@ -4826,12 +4827,14 @@ async function renderCupoes() {
 }
 
 async function carregarCupoesData() {
-  const [cRes, rRes] = await Promise.all([
+  const [cRes, rRes, iRes] = await Promise.all([
     db.from('cupoes').select('*').eq('empresa_id', empresa.id).order('destaque', {ascending:false}).order('criado_em', {ascending:false}),
-    db.from('cupoes_redencoes').select('*, cupoes(titulo, codigo, categoria), motoristas(nome, email)').eq('empresa_id', empresa.id).order('reservado_em', {ascending:false}).limit(200)
+    db.from('cupoes_redencoes').select('*, cupoes(titulo, codigo, categoria), motoristas(nome, email)').eq('empresa_id', empresa.id).order('reservado_em', {ascending:false}).limit(200),
+    db.from('cupoes_indicacoes').select('*, cupoes(titulo, codigo, categoria), motoristas:indicador_motorista_id(nome, email)').eq('empresa_id', empresa.id).order('partilhado_em', {ascending:false}).limit(300)
   ]);
   cupoesData = cRes.data || [];
   cupoesRedencoes = rRes.data || [];
+  cupoesIndicacoes = iRes.data || [];
 }
 
 function cupoesSetTab(tab) {
@@ -4841,7 +4844,126 @@ function cupoesSetTab(tab) {
   if (!el) return;
   if (tab === 'catalogo') el.innerHTML = renderCupoesCatalogo();
   else if (tab === 'redencoes') el.innerHTML = renderCupoesRedencoes();
+  else if (tab === 'indicacoes') el.innerHTML = renderCupoesIndicacoes();
   else el.innerHTML = renderCupoesStats();
+}
+
+function renderCupoesIndicacoes() {
+  if (!cupoesIndicacoes.length) {
+    return `<div class="cup-empty">Sem indicações ainda. Os motoristas que carregarem em <strong>📤 Partilhar</strong> num cupão aparecem aqui.</div>`;
+  }
+  // Funil agregado
+  const total = cupoesIndicacoes.length;
+  const visualizadas = cupoesIndicacoes.filter(i => i.visualizado_em).length;
+  const contactadas = cupoesIndicacoes.filter(i => i.contactado_em).length;
+  const convertidas = cupoesIndicacoes.filter(i => i.convertido_em).length;
+  const bonus = cupoesIndicacoes.reduce((s,i) => s + (i.bonus_valor||0), 0);
+
+  const corEstado = i =>
+    i.convertido_em ? '#27c93f'
+    : i.contactado_em ? '#e8943a'
+    : i.visualizado_em ? '#5A7DC8'
+    : '#9aa3a8';
+  const labelEstado = i =>
+    i.convertido_em ? '✓ CONVERTIDO'
+    : i.contactado_em ? '📞 LEAD'
+    : i.visualizado_em ? '👀 VISTO'
+    : '📤 PARTILHADO';
+
+  return `
+    <!-- Funil -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+      ${[
+        ['Partilhas', total, '#9aa3a8'],
+        ['Visualizadas', visualizadas, '#5A7DC8'],
+        ['Leads', contactadas, '#e8943a'],
+        ['Convertidas', convertidas, '#27c93f'],
+        ['Bónus pagos', fmt(bonus), 'var(--gold)'],
+      ].map(([l,v,cor]) => `
+        <div style="background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase">${l}</div>
+          <div style="font-family:var(--serif);font-size:24px;font-weight:300;color:${cor};margin-top:4px">${v}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Tabela -->
+    <div style="overflow-x:auto"><table class="dt">
+      <thead><tr>
+        <th>Data</th><th>Cupão</th><th>Indicador</th><th>Indicado</th><th>Estado</th><th>Bónus</th><th>Ações</th>
+      </tr></thead>
+      <tbody>
+        ${cupoesIndicacoes.map(i => {
+          const cat = CATEGORIAS_CUPAO[i.cupoes?.categoria] || CATEGORIAS_CUPAO.outro;
+          return `<tr>
+            <td style="font-family:var(--mono);font-size:11px">${new Date(i.partilhado_em).toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit',year:'2-digit'})}</td>
+            <td><span style="color:${cat.cor}">${cat.icon}</span> ${i.cupoes?.titulo||'—'}</td>
+            <td>${i.motoristas?.nome||'—'}</td>
+            <td>${i.indicado_nome ? `${i.indicado_nome}${i.indicado_telefone?'<br><span style="font-family:var(--mono);font-size:10px;color:var(--sub2)">'+i.indicado_telefone+'</span>':''}` : '<em style="color:var(--sub2);font-size:11px">—</em>'}</td>
+            <td><span style="display:inline-block;padding:2px 8px;background:${corEstado(i)}22;color:${corEstado(i)};border-radius:100px;font-family:var(--mono);font-size:9px;letter-spacing:.5px">${labelEstado(i)}</span></td>
+            <td style="font-family:var(--mono);font-size:11px">${i.bonus_valor?'<span style="color:#27c93f">+'+fmt(i.bonus_valor)+'</span>':'—'}</td>
+            <td>
+              ${!i.convertido_em && i.contactado_em ? `<button class="btn btn-gold btn-sm" onclick="marcarConvertido('${i.id}')" title="Marcar como conversão e atribuir bónus">✓ Converter</button>` : ''}
+              ${i.convertido_em && !i.bonus_pago_em && i.bonus_valor ? `<button class="btn btn-ghost btn-sm" onclick="marcarBonusPago('${i.id}')" title="Marcar bónus como pago">💰 Pago</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="abrirNotasIndicacao('${i.id}')" title="Notas">📝</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>
+  `;
+}
+
+async function marcarConvertido(id) {
+  const i = cupoesIndicacoes.find(x => x.id === id);
+  if (!i) return;
+  if (!confirm(`Marcar como CONVERTIDO?\n\nO bónus configurado no cupão será atribuído automaticamente ao motorista ${i.motoristas?.nome||''}.`)) return;
+  const { error } = await db.from('cupoes_indicacoes').update({
+    convertido_em: new Date().toISOString(),
+    convertido_por: currentUser.id
+  }).eq('id', id);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  toast('✅ Conversão registada — bónus atribuído');
+  await carregarCupoesData();
+  cupoesSetTab('indicacoes');
+}
+
+async function marcarBonusPago(id) {
+  const { error } = await db.from('cupoes_indicacoes').update({
+    bonus_pago_em: new Date().toISOString()
+  }).eq('id', id);
+  if (error) { toast('Erro','error'); return; }
+  toast('💰 Bónus marcado como pago');
+  await carregarCupoesData();
+  cupoesSetTab('indicacoes');
+}
+
+function abrirNotasIndicacao(id) {
+  const i = cupoesIndicacoes.find(x => x.id === id);
+  if (!i) return;
+  const body = `
+    <div style="font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:14px">
+      <strong>${i.cupoes?.titulo||'—'}</strong><br>
+      Indicador: ${i.motoristas?.nome||'—'}<br>
+      ${i.indicado_nome ? 'Indicado: '+i.indicado_nome+(i.indicado_email?' · '+i.indicado_email:'')+(i.indicado_telefone?' · '+i.indicado_telefone:'') : ''}
+    </div>
+    ${i.indicado_notas ? `<div style="background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;padding:10px;margin-bottom:14px;font-size:12px">💬 ${i.indicado_notas}</div>` : ''}
+    <div class="form-row"><label>Notas internas (operador)</label><textarea id="ind-notas" rows="3">${i.notas_operador||''}</textarea></div>
+  `;
+  const footer = `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="guardarNotasIndicacao('${id}')">Guardar</button>
+  `;
+  openModal('Detalhes da indicação', body, footer);
+}
+
+async function guardarNotasIndicacao(id) {
+  const notas = document.getElementById('ind-notas').value;
+  const { error } = await db.from('cupoes_indicacoes').update({ notas_operador: notas }).eq('id', id);
+  if (error) { toast('Erro','error'); return; }
+  closeModal();
+  await carregarCupoesData();
+  cupoesSetTab('indicacoes');
 }
 
 function renderCupoesCatalogo() {
@@ -4943,7 +5065,7 @@ function renderCupoesStats() {
       `).join('')}
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
       <div style="background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px">
         <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 12px">🏆 Cupões mais usados</h3>
         ${topCupoes.length ? topCupoes.map(c => `
@@ -4953,13 +5075,65 @@ function renderCupoesStats() {
         `).join('') : '<div style="color:var(--sub2);font-size:12px">Sem dados</div>'}
       </div>
       <div style="background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px">
-        <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 12px">👤 Top motoristas</h3>
+        <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 12px">👤 Top motoristas (redenções)</h3>
         ${topMot.length ? topMot.map(([nome, n]) => `
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px">
             <span>${nome}</span><strong style="color:var(--gold)">${n}</strong>
           </div>
         `).join('') : '<div style="color:var(--sub2);font-size:12px">Sem dados</div>'}
       </div>
+    </div>
+
+    ${renderTopEmbaixadores()}
+  `;
+}
+
+function renderTopEmbaixadores() {
+  // Agregar indicações por motorista
+  const map = {};
+  cupoesIndicacoes.forEach(i => {
+    const id = i.indicador_motorista_id;
+    if (!id) return;
+    if (!map[id]) map[id] = {
+      nome: i.motoristas?.nome || '—',
+      partilhas: 0, vistas: 0, leads: 0, conv: 0, bonus: 0
+    };
+    map[id].partilhas++;
+    if (i.visualizado_em) map[id].vistas++;
+    if (i.contactado_em) map[id].leads++;
+    if (i.convertido_em) map[id].conv++;
+    map[id].bonus += i.bonus_valor || 0;
+  });
+  const top = Object.values(map).sort((a,b) => (b.conv*1000 + b.leads*10 + b.partilhas) - (a.conv*1000 + a.leads*10 + a.partilhas)).slice(0,10);
+
+  if (!top.length) {
+    return `
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px">
+        <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 8px">★ Top Embaixadores</h3>
+        <div style="color:var(--sub2);font-size:12px">Ainda sem indicações. Ativa o "Programa Embaixadores" definindo um <strong>bónus ao indicador</strong> nos cupões partilháveis.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:6px;padding:18px">
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:0 0 12px">★ Top Embaixadores</h3>
+      <table class="dt" style="width:100%">
+        <thead><tr>
+          <th>#</th><th>Motorista</th><th style="text-align:right">Partilhas</th><th style="text-align:right">Vistas</th><th style="text-align:right">Leads</th><th style="text-align:right">Conv.</th><th style="text-align:right">Bónus</th>
+        </tr></thead>
+        <tbody>
+          ${top.map((m,idx) => `<tr>
+            <td style="font-family:var(--mono);color:${idx<3?'var(--gold)':'var(--sub2)'};font-weight:${idx<3?'700':'400'}">${idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':(idx+1)}</td>
+            <td>${m.nome}</td>
+            <td style="text-align:right;font-family:var(--mono)">${m.partilhas}</td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--sub)">${m.vistas}</td>
+            <td style="text-align:right;font-family:var(--mono);color:#e8943a">${m.leads}</td>
+            <td style="text-align:right;font-family:var(--mono);color:#27c93f;font-weight:600">${m.conv}</td>
+            <td style="text-align:right;font-family:var(--mono);color:var(--gold);font-weight:600">${m.bonus?fmt(m.bonus):'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -4988,11 +5162,22 @@ function modalCupao(id) {
       <div class="form-row"><label>Link</label><input id="cup-pl" value="${c?.parceiro_link||''}" placeholder="https://"></div>
       <div class="form-row"><label>Telefone</label><input id="cup-pt" value="${c?.parceiro_telefone||''}"></div>
       <div class="form-row"><label>Morada</label><input id="cup-pm" value="${c?.parceiro_morada||''}"></div>
+      <div class="form-row" style="grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;margin-top:6px">
+        <label style="font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase">★ Programa Embaixadores (recompensa por indicação)</label>
+      </div>
+      <div class="form-row"><label>Bónus ao indicador</label><input id="cup-bonus" type="number" step="0.01" value="${c?.bonus_indicador??''}" placeholder="ex: 5"></div>
+      <div class="form-row"><label>Tipo bónus</label><select id="cup-bonus-tipo">
+        <option value="" ${!c?.bonus_indicador_tipo?'selected':''}>— sem bónus —</option>
+        <option value="valor_fixo" ${c?.bonus_indicador_tipo==='valor_fixo'?'selected':''}>€ fixo</option>
+        <option value="percentagem" ${c?.bonus_indicador_tipo==='percentagem'?'selected':''}>% do desconto</option>
+        <option value="credito" ${c?.bonus_indicador_tipo==='credito'?'selected':''}>Crédito FleetPay</option>
+      </select></div>
       <div class="form-row" style="grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;padding-top:8px">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="cup-ativo" ${c?.ativo!==false?'checked':''}> Ativo</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="cup-destaque" ${c?.destaque?'checked':''}> Destaque ★</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="cup-mot" ${c?.para_motoristas!==false?'checked':''}> Para motoristas</label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="cup-op" ${c?.para_operadores?'checked':''}> Para operadores</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="cup-partilhavel" ${c?.partilhavel!==false?'checked':''}> 📤 Partilhável</label>
       </div>
     </div>
   `;
@@ -5034,6 +5219,9 @@ async function guardarCupao(id) {
     destaque: document.getElementById('cup-destaque').checked,
     para_motoristas: document.getElementById('cup-mot').checked,
     para_operadores: document.getElementById('cup-op').checked,
+    partilhavel: document.getElementById('cup-partilhavel').checked,
+    bonus_indicador: parseFloat(document.getElementById('cup-bonus').value) || null,
+    bonus_indicador_tipo: document.getElementById('cup-bonus-tipo').value || null,
   };
   let error;
   if (id) ({ error } = await db.from('cupoes').update(payload).eq('id', id));

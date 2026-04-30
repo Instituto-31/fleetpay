@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oferta exclusiva · FleetPay</title>
+<meta name="theme-color" content="#0a0905">
+<meta property="og:title" content="Oferta exclusiva — FleetPay">
+<meta property="og:description" content="Um amigo partilhou contigo um cupão de desconto.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --gold:#c8922a;--paper:#f7f4ef;--ink:#0a0905;--card:#13110b;
+    --line:rgba(200,146,42,0.12);--sub:#a89c87;--sub2:#6b6157;
+    --green:#27c93f;--red:#e85a5a;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans);background:linear-gradient(180deg,var(--ink) 0%,#0e0c08 100%);
+    color:var(--paper);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    max-width:480px;width:100%;overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4);
+  }
+  .header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .header span{font-family:var(--serif);font-size:18px;font-weight:300}
+  .header em{font-style:italic;color:var(--gold)}
+  .ribbon{background:linear-gradient(90deg,var(--gold),#e0a93e);color:#000;padding:8px 22px;font-family:var(--mono);font-size:10px;letter-spacing:2px;font-weight:700;text-align:center}
+  .body{padding:28px 24px}
+  .icon-big{font-size:54px;text-align:center;margin-bottom:8px}
+  h1{font-family:var(--serif);font-weight:300;font-size:26px;text-align:center;margin-bottom:6px;line-height:1.2}
+  .partner{text-align:center;font-family:var(--mono);font-size:11px;color:var(--sub2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:18px}
+  .valor{font-family:var(--serif);font-weight:300;font-size:64px;color:var(--gold);text-align:center;line-height:1;margin:18px 0;text-shadow:0 0 30px rgba(200,146,42,0.2)}
+  .descricao{text-align:center;color:var(--sub);font-size:14px;line-height:1.6;margin-bottom:18px}
+  .info{background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:18px 0}
+  .row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+  .row span{color:var(--sub)}
+  .row strong{color:var(--paper);font-weight:500}
+  .indicador{display:flex;align-items:center;gap:10px;background:rgba(200,146,42,0.06);border:1px solid var(--gold);border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13px}
+  .indicador .av{width:36px;height:36px;border-radius:50%;background:var(--gold);color:#000;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px}
+  .field input,.field textarea{width:100%;padding:11px 13px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:6px;color:var(--paper);font-family:var(--sans);font-size:14px}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--gold)}
+  .btn{width:100%;padding:14px;border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;font-weight:700;transition:all .2s}
+  .btn-gold{background:linear-gradient(180deg,var(--gold),#a87a23);color:#000;box-shadow:0 4px 14px rgba(200,146,42,0.3)}
+  .btn-gold:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(200,146,42,0.4)}
+  .btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--line)}
+  .btn-ok{background:rgba(39,201,63,0.12);color:var(--green);border:1px solid var(--green)}
+  .footer{padding:14px 22px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:1px;text-align:center;text-transform:uppercase}
+  .spinner{width:32px;height:32px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;margin:24px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .estado-ok{padding:16px;background:rgba(39,201,63,0.1);border:1px solid var(--green);border-radius:8px;text-align:center;color:var(--green);margin:14px 0}
+  .estado-ok h3{font-family:var(--serif);font-weight:400;font-size:20px;color:var(--paper);margin-bottom:6px}
+  .estado-ok p{font-size:13px;color:var(--sub);line-height:1.6}
+  @media (max-width:520px){
+    body{padding:0;background:var(--card)}
+    .card{border-radius:0;border:none;max-width:none;min-height:100vh;display:flex;flex-direction:column}
+    .body{flex:1}
+  }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="header">
+    <svg viewBox="0 0 32 32" width="22" height="22" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </div>
+  <div class="ribbon" id="ribbon">★ OFERTA PARTILHADA ★</div>
+  <div class="body" id="body">
+    <div class="spinner"></div>
+    <p style="text-align:center;color:var(--sub);font-size:12px">A carregar oferta...</p>
+  </div>
+  <div class="footer">FleetPay · cupão exclusivo · partilhado por um amigo</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get('t');
+const codigo = params.get('c');  // alternativa: oferta.html?c=CODIGO (sem indicador)
+
+const CATS = { psi:'🧠', formacao:'🎓', slot:'⏰', combustivel:'⛽', seguro:'🛡️', oficina:'🔧', saas:'💻', servico:'✨', outro:'🎟️' };
+
+let indicacao = null;  // se vier ?t= é indicação trackeada
+let cupao = null;
+let indicador = null;
+
+async function load() {
+  const body = document.getElementById('body');
+  if (token) {
+    // Modo "indicação" (com tracking) — vem de ?t=TOKEN
+    const { data: ind, error } = await db.from('cupoes_indicacoes')
+      .select('*, cupoes(*), motoristas:indicador_motorista_id(nome, email)')
+      .eq('token', token)
+      .maybeSingle();
+    if (error || !ind) {
+      body.innerHTML = `<div class="estado-ok" style="background:rgba(232,90,90,0.1);border-color:var(--red);color:var(--red)"><h3>Oferta não encontrada</h3><p>O link pode estar incorreto ou ter expirado.</p></div>`;
+      return;
+    }
+    indicacao = ind;
+    cupao = ind.cupoes;
+    indicador = ind.motoristas;
+
+    // Marca como visualizado (best-effort; só na primeira vez)
+    if (!ind.visualizado_em) {
+      db.from('cupoes_indicacoes').update({
+        visualizado_em: new Date().toISOString(),
+        visualizacoes_count: (ind.visualizacoes_count||0) + 1
+      }).eq('id', ind.id).then(()=>{}).catch(()=>{});
+    } else {
+      db.from('cupoes_indicacoes').update({
+        visualizacoes_count: (ind.visualizacoes_count||0) + 1
+      }).eq('id', ind.id).then(()=>{}).catch(()=>{});
+    }
+  } else if (codigo) {
+    // Modo "código" (sem tracking) — vem de ?c=CODIGO
+    const { data: cup } = await db.from('cupoes')
+      .select('*')
+      .eq('codigo', codigo.toUpperCase())
+      .eq('ativo', true)
+      .maybeSingle();
+    if (!cup) {
+      body.innerHTML = `<div class="estado-ok" style="background:rgba(232,90,90,0.1);border-color:var(--red);color:var(--red)"><h3>Cupão não encontrado</h3><p>Este código pode estar incorreto ou expirado.</p></div>`;
+      return;
+    }
+    cupao = cup;
+  } else {
+    body.innerHTML = `<div class="estado-ok" style="background:rgba(232,90,90,0.1);border-color:var(--red);color:var(--red)"><h3>Link inválido</h3><p>Esta página deve ser aberta a partir do link partilhado por um motorista.</p></div>`;
+    return;
+  }
+
+  pintar();
+}
+
+function pintar() {
+  const body = document.getElementById('body');
+  const icon = CATS[cupao.categoria] || '🎟️';
+  const valorTxt = cupao.tipo === 'gratis' ? 'GRÁTIS'
+    : cupao.tipo === 'oferta' ? 'OFERTA'
+    : cupao.tipo === 'percentagem' ? `${cupao.valor}%`
+    : `${cupao.valor}€`;
+
+  const expirado = cupao.valido_ate && cupao.valido_ate < new Date().toISOString().split('T')[0];
+
+  // Ribbon dinâmica
+  document.getElementById('ribbon').textContent = indicador
+    ? `★ ${indicador.nome.split(' ')[0]} PARTILHOU CONTIGO ★`
+    : '★ OFERTA EXCLUSIVA ★';
+
+  let acao = '';
+  if (expirado) {
+    acao = `<div class="estado-ok" style="background:rgba(232,90,90,0.1);border-color:var(--red);color:var(--red)"><h3>Oferta expirada</h3><p>Esta oferta já não está disponível.</p></div>`;
+  } else if (indicacao && indicacao.contactado_em) {
+    acao = `
+      <div class="estado-ok">
+        <h3>✓ Já manifestaste interesse</h3>
+        <p>${cupao.parceiro_nome || 'O parceiro'} vai contactar-te em breve. ${indicacao.indicado_email ? 'Confirmação enviada para '+indicacao.indicado_email+'.' : ''}</p>
+      </div>
+      ${cupao.parceiro_link ? `<a href="${cupao.parceiro_link}" target="_blank" style="display:block;margin-top:14px"><button class="btn btn-gold">↗ ABRIR ${cupao.parceiro_nome||'PARCEIRO'}</button></a>` : ''}
+    `;
+  } else {
+    acao = `
+      <div id="form-area">
+        <p style="font-size:13px;color:var(--sub);text-align:center;margin-bottom:16px;line-height:1.6">Quer aproveitar esta oferta? Deixa o teu contacto e ${cupao.parceiro_nome || 'o parceiro'} entra em contacto.</p>
+        <div class="field"><label>Nome *</label><input id="nome" placeholder="O teu nome"></div>
+        <div class="field"><label>Telefone *</label><input id="tel" type="tel" placeholder="9XXXXXXXX" inputmode="tel"></div>
+        <div class="field"><label>Email (opcional)</label><input id="email" type="email" placeholder="email@exemplo.pt"></div>
+        <div class="field"><label>Mensagem (opcional)</label><textarea id="notas" rows="2" placeholder="ex: prefiro ser contactado de manhã"></textarea></div>
+        <button class="btn btn-gold" onclick="submeterContacto()">QUERO ESTA OFERTA →</button>
+        ${cupao.parceiro_link ? `<a href="${cupao.parceiro_link}" target="_blank" style="display:block;margin-top:10px"><button class="btn btn-ghost">↗ Visitar ${cupao.parceiro_nome||'site'}</button></a>` : ''}
+      </div>
+    `;
+  }
+
+  body.innerHTML = `
+    <div class="icon-big">${icon}</div>
+    <h1>${cupao.titulo}</h1>
+    ${cupao.parceiro_nome ? `<div class="partner">${cupao.parceiro_nome}</div>` : ''}
+    <div class="valor">${valorTxt}</div>
+    ${cupao.descricao ? `<div class="descricao">${cupao.descricao}</div>` : ''}
+    ${indicador ? `
+      <div class="indicador">
+        <div class="av">${indicador.nome[0].toUpperCase()}</div>
+        <div>
+          <div style="font-size:13px;color:var(--paper)"><strong>${indicador.nome.split(' ').slice(0,2).join(' ')}</strong> recomendou-te esta oferta</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:2px">via FleetPay</div>
+        </div>
+      </div>
+    ` : ''}
+    <div class="info">
+      <div class="row"><span>Código</span><strong style="font-family:var(--mono)">${cupao.codigo}</strong></div>
+      ${cupao.valor_minimo ? `<div class="row"><span>Compra mínima</span><strong>${cupao.valor_minimo}€</strong></div>` : ''}
+      ${cupao.valido_ate ? `<div class="row"><span>Válido até</span><strong>${new Date(cupao.valido_ate).toLocaleDateString('pt-PT')}</strong></div>` : ''}
+    </div>
+    ${acao}
+  `;
+}
+
+async function submeterContacto() {
+  const nome = document.getElementById('nome').value.trim();
+  const tel = document.getElementById('tel').value.trim();
+  if (!nome || !tel) { alert('Preenche pelo menos o nome e o telefone.'); return; }
+  const email = document.getElementById('email').value.trim() || null;
+  const notas = document.getElementById('notas').value.trim() || null;
+
+  if (!indicacao) {
+    // Modo ?c= sem indicação trackeada — não há forma de criar indicação anónima
+    // (RLS exige indicador_motorista_id). Mostramos só info do parceiro.
+    alert('Para esta oferta contacta directamente o parceiro: ' + (cupao.parceiro_telefone || cupao.parceiro_link || cupao.parceiro_nome || ''));
+    return;
+  }
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'A enviar...';
+
+  const { error } = await db.from('cupoes_indicacoes').update({
+    indicado_nome: nome,
+    indicado_telefone: tel,
+    indicado_email: email,
+    indicado_notas: notas,
+    contactado_em: new Date().toISOString(),
+    user_agent: navigator.userAgent.slice(0,200)
+  }).eq('id', indicacao.id);
+
+  if (error) { alert('Erro: '+error.message); btn.disabled=false; btn.textContent='QUERO ESTA OFERTA →'; return; }
+
+  indicacao.contactado_em = new Date().toISOString();
+  indicacao.indicado_email = email;
+  pintar();
+}
+
+load();
+</script>
+</body>
+</html>
