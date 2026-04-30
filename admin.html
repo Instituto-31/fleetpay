@@ -668,6 +668,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('config')">
           <span class="nav-icon">⚙️</span> Configurações
         </button>
+        <button class="nav-item" onclick="showPage('ajuda')">
+          <span class="nav-icon">❓</span> Ajuda
+        </button>
       </div>
     </nav>
 
@@ -959,7 +962,7 @@ function showPage(page) {
     motoristas:'Motoristas', frota:'Frota', contratos:'Contratos',
     csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
-    comunicacoes:'Comunicações'
+    comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -979,6 +982,7 @@ function showPage(page) {
     tempos: renderTempos,
     cupoes: renderCupoes,
     comunicacoes: renderComunicacoes,
+    ajuda: renderAjuda,
   };
   // Parar timers de páginas anteriores
   if (page !== 'dashboard') pararLiveTickAdmin();
@@ -5545,6 +5549,410 @@ async function apagarComunicacao(id) {
   toast('Aviso apagado');
   await carregarComunicacoes();
   pintarComunicacoes();
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ── PÁGINA: AJUDA & DOCUMENTAÇÃO ──
+// ═══════════════════════════════════════════════════════════
+let ajudaTab = 'visao';
+
+function renderAjuda() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <a href="https://github.com/Instituto-31/fleetpay" target="_blank" style="text-decoration:none">
+      <button class="btn btn-ghost btn-sm">📚 Repo GitHub</button>
+    </a>
+  `;
+  document.getElementById('content').innerHTML = `
+    <style>
+      .aj-tab{background:none;border:none;padding:10px 18px;color:var(--sub);font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap}
+      .aj-tab:hover{color:var(--paper)}
+      .aj-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+      .aj-card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:24px;margin-bottom:16px}
+      .aj-card h2{font-family:var(--serif);font-weight:300;font-size:24px;margin:0 0 4px;color:var(--paper)}
+      .aj-card .aj-sub{font-size:13px;color:var(--sub);margin-bottom:18px;line-height:1.6}
+      .aj-step{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+      .aj-step:last-child{border:none}
+      .aj-step-num{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--gold);color:#000;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700}
+      .aj-step-body{flex:1;font-size:13px;color:var(--paper);line-height:1.7}
+      .aj-step-body strong{color:var(--gold)}
+      .aj-step-body code{background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--paper)}
+      .aj-step-body a{color:var(--gold);text-decoration:none;border-bottom:1px dotted var(--gold)}
+      .aj-step-body a:hover{border-bottom-style:solid}
+      .aj-warn{background:rgba(232,148,58,0.08);border:1px solid #e8943a;border-radius:4px;padding:10px 14px;margin:12px 0;font-size:12px;color:var(--paper);line-height:1.6}
+      .aj-info{background:rgba(124,132,221,0.08);border:1px solid #5A7DC8;border-radius:4px;padding:10px 14px;margin:12px 0;font-size:12px;color:var(--paper);line-height:1.6}
+      .aj-ok{background:rgba(39,201,63,0.08);border:1px solid #27c93f;border-radius:4px;padding:10px 14px;margin:12px 0;font-size:12px;color:var(--paper);line-height:1.6}
+      .aj-status{display:inline-block;padding:2px 8px;border-radius:100px;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-left:8px}
+      .aj-status-ok{background:#27c93f;color:#000}
+      .aj-status-pending{background:#e8943a;color:#000}
+      .aj-status-blocked{background:#5A7DC8;color:#fff}
+    </style>
+
+    <div style="display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto">
+      <button class="aj-tab" data-tab="visao" onclick="ajudaSetTab('visao')">🏠 Visão geral</button>
+      <button class="aj-tab" data-tab="bolt" onclick="ajudaSetTab('bolt')">🚗 Bolt API</button>
+      <button class="aj-tab" data-tab="uber" onclick="ajudaSetTab('uber')">🚙 Uber API</button>
+      <button class="aj-tab" data-tab="emails" onclick="ajudaSetTab('emails')">📧 Emails (Resend)</button>
+      <button class="aj-tab" data-tab="cupoes" onclick="ajudaSetTab('cupoes')">🎟️ Cupões & Embaixadores</button>
+      <button class="aj-tab" data-tab="suporte" onclick="ajudaSetTab('suporte')">💬 Suporte</button>
+    </div>
+    <div id="ajuda-tab-content"></div>
+  `;
+  ajudaSetTab(ajudaTab);
+}
+
+function ajudaSetTab(tab) {
+  ajudaTab = tab;
+  document.querySelectorAll('.aj-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const el = document.getElementById('ajuda-tab-content');
+  if (!el) return;
+  if (tab === 'visao') el.innerHTML = renderAjudaVisao();
+  else if (tab === 'bolt') el.innerHTML = renderAjudaBolt();
+  else if (tab === 'uber') el.innerHTML = renderAjudaUber();
+  else if (tab === 'emails') el.innerHTML = renderAjudaEmails();
+  else if (tab === 'cupoes') el.innerHTML = renderAjudaCupoes();
+  else if (tab === 'suporte') el.innerHTML = renderAjudaSuporte();
+}
+
+function renderAjudaVisao() {
+  const e = empresa || {};
+  return `
+    <div class="aj-card">
+      <h2>Bem-vinda ao FleetPay</h2>
+      <div class="aj-sub">Sistema completo de gestão de frota TVDE: pagamentos, motoristas, viaturas, contratos, compliance, cupões e integrações com Uber/Bolt.</div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin:20px 0 12px;color:var(--paper)">Estado das integrações desta empresa</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:5px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <strong style="font-size:14px">🚗 Bolt API</strong>
+            ${e.bolt_api_ativo ? '<span class="aj-status aj-status-ok">Activo</span>' : '<span class="aj-status aj-status-blocked">Inactivo</span>'}
+          </div>
+          <div style="font-size:12px;color:var(--sub);line-height:1.5">
+            ${e.bolt_last_sync_at
+              ? `Última sync: ${new Date(e.bolt_last_sync_at).toLocaleString('pt-PT')}`
+              : 'Nunca sincronizado. <a href="#" onclick="ajudaSetTab(\\'bolt\\');return false">Como configurar →</a>'}
+          </div>
+        </div>
+        <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:5px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <strong style="font-size:14px">🚙 Uber API</strong>
+            ${e.uber_api_ativo ? '<span class="aj-status aj-status-ok">Activo</span>' : '<span class="aj-status aj-status-blocked">Inactivo</span>'}
+          </div>
+          <div style="font-size:12px;color:var(--sub);line-height:1.5">
+            ${e.uber_last_sync_at
+              ? `Última sync: ${new Date(e.uber_last_sync_at).toLocaleString('pt-PT')}`
+              : 'Requer aprovação Uber. <a href="#" onclick="ajudaSetTab(\\'uber\\');return false">Como pedir →</a>'}
+          </div>
+        </div>
+      </div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin:24px 0 12px;color:var(--paper)">Atalhos rápidos</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:13px">
+        <button class="btn btn-ghost btn-sm" onclick="showPage('motoristas')">👤 Motoristas</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('frota')">🚗 Frota</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('pagamentos')">💶 Pagamentos</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('csv')">📂 Carregar CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('cupoes')">🎟️ Cupões</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('comunicacoes')">📣 Comunicações</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('alertas')">🔔 Alertas</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('config')">⚙️ Configurações</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderAjudaBolt() {
+  const e = empresa || {};
+  const ativo = !!e.bolt_client_id;
+  return `
+    <div class="aj-card">
+      <h2>🚗 Integração Bolt Fleet API ${ativo?'<span class="aj-status aj-status-ok">Configurada</span>':'<span class="aj-status aj-status-pending">Por configurar</span>'}</h2>
+      <div class="aj-sub">Sincroniza automaticamente motoristas e viaturas da tua frota Bolt. <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/bolt_sync_schema.sql" target="_blank">Schema BD</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/supabase/functions/bolt-sync/index.ts" target="_blank">Edge Function</a></div>
+
+      <div class="aj-info">
+        💡 <strong>Pré-requisito</strong>: tens conta activa em <a href="https://fleets.bolt.eu" target="_blank">fleets.bolt.eu</a> como Fleet Owner ou Admin.
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">1</div>
+        <div class="aj-step-body">
+          <strong>Gerar credenciais API no portal Bolt</strong><br>
+          Vai a <a href="https://fleets.bolt.eu" target="_blank">fleets.bolt.eu</a> → <strong>Definições</strong> → <strong>Ligações API de dados</strong> → <strong>Renovação</strong> (gera novas credenciais). A Bolt mostra <strong>Username</strong> e <strong>Password</strong> apenas uma vez — guarda imediatamente num gestor de passwords.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">2</div>
+        <div class="aj-step-body">
+          <strong>Encontrar o Company ID</strong><br>
+          Em fleets.bolt.eu, navega para qualquer subpágina (ex: Operações → Motoristas). O URL fica tipo <code>fleets.bolt.eu/<u>204383</u>/supply/drivers</code>. <strong>O número é o teu Company ID</strong>. Copia.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">3</div>
+        <div class="aj-step-body">
+          <strong>Configurar no FleetPay</strong><br>
+          Abre <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> → secção <strong>Integração Bolt API</strong>. Cola:<br>
+          • <code>Bolt Client ID</code> = Username (ex: <code>GnafV3...</code>)<br>
+          • <code>Bolt Client Secret</code> = Password<br>
+          • <code>Bolt Company ID</code> = número numérico (ex: <code>204383</code>)<br>
+          Carrega <strong>💾 Guardar credenciais</strong>.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">4</div>
+        <div class="aj-step-body">
+          <strong>Primeira sincronização</strong><br>
+          Carrega em <strong>🔄 Sincronizar agora</strong>. A Edge Function vai puxar até 6 meses de motoristas e viaturas. Espera 10-30 segundos.<br>
+          Resultado esperado: alert <code>✅ Sincronização concluída · 👤 N motoristas · 🚗 N viaturas</code>.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">5</div>
+        <div class="aj-step-body">
+          <strong>Verificar dados</strong><br>
+          Vai a <a href="#" onclick="showPage('motoristas');return false">👤 Motoristas</a> e <a href="#" onclick="showPage('frota');return false">🚗 Frota</a> — confirma que aparecem os dados. Motoristas/viaturas existentes são <strong>actualizados</strong> (match por ID Bolt, depois por email/telefone/matrícula). Novos são <strong>criados</strong> com origem='bolt'.
+        </div>
+      </div>
+
+      <div class="aj-warn">
+        ⚠️ <strong>Limitação</strong>: a sincronização cobre os últimos <strong>6 meses</strong> (em janelas de 30 dias). Motoristas inactivos há mais de 6 meses não vêm — terás que adicionar manualmente.
+      </div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">Resolução de problemas</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.8;padding-left:20px">
+        <li><strong>"Bolt OAuth 401"</strong> → credenciais erradas. Renova no portal Bolt e cola novas.</li>
+        <li><strong>"INVALID_DATE_RANGE"</strong> → bug do FleetPay (já corrigido com janelas de 30 dias).</li>
+        <li><strong>"Failed to fetch"</strong> → Edge Function timeout. Confirma que o último deploy tem o código actual (com <code>fetchPaginated</code>).</li>
+        <li><strong>"0 motoristas mas portal Bolt mostra N"</strong> → janela temporal demasiado curta. Vê os logs em Supabase → Edge Functions → bolt-sync → Logs.</li>
+      </ul>
+    </div>
+  `;
+}
+
+function renderAjudaUber() {
+  const e = empresa || {};
+  const ativo = !!e.uber_client_id;
+  return `
+    <div class="aj-card">
+      <h2>🚙 Integração Uber Vehicle Suppliers API ${ativo?'<span class="aj-status aj-status-pending">Aguarda aprovação Uber</span>':'<span class="aj-status aj-status-blocked">Por configurar</span>'}</h2>
+      <div class="aj-sub">Sincroniza motoristas e viaturas da Uber. <a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">Guia completo no GitHub</a> · <a href="https://developer.uber.com/docs/vehicles/introduction" target="_blank">Docs API Uber</a></div>
+
+      <div class="aj-warn">
+        ⚠️ <strong>Atenção</strong>: a Vehicle Suppliers API requer <strong>aprovação manual da Uber</strong>. Não é self-service como a Bolt. Aprovação típica: 1-7 dias úteis. Operadores TVDE pequenos podem ser rejeitados.
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">1</div>
+        <div class="aj-step-body">
+          <strong>Verificar elegibilidade</strong><br>
+          Tens conta activa em <a href="https://supplier.uber.com" target="_blank">supplier.uber.com</a> como <strong>Owner ou Admin</strong>? Se sim, prossegue. Se não, pede ao Owner.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">2</div>
+        <div class="aj-step-body">
+          <strong>Criar conta Developer Uber</strong><br>
+          Abre <a href="https://developer.uber.com" target="_blank">developer.uber.com</a> → Sign In com a mesma conta de supplier.uber.com. Ao entrar no Dashboard, copia o <strong>Org ID</strong> que aparece no URL (UUID após <code>/organization/</code>).
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">3</div>
+        <div class="aj-step-body">
+          <strong>Pedir aprovação à Uber</strong><br>
+          Como a API é restrita, contacta <a href="https://help.uber.com/h/business" target="_blank">Uber Business Support</a> com mensagem tipo:<br>
+          <em>"Sou operador TVDE em Portugal (NIPC X, licença IMT Y). Org ID supplier.uber.com: [UUID]. Peço acesso à Vehicle Suppliers API para integrar com sistema interno de gestão. Casos de uso: sync motoristas, viaturas, pagamentos."</em><br>
+          Aguarda 1-7 dias.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">4</div>
+        <div class="aj-step-body">
+          <strong>Após aprovação — criar app</strong><br>
+          Em developer.uber.com → Applications → <strong>Create Application</strong> → escolhe a <strong>API Suite que a Uber te indicar</strong> (ex: Vehicles, Suppliers). Preenche nome (sem "Uber"), descrição (10-400 chars). Submete.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">5</div>
+        <div class="aj-step-body">
+          <strong>Copiar Client ID + Secret</strong><br>
+          Na app criada → <strong>Application ID</strong> = Client ID. Em <strong>Authentication → Client Secret</strong> → carrega no 👁 → copia. Guarda em gestor de passwords.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">6</div>
+        <div class="aj-step-body">
+          <strong>Configurar no FleetPay</strong><br>
+          <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> → <strong>Integração Uber API</strong> → cola Client ID + Secret + Org ID → 💾 Guardar → 🔄 Sincronizar.
+        </div>
+      </div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 8px;color:var(--paper)">Resolução de problemas</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.8;padding-left:20px">
+        <li><strong>"invalid_scope"</strong> → app criada com API Suite "Others" não tem acesso à Vehicle Suppliers API. Precisa criar nova app com a suite correta após aprovação Uber.</li>
+        <li><strong>"403 Forbidden"</strong> → Vehicle Suppliers API não foi aprovada para a tua conta. Insiste com a Uber.</li>
+        <li><strong>"Empresa não encontrada"</strong> → Org ID errado. Confirma o UUID no URL de developer.uber.com.</li>
+      </ul>
+    </div>
+  `;
+}
+
+function renderAjudaEmails() {
+  return `
+    <div class="aj-card">
+      <h2>📧 Emails automáticos via Resend <span class="aj-status aj-status-pending">Setup pendente</span></h2>
+      <div class="aj-sub">Envia 2 emails automáticos quando alguém preenche o form em oferta.html (Programa Embaixadores): 1 ao Lead com info do cupão, 1 ao Operador com alerta de lead novo. <a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">Guia completo</a>.</div>
+
+      <div class="aj-info">
+        💡 Sem este setup, o Programa Embaixadores funciona na mesma — leads aparecem em <a href="#" onclick="showPage('cupoes');return false">🎟️ Cupões → Indicações ★</a>, vês o badge dourado e tratas manualmente.
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">1</div>
+        <div class="aj-step-body">
+          <strong>Criar conta Resend</strong><br>
+          <a href="https://resend.com/signup" target="_blank">resend.com/signup</a> com email da empresa. Free: 100 emails/dia, 3000/mês. <strong>Cada empresa cliente FleetPay precisa da sua própria conta Resend</strong> (ou organização se tiver Pro).
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">2</div>
+        <div class="aj-step-body">
+          <strong>Adicionar domínio</strong><br>
+          Resend → Domains → <strong>Add Domain</strong> → escreve <code>fleetpay.pt</code> (ou o teu domínio) → Region <strong>Ireland</strong>. Vão aparecer 4 registos DNS (DKIM, SPF, MX, DMARC).
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">3</div>
+        <div class="aj-step-body">
+          <strong>Adicionar registos DNS no provedor do domínio</strong><br>
+          No registrar (ex: dominios.pt → Gestão DNS) cola os 4 registos. Espera 10-30 min para propagar. Volta ao Resend → "Verify" no domínio → fica verde.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">4</div>
+        <div class="aj-step-body">
+          <strong>Gerar API Key</strong><br>
+          Resend → API Keys → Create → nome <code>fleetpay</code> → permissão <strong>Sending access</strong> → copia (formato <code>re_...</code>).
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">5</div>
+        <div class="aj-step-body">
+          <strong>Aplicar SQL na Supabase</strong><br>
+          Cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/sql/oferta_emails_fix.sql" target="_blank">oferta_emails_fix.sql</a> em SQL Editor → Run.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">6</div>
+        <div class="aj-step-body">
+          <strong>Deploy Edge Function</strong><br>
+          Supabase → Edge Functions → Deploy a new function → nome <code>send-oferta-emails</code> → cola <a href="https://raw.githubusercontent.com/Instituto-31/fleetpay/master/supabase/functions/send-oferta-emails/index.ts" target="_blank">código</a> → Deploy.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">7</div>
+        <div class="aj-step-body">
+          <strong>Adicionar secret RESEND_API_KEY</strong><br>
+          Supabase → Project Settings → Edge Functions → Secrets → Add → name <code>RESEND_API_KEY</code> → value (cola a key) → Save. Opcional: <code>RESEND_FROM</code> = <code>FleetPay &lt;noreply@fleetpay.pt&gt;</code>.
+        </div>
+      </div>
+
+      <div class="aj-step">
+        <div class="aj-step-num">8</div>
+        <div class="aj-step-body">
+          <strong>Garantir empresa.email preenchido</strong><br>
+          O email do operador (onde vão chegar os alertas de lead) está na linha <code>empresas.email</code>. Edita em <a href="#" onclick="showPage('config');return false">⚙️ Configurações</a> ou directo na Supabase Table Editor.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAjudaCupoes() {
+  return `
+    <div class="aj-card">
+      <h2>🎟️ Cupões + Programa Embaixadores</h2>
+      <div class="aj-sub">Sistema de cross-selling (PSI, Formação, parceiros) com referrals automáticos. Motoristas partilham cupões com amigos e ganham créditos quando convertem.</div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin:18px 0 10px;color:var(--paper)">Fluxo completo</h3>
+      <ol style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><strong>Operador cria cupão</strong> em <a href="#" onclick="showPage('cupoes');return false">🎟️ Cupões</a> → + Novo cupão. Define categoria, valor, validade, <strong>bónus ao indicador</strong> (€/% que motorista ganha quando alguém converte) e marca <strong>📤 Partilhável</strong>.</li>
+        <li><strong>Motorista vê o cupão</strong> na app → Vantagens → carrega em <strong>📤 Partilhar com amigo</strong> → Web Share API ou WhatsApp/Email/Copiar.</li>
+        <li><strong>Amigo recebe link</strong> tipo <code>oferta.html?t=TOKEN</code> → vê cupão personalizado ("João partilhou contigo") → preenche nome/telefone/email.</li>
+        <li><strong>Operador recebe lead</strong>: badge dourado em 🎟️ Cupões da sidebar → tab <strong>Indicações ★</strong> mostra o lead. Telefonas/contactas.</li>
+        <li><strong>Conversão</strong>: quando fechas a venda, no admin carregas em <strong>✓ Converter</strong> → trigger automático atribui o bónus aos créditos do motorista.</li>
+        <li><strong>Motorista vê créditos</strong> no perfil dele: "★ Programa Embaixadores · 15,00€".</li>
+      </ol>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin:24px 0 10px;color:var(--paper)">Validação de cupão por parceiro</h3>
+      <p style="font-size:13px;color:var(--paper);line-height:1.7">Quando motorista <strong>reserva</strong> um cupão (não partilhar), recebe QR + token. Mostra ao parceiro que abre <code>validar.html?t=TOKEN</code> → identifica-se → confirma uso. Estado vira "usado" e aparece em Redenções.</p>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin:24px 0 10px;color:var(--paper)">Comunicações (canal interno)</h3>
+      <p style="font-size:13px;color:var(--paper);line-height:1.7">Em <a href="#" onclick="showPage('comunicacoes');return false">📣 Comunicações</a> crias avisos com prioridade (info / aviso / urgente) que aparecem no topo da app dos motoristas. Podes fixar avisos críticos e definir data de expiração.</p>
+
+      <div class="aj-info">
+        💡 <strong>Multi-tenant</strong>: cupões, comunicações e indicações são isolados por empresa via RLS. Operadores só vêm os seus.
+      </div>
+
+      <p style="font-size:12px;color:var(--sub);margin-top:18px">
+        Schemas: <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/cupoes_schema.sql" target="_blank">cupoes</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/comunicacoes_schema.sql" target="_blank">comunicacoes</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/indicacoes_schema.sql" target="_blank">indicacoes</a>
+      </p>
+    </div>
+  `;
+}
+
+function renderAjudaSuporte() {
+  return `
+    <div class="aj-card">
+      <h2>💬 Suporte e Recursos</h2>
+      <div class="aj-sub">Onde pedir ajuda quando algo não funcionar.</div>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Repositório de código</h3>
+      <p style="font-size:13px;color:var(--paper);line-height:1.7">Todo o FleetPay é open-source: <a href="https://github.com/Instituto-31/fleetpay" target="_blank">github.com/Instituto-31/fleetpay</a></p>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Documentação completa</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/UBER_SETUP.md" target="_blank">UBER_SETUP.md</a> — guia 9 passos para integração Uber</li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/blob/master/RESEND_SETUP.md" target="_blank">RESEND_SETUP.md</a> — guia setup emails Resend</li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/sql" target="_blank">sql/</a> — todos os schemas BD</li>
+        <li><a href="https://github.com/Instituto-31/fleetpay/tree/master/supabase/functions" target="_blank">supabase/functions/</a> — todas as Edge Functions</li>
+      </ul>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Logs e debug</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><strong>Frontend</strong>: F12 → Console → procura linhas com prefixo <code>[bolt-sync]</code>, <code>[uber-sync]</code>, <code>[oferta]</code>, etc.</li>
+        <li><strong>Edge Functions</strong>: Supabase Dashboard → Edge Functions → escolhe função → tab <strong>Logs</strong></li>
+        <li><strong>BD</strong>: Supabase Dashboard → Table Editor → vê dados directamente</li>
+      </ul>
+
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:16px;margin:18px 0 10px;color:var(--paper)">Suporte externo</h3>
+      <ul style="font-size:13px;color:var(--paper);line-height:1.9;padding-left:24px">
+        <li><strong>Bolt</strong>: <a href="https://help.bolt.eu/fleet-owners" target="_blank">help.bolt.eu/fleet-owners</a></li>
+        <li><strong>Uber</strong>: <a href="https://help.uber.com/h/business" target="_blank">help.uber.com/h/business</a></li>
+        <li><strong>Supabase</strong>: <a href="https://supabase.com/docs" target="_blank">supabase.com/docs</a> · <a href="https://supabase.com/dashboard/support/new" target="_blank">Submit ticket</a></li>
+        <li><strong>Resend</strong>: <a href="https://resend.com/docs" target="_blank">resend.com/docs</a> · <code>support@resend.com</code></li>
+      </ul>
+
+      <div class="aj-ok">
+        ✨ <strong>Versão FleetPay</strong>: 2.0.0 · Empresa actual: <strong>${empresa?.nome || '—'}</strong>${empresa?.plano ? ' · Plano <strong>'+empresa.plano.toUpperCase()+'</strong>' : ''}
+      </div>
+    </div>
+  `;
 }
 
 
