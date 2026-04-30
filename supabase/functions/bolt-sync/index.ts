@@ -190,29 +190,40 @@ serve(async (req) => {
     }
 
     async function fetchAllWindows(endpoint: string, key: string, maxPerPage: number, idField: string): Promise<{ list: any[], firstResp: any }> {
-      const seen = new Set<string>();
-      const merged: any[] = [];
-      let firstResp: any = null;
-
+      // Paraleliza as 6 janelas (Promise.all) — corta tempo total para o tempo da janela mais lenta
+      const t0 = Date.now();
+      const promises: Promise<{ index: number; list: any[]; firstResp: any; err?: string }>[] = [];
       for (let i = 0; i < NUM_WINDOWS; i++) {
         const endMs = nowMs - i * windowMs;
         const startMs = endMs - windowMs;
-        try {
-          const { list, firstResp: fr } = await fetchOneWindow(endpoint, key, maxPerPage, startMs, endMs);
-          if (i === 0 && firstResp === null) firstResp = fr;
-          for (const item of list) {
-            const id = String(item.id || item[idField] || item.uuid || JSON.stringify(item).slice(0, 50));
-            if (!seen.has(id)) {
-              seen.add(id);
-              merged.push(item);
-            }
-          }
-          console.log(`[bolt-sync] ${endpoint} janela ${i + 1}/${NUM_WINDOWS}: +${list.length} (total único: ${merged.length})`);
-        } catch (e) {
-          console.error(`[bolt-sync] ${endpoint} janela ${i + 1} falhou:`, (e as Error).message);
-          // Não bloqueia — continua para a próxima janela
-        }
+        promises.push(
+          fetchOneWindow(endpoint, key, maxPerPage, startMs, endMs)
+            .then(r => ({ index: i, list: r.list, firstResp: r.firstResp }))
+            .catch(e => ({ index: i, list: [], firstResp: null, err: (e as Error).message }))
+        );
       }
+      const results = await Promise.all(promises);
+      console.log(`[bolt-sync] ${endpoint} ${NUM_WINDOWS} janelas em ${Date.now() - t0}ms`);
+
+      const seen = new Set<string>();
+      const merged: any[] = [];
+      let firstResp: any = null;
+      for (const r of results) {
+        if (r.err) {
+          console.error(`[bolt-sync] ${endpoint} janela ${r.index + 1}: ${r.err}`);
+          continue;
+        }
+        if (r.index === 0) firstResp = r.firstResp;
+        for (const item of r.list) {
+          const id = String(item.id || item[idField] || item.uuid || JSON.stringify(item).slice(0, 50));
+          if (!seen.has(id)) {
+            seen.add(id);
+            merged.push(item);
+          }
+        }
+        console.log(`[bolt-sync] ${endpoint} janela ${r.index + 1}/${NUM_WINDOWS}: +${r.list.length}`);
+      }
+      console.log(`[bolt-sync] ${endpoint} total único: ${merged.length}`);
       return { list: merged, firstResp };
     }
 
