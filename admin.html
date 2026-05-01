@@ -665,6 +665,10 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('comunicacoes')">
           <span class="nav-icon">📣</span> Comunicações
         </button>
+        <button class="nav-item" onclick="showPage('mensagens')" id="nav-mensagens">
+          <span class="nav-icon">💬</span> Mensagens
+          <span class="nav-badge" id="badge-mensagens" style="display:none">0</span>
+        </button>
         <button class="nav-item" onclick="showPage('config')">
           <span class="nav-icon">⚙️</span> Configurações
         </button>
@@ -922,6 +926,8 @@ async function calcularAlertas() {
 
   // Badge de leads novos (Cupões → Indicações)
   await calcularBadgeCupoes();
+  // Badge de mensagens não-lidas (motorista → operador)
+  await calcularBadgeMensagens();
 }
 
 async function calcularBadgeCupoes() {
@@ -962,7 +968,8 @@ function showPage(page) {
     motoristas:'Motoristas', frota:'Frota', contratos:'Contratos',
     csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
-    comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação'
+    comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação',
+    mensagens:'Mensagens'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -983,7 +990,10 @@ function showPage(page) {
     cupoes: renderCupoes,
     comunicacoes: renderComunicacoes,
     ajuda: renderAjuda,
+    mensagens: renderMensagens,
   };
+  // Parar polling de mensagens quando saímos da página
+  if (page !== 'mensagens') pararMensagensPolling();
   // Parar timers de páginas anteriores
   if (page !== 'dashboard') pararLiveTickAdmin();
   if (page !== 'tempos') pararTemposTickAdmin();
@@ -5569,6 +5579,268 @@ async function apagarComunicacao(id) {
   pintarComunicacoes();
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// ── PÁGINA: MENSAGENS (chat motorista ↔ operador) ──
+// ═══════════════════════════════════════════════════════════
+let mensagensConversas = [];        // [{motorista, ultima_mensagem, nao_lidas}]
+let mensagensThread = [];           // mensagens da conversa actual
+let mensagensSelectedId = null;     // motorista_id da conversa aberta
+let mensagensPollInterval = null;
+
+async function renderMensagens() {
+  document.getElementById('topbar-actions').innerHTML = '';
+  document.getElementById('content').innerHTML = `
+    <style>
+      .msg-layout{display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100vh - 130px);min-height:500px}
+      .msg-list{background:var(--card);border:1px solid var(--line);border-radius:6px;overflow-y:auto}
+      .msg-list-header{padding:12px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;position:sticky;top:0;background:var(--card);z-index:1}
+      .msg-conv{padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:background .15s}
+      .msg-conv:hover{background:rgba(255,255,255,0.02)}
+      .msg-conv.active{background:rgba(200,146,42,0.08);border-left:3px solid var(--gold)}
+      .msg-conv-name{font-size:13px;color:var(--paper);font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:6px}
+      .msg-conv-preview{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .msg-conv-meta{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:.5px}
+      .msg-unread{background:var(--gold);color:#000;border-radius:100px;padding:1px 7px;font-size:9px;font-family:var(--mono);font-weight:700}
+      .msg-thread{background:var(--card);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+      .msg-thread-header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+      .msg-thread-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+      .msg-thread-input{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0;background:var(--card)}
+      .msg-thread-input textarea{flex:1;padding:9px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:13px;resize:none;min-height:40px;max-height:120px}
+      .msg-thread-input textarea:focus{outline:none;border-color:var(--gold)}
+      .msg-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
+      .msg-bubble-mine{align-self:flex-end;background:var(--gold);color:#000;border-bottom-right-radius:4px}
+      .msg-bubble-them{align-self:flex-start;background:rgba(255,255,255,0.05);color:var(--paper);border-bottom-left-radius:4px}
+      .msg-bubble-meta{font-family:var(--mono);font-size:9px;color:var(--sub2);letter-spacing:.5px;margin-top:4px;opacity:.7}
+      .msg-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--sub2);font-family:var(--mono);font-size:12px;letter-spacing:.5px;gap:12px}
+      .msg-day-sep{text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase;padding:8px 0;border-bottom:1px dashed var(--line);margin:8px 0}
+      @media (max-width:768px){
+        .msg-layout{grid-template-columns:1fr;height:auto}
+        .msg-list{max-height:300px}
+        .msg-thread{min-height:400px}
+      }
+    </style>
+    <div class="msg-layout">
+      <div class="msg-list" id="msg-list">
+        <div class="msg-list-header">💬 Conversas</div>
+        <div class="loading-row"><div class="spinner"></div></div>
+      </div>
+      <div class="msg-thread" id="msg-thread">
+        <div class="msg-empty">
+          <div style="font-size:48px">💬</div>
+          <div>Selecciona uma conversa à esquerda</div>
+        </div>
+      </div>
+    </div>
+  `;
+  await carregarConversasMensagens();
+  iniciarMensagensPolling();
+}
+
+function pararMensagensPolling() {
+  if (mensagensPollInterval) {
+    clearInterval(mensagensPollInterval);
+    mensagensPollInterval = null;
+  }
+}
+
+function iniciarMensagensPolling() {
+  pararMensagensPolling();
+  mensagensPollInterval = setInterval(async () => {
+    await carregarConversasMensagens();
+    if (mensagensSelectedId) await carregarThreadMensagens(mensagensSelectedId, true);
+  }, 30000);
+}
+
+async function carregarConversasMensagens() {
+  // Buscar todos os motoristas + última mensagem + nº não-lidas
+  if (!motoristas?.length) await carregarDados();
+
+  const { data: msgs } = await db.from('mensagens')
+    .select('id, motorista_id, autor, mensagem, criado_em, lida_em')
+    .eq('empresa_id', empresa.id)
+    .order('criado_em', { ascending: false })
+    .limit(500);
+
+  const porMotorista = {};
+  (msgs || []).forEach(m => {
+    if (!porMotorista[m.motorista_id]) porMotorista[m.motorista_id] = { ultima: m, nao_lidas: 0 };
+    if (m.autor === 'motorista' && !m.lida_em) porMotorista[m.motorista_id].nao_lidas++;
+  });
+
+  mensagensConversas = motoristas.map(mot => ({
+    motorista: mot,
+    ultima: porMotorista[mot.id]?.ultima || null,
+    nao_lidas: porMotorista[mot.id]?.nao_lidas || 0,
+  })).sort((a, b) => {
+    if (a.nao_lidas && !b.nao_lidas) return -1;
+    if (!a.nao_lidas && b.nao_lidas) return 1;
+    const ta = a.ultima?.criado_em || '';
+    const tb = b.ultima?.criado_em || '';
+    return tb.localeCompare(ta);
+  });
+
+  pintarConversas();
+  await calcularBadgeMensagens();
+}
+
+function pintarConversas() {
+  const el = document.getElementById('msg-list');
+  if (!el) return;
+  if (!mensagensConversas.length) {
+    el.innerHTML = `<div class="msg-list-header">💬 Conversas</div><div class="msg-empty" style="height:200px"><div>Sem motoristas</div></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="msg-list-header">💬 Conversas (${mensagensConversas.length})</div>
+    ${mensagensConversas.map(c => {
+      const ult = c.ultima;
+      const meta = ult ? new Date(ult.criado_em).toLocaleString('pt-PT', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+      const prefix = ult ? (ult.autor === 'motorista' ? '👤 ' : '✓ ') : '';
+      const preview = ult ? (prefix + (ult.mensagem.length > 50 ? ult.mensagem.slice(0, 50) + '…' : ult.mensagem)) : 'Sem mensagens';
+      return `
+        <div class="msg-conv ${mensagensSelectedId === c.motorista.id ? 'active' : ''}" onclick="abrirConversa('${c.motorista.id}')">
+          <div class="msg-conv-name">
+            <span>${c.motorista.nome}</span>
+            ${c.nao_lidas > 0 ? `<span class="msg-unread">${c.nao_lidas}</span>` : ''}
+          </div>
+          <div class="msg-conv-preview">${preview}</div>
+          <div class="msg-conv-meta"><span>${meta}</span></div>
+        </div>
+      `;
+    }).join('')}
+  `;
+}
+
+async function abrirConversa(motoristaId) {
+  mensagensSelectedId = motoristaId;
+  pintarConversas();
+  await carregarThreadMensagens(motoristaId);
+}
+
+async function carregarThreadMensagens(motoristaId, silencioso = false) {
+  const mot = motoristas.find(m => m.id === motoristaId);
+  if (!mot) return;
+  if (!silencioso) {
+    document.getElementById('msg-thread').innerHTML = `<div class="loading-row"><div class="spinner"></div></div>`;
+  }
+
+  const { data, error } = await db.from('mensagens')
+    .select('*')
+    .eq('motorista_id', motoristaId)
+    .eq('empresa_id', empresa.id)
+    .is('apagada_em', null)
+    .order('criado_em', { ascending: true })
+    .limit(500);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  mensagensThread = data || [];
+
+  // Marcar mensagens do motorista como lidas (somos operador, lemos as mensagens dele)
+  const naoLidasIds = mensagensThread.filter(m => m.autor === 'motorista' && !m.lida_em).map(m => m.id);
+  if (naoLidasIds.length) {
+    await db.from('mensagens').update({ lida_em: new Date().toISOString() }).in('id', naoLidasIds);
+    // Refresh badge sem recarregar tudo
+    setTimeout(() => calcularBadgeMensagens(), 200);
+  }
+
+  pintarThread(mot, silencioso);
+}
+
+function pintarThread(mot, silencioso) {
+  const el = document.getElementById('msg-thread');
+  if (!el) return;
+  let lastDate = '';
+  const bubbles = mensagensThread.map(m => {
+    const date = new Date(m.criado_em).toLocaleDateString('pt-PT');
+    let sep = '';
+    if (date !== lastDate) {
+      sep = `<div class="msg-day-sep">${date}</div>`;
+      lastDate = date;
+    }
+    const isMine = m.autor === 'operador' || m.autor === 'superadmin';
+    const time = new Date(m.criado_em).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+    const lidaIcon = isMine ? (m.lida_em ? '✓✓' : '✓') : '';
+    return sep + `
+      <div class="msg-bubble ${isMine?'msg-bubble-mine':'msg-bubble-them'}">
+        ${m.mensagem}
+        <div class="msg-bubble-meta">${m.autor_nome || m.autor} · ${time} ${lidaIcon}</div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="msg-thread-header">
+      <div>
+        <div style="font-family:var(--serif);font-size:18px;font-weight:300">${mot.nome}</div>
+        <div style="font-size:11px;color:var(--sub);font-family:var(--mono);letter-spacing:.5px;margin-top:2px">
+          ${mot.email || ''} ${mot.telefone ? '· '+mot.telefone : ''}
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="modalMotorista('${mot.id}')">📋 Ficha</button>
+    </div>
+    <div class="msg-thread-body" id="msg-thread-body">
+      ${mensagensThread.length === 0 ? `
+        <div class="msg-empty">
+          <div style="font-size:42px">👋</div>
+          <div>Sem mensagens — diz olá ao ${mot.nome.split(' ')[0]}!</div>
+        </div>
+      ` : bubbles}
+    </div>
+    <div class="msg-thread-input">
+      <textarea id="msg-input" placeholder="Escreve uma mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensagem('${mot.id}')}"></textarea>
+      <button class="btn btn-gold" onclick="enviarMensagem('${mot.id}')" style="align-self:flex-end">Enviar →</button>
+    </div>
+  `;
+
+  // Scroll to bottom (a menos que seja silencioso E user já tenha scrolled)
+  const body = document.getElementById('msg-thread-body');
+  if (body && !silencioso) {
+    body.scrollTop = body.scrollHeight;
+  } else if (body) {
+    // Se silencioso, só scroll se já estiver perto do fim
+    const distanciaFim = body.scrollHeight - body.scrollTop - body.clientHeight;
+    if (distanciaFim < 100) body.scrollTop = body.scrollHeight;
+  }
+}
+
+async function enviarMensagem(motoristaId) {
+  const input = document.getElementById('msg-input');
+  const texto = (input?.value || '').trim();
+  if (!texto) return;
+  input.disabled = true;
+  const autor = perfil.role === 'superadmin' ? 'superadmin' : 'operador';
+  const { error } = await db.from('mensagens').insert({
+    empresa_id: empresa.id,
+    motorista_id: motoristaId,
+    autor,
+    autor_perfil_id: currentUser.id,
+    autor_nome: perfil.nome || currentUser.email.split('@')[0],
+    mensagem: texto,
+  });
+  input.disabled = false;
+  if (error) { toast('Erro ao enviar: '+error.message,'error'); return; }
+  input.value = '';
+  await carregarThreadMensagens(motoristaId);
+  await carregarConversasMensagens();
+}
+
+async function calcularBadgeMensagens() {
+  try {
+    const { count } = await db.from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresa.id)
+      .eq('autor', 'motorista')
+      .is('lida_em', null);
+    const badge = document.getElementById('badge-mensagens');
+    if (!badge) return;
+    if (count && count > 0) {
+      badge.textContent = count;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) { /* tabela talvez ainda não exista */ }
+}
 
 // ═══════════════════════════════════════════════════════════
 // ── PÁGINA: AJUDA & DOCUMENTAÇÃO ──

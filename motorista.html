@@ -344,6 +344,9 @@ let avisos = [];                      // comunicacoes ativas do operador
 let cupoesDisponiveis = [];           // cupões ativos da empresa visíveis ao motorista
 let minhasRedencoes = [];             // redenções já feitas pelo motorista
 let minhasIndicacoes = [];            // indicações que o motorista partilhou (referrals)
+let chatMensagens = [];               // mensagens do chat com o operador
+let chatNaoLidas = 0;                 // mensagens não-lidas do operador
+let chatPollInterval = null;
 const LIMITE_LEGAL_SEG = 10 * 3600;
 const ALERTA_AMARELO = 8 * 3600;
 const ALERTA_LARANJA = 9.5 * 3600;
@@ -483,6 +486,16 @@ async function carregarAvisosECupoes() {
     const { data: m } = await db.from('motoristas').select('creditos').eq('id', motorista.id).single();
     if (m) motorista.creditos = m.creditos || 0;
   } catch(e) { minhasIndicacoes = []; }
+
+  // Mensagens do operador não-lidas (badge)
+  try {
+    const { count } = await db.from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .eq('motorista_id', motorista.id)
+      .in('autor', ['operador','superadmin'])
+      .is('lida_em', null);
+    chatNaoLidas = count || 0;
+  } catch(e) { chatNaoLidas = 0; }
 }
 
 async function verificarCompliance() {
@@ -775,6 +788,11 @@ function renderApp() {
         <span class="nav-icon">🎟️</span>
         Vantagens
         ${cupoesDisponiveis.length ? `<span style="position:absolute;top:6px;right:18px;background:var(--gold);color:#000;border-radius:100px;font-size:9px;padding:1px 6px;font-family:var(--mono);font-weight:700">${cupoesDisponiveis.length}</span>` : ''}
+      </button>
+      <button class="nav-item" onclick="abrirChat()">
+        <span class="nav-icon">💬</span>
+        Chat
+        ${chatNaoLidas > 0 ? `<span style="position:absolute;top:6px;right:18px;background:#e85a5a;color:#fff;border-radius:100px;font-size:9px;padding:1px 6px;font-family:var(--mono);font-weight:700">${chatNaoLidas}</span>` : ''}
       </button>
       <button class="nav-item" onclick="abrirPerfil()">
         <span class="nav-icon">👤</span>
@@ -2172,6 +2190,141 @@ function mostrarMeuCupao(token, cupaoId) {
   // QR code via API pública (sem dependência js extra)
   const qrEl = overlay.querySelector(`#qr-cupao-${token.slice(0,8)}`);
   if (qrEl) qrEl.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}" alt="QR" width="180" height="180" style="display:block">`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ── CHAT motorista ↔ operador ──
+// ═══════════════════════════════════════════════════════════
+
+async function abrirChat() {
+  const overlay = document.createElement('div');
+  overlay.id = 'chat-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);z-index:500;display:flex;flex-direction:column';
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:300">💬 Chat com operador</div>
+        <div style="font-size:11px;color:var(--sub);margin-top:2px;font-family:var(--mono);letter-spacing:.5px">${motorista?.empresas?.nome || 'FleetPay'}</div>
+      </div>
+      <button onclick="fecharChat()" style="background:none;border:none;color:var(--sub);font-size:22px;cursor:pointer;padding:4px 12px">✕</button>
+    </div>
+    <div id="chat-thread" style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,var(--ink) 0%,#0e0c08 100%)">
+      <div class="spinner-lg" style="margin:auto"></div>
+    </div>
+    <div style="background:var(--ink);border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:8px;flex-shrink:0">
+      <textarea id="chat-input" placeholder="Escreve uma mensagem..." rows="1"
+        style="flex:1;padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:6px;color:var(--paper);font-family:var(--sans);font-size:14px;resize:none;max-height:120px"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChatMotorista()}"></textarea>
+      <button onclick="enviarChatMotorista()" style="background:var(--gold);color:#000;border:none;border-radius:6px;padding:0 18px;font-family:var(--mono);font-size:11px;letter-spacing:1px;font-weight:700;cursor:pointer">→</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  await carregarChatThread();
+  iniciarChatPolling();
+}
+
+function fecharChat() {
+  pararChatPolling();
+  const o = document.getElementById('chat-overlay');
+  if (o) o.remove();
+  // Recarregar dados para refrescar badge
+  carregarAvisosECupoes().then(() => renderApp());
+}
+
+function pararChatPolling() {
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+    chatPollInterval = null;
+  }
+}
+
+function iniciarChatPolling() {
+  pararChatPolling();
+  chatPollInterval = setInterval(() => {
+    carregarChatThread(true);
+  }, 20000);
+}
+
+async function carregarChatThread(silencioso = false) {
+  const { data, error } = await db.from('mensagens')
+    .select('*')
+    .eq('motorista_id', motorista.id)
+    .is('apagada_em', null)
+    .order('criado_em', { ascending: true })
+    .limit(500);
+  if (error) { console.warn('chat:', error.message); return; }
+  chatMensagens = data || [];
+
+  // Marcar mensagens do operador como lidas
+  const naoLidasIds = chatMensagens.filter(m => (m.autor === 'operador' || m.autor === 'superadmin') && !m.lida_em).map(m => m.id);
+  if (naoLidasIds.length) {
+    await db.from('mensagens').update({ lida_em: new Date().toISOString() }).in('id', naoLidasIds);
+    chatNaoLidas = 0;
+  }
+
+  pintarChatThread(silencioso);
+}
+
+function pintarChatThread(silencioso) {
+  const el = document.getElementById('chat-thread');
+  if (!el) return;
+  if (chatMensagens.length === 0) {
+    el.innerHTML = `
+      <div style="margin:auto;text-align:center;color:var(--sub2);font-family:var(--mono);font-size:12px;letter-spacing:.5px;line-height:2">
+        <div style="font-size:48px;margin-bottom:8px">👋</div>
+        <div>Sem mensagens ainda</div>
+        <div style="font-size:10px;margin-top:6px">Escreve abaixo para falar com o operador</div>
+      </div>`;
+    return;
+  }
+  let lastDate = '';
+  el.innerHTML = chatMensagens.map(m => {
+    const date = new Date(m.criado_em).toLocaleDateString('pt-PT');
+    let sep = '';
+    if (date !== lastDate) {
+      sep = `<div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub2);letter-spacing:1px;text-transform:uppercase;padding:8px 0;border-bottom:1px dashed var(--line);margin:8px 0">${date}</div>`;
+      lastDate = date;
+    }
+    const isMine = m.autor === 'motorista';
+    const time = new Date(m.criado_em).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+    const lidaIcon = isMine ? (m.lida_em ? '✓✓' : '✓') : '';
+    const bubbleStyle = isMine
+      ? 'align-self:flex-end;background:var(--gold);color:#000;border-bottom-right-radius:4px'
+      : 'align-self:flex-start;background:rgba(255,255,255,0.06);color:var(--paper);border-bottom-left-radius:4px';
+    return sep + `
+      <div style="max-width:80%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;${bubbleStyle}">
+        ${m.mensagem}
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.5px;margin-top:4px;opacity:.7">${m.autor_nome||m.autor} · ${time} ${lidaIcon}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Scroll to bottom
+  if (!silencioso) {
+    el.scrollTop = el.scrollHeight;
+  } else {
+    const distanciaFim = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanciaFim < 100) el.scrollTop = el.scrollHeight;
+  }
+}
+
+async function enviarChatMotorista() {
+  const input = document.getElementById('chat-input');
+  const texto = (input?.value || '').trim();
+  if (!texto) return;
+  input.disabled = true;
+  const { error } = await db.from('mensagens').insert({
+    empresa_id: motorista.empresa_id,
+    motorista_id: motorista.id,
+    autor: 'motorista',
+    autor_perfil_id: currentUser.id,
+    autor_nome: motorista.nome,
+    mensagem: texto,
+  });
+  input.disabled = false;
+  if (error) { alert('Erro ao enviar: '+error.message); return; }
+  input.value = '';
+  await carregarChatThread();
 }
 
 init();
