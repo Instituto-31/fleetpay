@@ -3,145 +3,285 @@
 <head>
 <meta charset="UTF-8">
 <title>Gerar ícones FleetPay</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,300;1,500;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;700;900&family=Playfair+Display:wght@900&family=Outfit:wght@900&display=swap" rel="stylesheet">
 <style>
-  body{font-family:system-ui;background:#0a0905;color:#f7f4ef;padding:40px;text-align:center;margin:0}
-  h1{color:#c8922a;font-weight:300;font-family:'Cormorant Garamond',serif;font-size:36px;margin-bottom:8px}
-  .sub{color:#a89c87;font-size:13px;margin-bottom:30px}
-  .preview{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;margin:30px 0}
-  .preview canvas{border-radius:18%;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
-  button{background:linear-gradient(180deg,#c8922a,#a87a23);color:#000;border:none;padding:14px 28px;border-radius:8px;font-weight:700;cursor:pointer;margin:5px;font-size:14px;letter-spacing:.5px;box-shadow:0 4px 14px rgba(200,146,42,0.3)}
-  button:hover{transform:translateY(-1px)}
-  .info{max-width:640px;margin:20px auto;font-size:14px;color:#a89c87;line-height:1.7}
-  .label{font-size:11px;color:#a89c87;margin-top:10px;font-family:'Courier New',monospace;letter-spacing:.5px}
-  .variant h2{color:#c8922a;font-weight:300;font-family:'Cormorant Garamond',serif;font-size:24px;margin:30px 0 12px}
+  body{font-family:'Inter',system-ui;background:#1a1714;color:#f7f4ef;padding:30px;margin:0}
+  h1{color:#c8922a;font-weight:300;font-family:'Cormorant Garamond',serif;font-size:32px;text-align:center;margin-bottom:6px}
+  .sub{color:#a89c87;font-size:13px;text-align:center;margin-bottom:30px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;max-width:1400px;margin:0 auto}
+  .card{background:#0a0905;border:1px solid rgba(200,146,42,0.15);border-radius:12px;padding:18px;text-align:center;transition:border-color .2s}
+  .card:hover{border-color:#c8922a}
+  .card canvas{border-radius:18%;box-shadow:0 6px 20px rgba(0,0,0,0.5);display:block;margin:0 auto 14px}
+  .card h3{color:#c8922a;font-weight:500;font-size:15px;margin:0 0 4px;font-family:'Cormorant Garamond',serif;font-style:italic}
+  .card p{color:#a89c87;font-size:11px;margin:0 0 14px;font-family:'Courier New',monospace;letter-spacing:.5px}
+  .btn{background:linear-gradient(180deg,#c8922a,#a87a23);color:#000;border:none;padding:10px 18px;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px;letter-spacing:.5px;width:100%}
+  .btn:hover{transform:translateY(-1px)}
 </style>
 </head>
 <body>
-<h1>FleetPay — Ícones PWA</h1>
-<p class="sub">Monograma serif itálico em dourado, com anel duplo + glow subtil</p>
+<h1>FleetPay — escolhe o teu ícone</h1>
+<p class="sub">8 variantes diferentes. Vê todos, escolhe um, e carrega o respectivo "Descarregar este" — descarrega 4 PNGs (192/512 + maskable).</p>
 
-<div class="variant">
-  <div class="preview" id="preview-dark"></div>
-</div>
-
-<button onclick="downloadAll()">⬇️ Descarregar todos (4 ícones)</button>
-
-<p class="info">🌑 Fundo gradiente preto profundo · 🟡 Anel duplo dourado · ✨ "FP" serif itálico com glow · 🎨 Maskable com safe zone para Android</p>
+<div class="grid" id="grid"></div>
 
 <script>
-const ICONS = [
-  { name: 'icon-192.png',          size: 192, maskable: false },
-  { name: 'icon-512.png',          size: 512, maskable: false },
-  { name: 'icon-maskable-192.png', size: 192, maskable: true  },
-  { name: 'icon-maskable-512.png', size: 512, maskable: true  },
+// === DESIGNS ===
+const DESIGNS = [
+  {
+    id: 'gold-bg-fp',
+    name: 'Dourado clássico',
+    desc: 'Fundo dourado sólido + FP preto',
+    draw(ctx, size) {
+      // BG dourado com leve gradient
+      const bg = ctx.createLinearGradient(0, 0, 0, size);
+      bg.addColorStop(0, '#e0a93e');
+      bg.addColorStop(1, '#a87a23');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+      // FP preto serif
+      ctx.fillStyle = '#0a0905';
+      ctx.font = `italic 600 ${size*0.5}px "Cormorant Garamond",serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FP', size/2, size*0.52);
+    }
+  },
+  {
+    id: 'minimal-circle',
+    name: 'Minimalista',
+    desc: 'Só anel dourado em fundo preto',
+    draw(ctx, size) {
+      ctx.fillStyle = '#0a0905';
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = '#c8922a';
+      ctx.lineWidth = size * 0.085;
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size*0.34, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  },
+  {
+    id: 'big-f',
+    name: 'F gigante',
+    desc: 'Letra F serif itálico, fundo preto',
+    draw(ctx, size) {
+      const bg = ctx.createRadialGradient(size/2, size*0.35, size*0.05, size/2, size/2, size*0.65);
+      bg.addColorStop(0, '#1a1407');
+      bg.addColorStop(1, '#040302');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#c8922a';
+      ctx.font = `italic 600 ${size*0.92}px "Playfair Display","Cormorant Garamond",serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('F', size/2, size*0.55);
+    }
+  },
+  {
+    id: 'gradient-mesh',
+    name: 'Gradient moderno',
+    desc: 'Mesh dourado moderno + FP',
+    draw(ctx, size) {
+      // Multiple radial gradients
+      const g1 = ctx.createRadialGradient(size*0.3, size*0.3, 0, size*0.3, size*0.3, size*0.7);
+      g1.addColorStop(0, '#e0a93e');
+      g1.addColorStop(1, '#0a0905');
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, size, size);
+      const g2 = ctx.createRadialGradient(size*0.7, size*0.75, 0, size*0.7, size*0.75, size*0.5);
+      g2.addColorStop(0, 'rgba(200,146,42,0.5)');
+      g2.addColorStop(1, 'rgba(200,146,42,0)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, size, size);
+      // FP branco
+      ctx.fillStyle = '#fff';
+      ctx.font = `900 ${size*0.32}px "Outfit","Inter",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FP', size/2, size*0.55);
+    }
+  },
+  {
+    id: 'coin-medal',
+    name: 'Moeda/Medalha',
+    desc: 'Efeito 3D moeda dourada',
+    draw(ctx, size) {
+      ctx.fillStyle = '#0a0905';
+      ctx.fillRect(0, 0, size, size);
+      const cx = size/2, cy = size/2, r = size*0.42;
+      // Outer ring with shadow
+      ctx.shadowColor = 'rgba(200,146,42,0.5)';
+      ctx.shadowBlur = size*0.05;
+      // Disco com gradient para parecer moeda
+      const grad = ctx.createRadialGradient(cx-r*0.3, cy-r*0.3, 0, cx, cy, r);
+      grad.addColorStop(0, '#f5d480');
+      grad.addColorStop(0.5, '#c8922a');
+      grad.addColorStop(1, '#7a5a18');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // Inner border
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = size*0.012;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r*0.85, 0, Math.PI * 2);
+      ctx.stroke();
+      // FP preto
+      ctx.fillStyle = '#0a0905';
+      ctx.font = `italic 600 ${size*0.32}px "Cormorant Garamond",serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FP', cx, cy + size*0.01);
+    }
+  },
+  {
+    id: 'hexagon',
+    name: 'Hexágono',
+    desc: 'Hexágono dourado moderno',
+    draw(ctx, size) {
+      ctx.fillStyle = '#0a0905';
+      ctx.fillRect(0, 0, size, size);
+      const cx = size/2, cy = size/2, r = size*0.4;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI/3) * i - Math.PI/2;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, cy-r, 0, cy+r);
+      grad.addColorStop(0, '#e0a93e');
+      grad.addColorStop(1, '#a87a23');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // FP
+      ctx.fillStyle = '#0a0905';
+      ctx.font = `900 ${size*0.32}px "Outfit",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FP', cx, cy + size*0.01);
+    }
+  },
+  {
+    id: 'monogram-elegant',
+    name: 'Monograma luxo',
+    desc: 'F entrelaçado P em fundo escuro',
+    draw(ctx, size) {
+      const bg = ctx.createLinearGradient(0, 0, size, size);
+      bg.addColorStop(0, '#1a1407');
+      bg.addColorStop(1, '#0a0905');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+      // Frame fino dourado
+      ctx.strokeStyle = '#c8922a';
+      ctx.lineWidth = size*0.012;
+      const m = size * 0.12;
+      ctx.strokeRect(m, m, size-m*2, size-m*2);
+      // Border interno mais fino
+      const m2 = size * 0.16;
+      ctx.lineWidth = size*0.005;
+      ctx.strokeRect(m2, m2, size-m2*2, size-m2*2);
+      // F itálico grande
+      ctx.fillStyle = '#c8922a';
+      ctx.font = `italic 400 ${size*0.55}px "Cormorant Garamond","Playfair Display",serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FP', size/2, size*0.55);
+    }
+  },
+  {
+    id: 'simple-bold',
+    name: 'Bold sem-serif',
+    desc: '"FleetPay" texto pequeno bold',
+    draw(ctx, size) {
+      const bg = ctx.createLinearGradient(0, 0, 0, size);
+      bg.addColorStop(0, '#0a0905');
+      bg.addColorStop(1, '#1a1407');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+      // Risco dourado horizontal central decorativo
+      ctx.fillStyle = '#c8922a';
+      ctx.fillRect(size*0.2, size*0.43, size*0.6, size*0.005);
+      // "Fleet" em cima
+      ctx.fillStyle = '#c8922a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `300 ${size*0.18}px "Cormorant Garamond",serif`;
+      ctx.fillText('Fleet', size/2, size*0.36);
+      // "Pay" baixo, itálico
+      ctx.font = `italic 400 ${size*0.18}px "Cormorant Garamond",serif`;
+      ctx.fillText('Pay', size/2, size*0.55);
+      // Símbolo € dourado pequeno em cima
+      ctx.font = `300 ${size*0.14}px "Cormorant Garamond",serif`;
+      ctx.fillStyle = 'rgba(200,146,42,0.6)';
+      ctx.fillText('€', size/2, size*0.7);
+    }
+  },
 ];
 
-function drawIcon(canvas, size, maskable) {
-  const ctx = canvas.getContext('2d');
-  canvas.width = size;
-  canvas.height = size;
+const SIZES = [
+  { suffix: '192',          size: 192, maskable: false },
+  { suffix: '512',          size: 512, maskable: false },
+  { suffix: 'maskable-192', size: 192, maskable: true  },
+  { suffix: 'maskable-512', size: 512, maskable: true  },
+];
 
-  // Background gradient radial preto profundo
-  const bgGrad = ctx.createRadialGradient(size/2, size*0.42, size*0.05, size/2, size/2, size*0.7);
-  bgGrad.addColorStop(0, '#1a1407');
-  bgGrad.addColorStop(0.5, '#0d0b06');
-  bgGrad.addColorStop(1, '#040302');
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, size, size);
-
-  // Vignette dourada subtil no topo
-  const vignette = ctx.createRadialGradient(size/2, size*0.3, 0, size/2, size*0.3, size*0.6);
-  vignette.addColorStop(0, 'rgba(200,146,42,0.10)');
-  vignette.addColorStop(1, 'rgba(200,146,42,0)');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, size, size);
-
-  // Padding (maskable precisa safe zone)
-  const padding = maskable ? size * 0.18 : size * 0.08;
-  const drawSize = size - padding * 2;
-  const cx = size / 2;
-  const cy = size / 2;
-  const rOuter = drawSize / 2 - drawSize * 0.02;
-  const rInner = rOuter - drawSize * 0.075;
-
-  // Anel externo fino
-  ctx.shadowColor = 'rgba(200,146,42,0.35)';
-  ctx.shadowBlur = drawSize * 0.06;
-  ctx.strokeStyle = '#c8922a';
-  ctx.lineWidth = drawSize * 0.012;
-  ctx.beginPath();
-  ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Anel interno mais grosso, gradient dourado
-  const ringGrad = ctx.createLinearGradient(cx, cy - rInner, cx, cy + rInner);
-  ringGrad.addColorStop(0, '#e0a93e');
-  ringGrad.addColorStop(0.5, '#c8922a');
-  ringGrad.addColorStop(1, '#9a7220');
-  ctx.strokeStyle = ringGrad;
-  ctx.lineWidth = drawSize * 0.048;
-  ctx.beginPath();
-  ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Monograma "FP" — serif itálico
-  const fontSize = drawSize * 0.42;
-  ctx.font = `italic 500 ${fontSize}px "Cormorant Garamond", "Times New Roman", Georgia, serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(200,146,42,0.5)';
-  ctx.shadowBlur = drawSize * 0.04;
-
-  // Texto com gradient vertical dourado
-  const textGrad = ctx.createLinearGradient(cx, cy - fontSize/2, cx, cy + fontSize/2);
-  textGrad.addColorStop(0, '#f0c869');
-  textGrad.addColorStop(0.5, '#e0a93e');
-  textGrad.addColorStop(1, '#a87a23');
-  ctx.fillStyle = textGrad;
-  ctx.fillText('FP', cx, cy - fontSize * 0.02);
-  ctx.shadowBlur = 0;
-
-  // Linha decorativa subtil abaixo
-  const lineY = cy + fontSize * 0.32;
-  const lineW = fontSize * 0.5;
-  const accentGrad = ctx.createLinearGradient(cx - lineW/2, lineY, cx + lineW/2, lineY);
-  accentGrad.addColorStop(0, 'rgba(200,146,42,0)');
-  accentGrad.addColorStop(0.5, '#c8922a');
-  accentGrad.addColorStop(1, 'rgba(200,146,42,0)');
-  ctx.fillStyle = accentGrad;
-  ctx.fillRect(cx - lineW/2, lineY, lineW, drawSize * 0.008);
+function drawWithMaskable(ctx, size, draw, maskable) {
+  if (!maskable) {
+    draw(ctx, size);
+    return;
+  }
+  // Maskable: desenhar a 1.4x num offscreen e meter centrado
+  const off = document.createElement('canvas');
+  off.width = size * 1.4;
+  off.height = size * 1.4;
+  draw(off.getContext('2d'), off.width);
+  const ctx2 = ctx;
+  ctx2.drawImage(off, -(off.width-size)/2, -(off.height-size)/2);
 }
 
 function render() {
-  const preview = document.getElementById('preview-dark');
-  preview.innerHTML = '';
-  ICONS.forEach((cfg) => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'text-align:center';
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  DESIGNS.forEach((d) => {
+    const card = document.createElement('div');
+    card.className = 'card';
     const canvas = document.createElement('canvas');
-    const displaySize = Math.min(cfg.size, 180);
-    canvas.style.cssText = `width:${displaySize}px;height:${displaySize}px;display:block`;
-    canvas.id = cfg.name;
-    drawIcon(canvas, cfg.size, cfg.maskable);
-    wrap.appendChild(canvas);
-    const label = document.createElement('div');
-    label.textContent = cfg.name + (cfg.maskable ? ' · maskable' : '');
-    label.className = 'label';
-    wrap.appendChild(label);
-    preview.appendChild(wrap);
+    canvas.width = 192;
+    canvas.height = 192;
+    canvas.style.cssText = 'width:160px;height:160px';
+    d.draw(canvas.getContext('2d'), 192);
+    card.appendChild(canvas);
+    const h3 = document.createElement('h3');
+    h3.textContent = d.name;
+    card.appendChild(h3);
+    const p = document.createElement('p');
+    p.textContent = d.desc;
+    card.appendChild(p);
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = '⬇️ Descarregar este (4 PNGs)';
+    btn.onclick = () => downloadDesign(d);
+    card.appendChild(btn);
+    grid.appendChild(card);
   });
 }
 
-function downloadAll() {
-  ICONS.forEach((cfg) => {
-    const canvas = document.getElementById(cfg.name);
-    canvas.toBlob((blob) => {
+function downloadDesign(d) {
+  SIZES.forEach((sz) => {
+    const c = document.createElement('canvas');
+    c.width = sz.size;
+    c.height = sz.size;
+    drawWithMaskable(c.getContext('2d'), sz.size, d.draw, sz.maskable);
+    c.toBlob((blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = cfg.name;
+      a.download = `icon-${sz.suffix}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -150,7 +290,6 @@ function downloadAll() {
   });
 }
 
-// Esperar fonte serif carregar antes de renderizar (importante)
 document.fonts.ready.then(() => render());
 setTimeout(() => render(), 1500);
 </script>
