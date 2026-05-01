@@ -788,6 +788,12 @@ async function init() {
     empresa = p.empresas;
   }
 
+  // Onboarding: se ainda não concluído, redirecionar para wizard
+  if (empresa && empresa.onboarding_completed === false) {
+    window.location.href = 'onboarding.html';
+    return;
+  }
+
   // Plano da empresa ativa controla acesso a temas pro e outras features
   window.fleetpayPlano = empresa?.plano || 'free';
   // Se tema atual não é permitido pelo plano, força default
@@ -4128,6 +4134,7 @@ function renderConfig() {
           <div class="field"><label>IVA Uber global (%)</label><input type="number" id="cfg-iva" value="${empresa?.iva_uber_pct||23}" step="0.1"></div>
           <div class="field"><label>Slot semanal padrão (€)</label><input type="number" id="cfg-slot" value="${empresa?.slot_semanal_default||0}" step="0.01"></div>
           <button class="btn btn-gold" onclick="guardarConfig()">Guardar configurações</button>
+          <button class="btn btn-ghost" onclick="reabrirOnboarding()" style="margin-left:8px">🚀 Reabrir onboarding</button>
         </div>
       </div>
 
@@ -4823,6 +4830,15 @@ async function guardarDadosEmpresa() {
   if (error) { toast('Erro ao guardar: ' + error.message,'error'); console.error(error); return; }
   toast('✅ Dados da empresa guardados!');
   await carregarDados();
+}
+
+async function reabrirOnboarding() {
+  if (!confirm('Reabrir o wizard de onboarding? Vais ser redireccionada para o passo 1 mas os dados existentes ficam guardados.')) return;
+  await db.from('empresas').update({
+    onboarding_completed: false,
+    onboarding_step: 1,
+  }).eq('id', empresa.id);
+  window.location.href = 'onboarding.html';
 }
 
 async function guardarConfig() {
@@ -5966,6 +5982,10 @@ function renderAjudaBolt() {
       <h2>🚗 Integração Bolt Fleet API ${ativo?'<span class="aj-status aj-status-ok">Configurada</span>':'<span class="aj-status aj-status-pending">Por configurar</span>'}</h2>
       <div class="aj-sub">Sincroniza automaticamente motoristas e viaturas da tua frota Bolt. <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/bolt_sync_schema.sql" target="_blank">Schema BD</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/supabase/functions/bolt-sync/index.ts" target="_blank">Edge Function</a></div>
 
+      <div class="aj-ok">
+        🔒 <strong>FleetPay nunca pede a tua password do portal Bolt.</strong> Usamos a <strong>API oficial</strong> com Client ID + Secret que tu geras em fleets.bolt.eu — credenciais que podes revogar a qualquer momento sem afectar o teu login. Isto é mais seguro que outros sistemas que pedem login+password (que fazem scraping, viola TOS Bolt e arrisca banimento da conta).
+      </div>
+
       <div class="aj-info">
         💡 <strong>Pré-requisito</strong>: tens conta activa em <a href="https://fleets.bolt.eu" target="_blank">fleets.bolt.eu</a> como Fleet Owner ou Admin.
       </div>
@@ -6059,6 +6079,10 @@ function renderAjudaUber() {
           <li>📝 <strong>Pedido</strong>: indica o NIPC, licença TVDE e nome da empresa Uber Fleet</li>
         </ul>
         <p style="font-size:12px;color:var(--sub);line-height:1.6;margin:14px 0 0">A integração é feita 1x por empresa, demora cerca de 1-2 semanas (depende do tempo de aprovação da Uber) e é incluída no plano <strong>Pro</strong> do FleetPay.</p>
+      </div>
+
+      <div class="aj-ok">
+        🔒 <strong>FleetPay nunca pede a tua password do supplier.uber.com.</strong> Usamos a Vehicle Suppliers API oficial com Client ID + Secret aprovados pela Uber — credenciais que podes revogar a qualquer momento sem afectar o teu login. Outros sistemas pedem login+password (scraping) que viola TOS da Uber e arrisca banimento da conta. Connosco isso não acontece.
       </div>
 
       <div class="aj-info">

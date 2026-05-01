@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onboarding · FleetPay</title>
+<meta name="theme-color" content="#0a0905">
+<style>
+  :root{
+    --gold:#c8922a;--paper:#f7f4ef;--ink:#0a0905;--card:#13110b;
+    --line:rgba(200,146,42,0.12);--sub:#a89c87;--sub2:#6b6157;
+    --green:#27c93f;--orange:#e8943a;--red:#e85a5a;--blue:#5A7DC8;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:linear-gradient(180deg,var(--ink) 0%,#0e0c08 100%);color:var(--paper);min-height:100vh}
+  .wrap{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
+  /* Sidebar */
+  .sb{background:var(--card);border-right:1px solid var(--line);padding:30px 24px;display:flex;flex-direction:column;gap:18px}
+  .sb-logo{display:flex;align-items:center;gap:8px;margin-bottom:20px}
+  .sb-logo span{font-family:var(--serif);font-size:22px;font-weight:300}
+  .sb-logo em{color:var(--gold);font-style:italic}
+  .sb-progress{height:4px;background:rgba(255,255,255,0.05);border-radius:100px;overflow:hidden;margin-bottom:18px}
+  .sb-progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),#e0a93e);transition:width .3s}
+  .sb-step{display:flex;align-items:center;gap:14px;padding:12px;border-radius:6px;cursor:pointer;transition:background .15s;position:relative}
+  .sb-step:hover{background:rgba(255,255,255,0.02)}
+  .sb-step.active{background:rgba(200,146,42,0.08);border-left:3px solid var(--gold);padding-left:9px}
+  .sb-step-num{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.06);color:var(--sub);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;flex-shrink:0;transition:all .2s}
+  .sb-step.done .sb-step-num{background:var(--green);color:#000}
+  .sb-step.active .sb-step-num{background:var(--gold);color:#000}
+  .sb-step-info{flex:1;min-width:0}
+  .sb-step-title{font-size:13px;font-weight:500;color:var(--paper)}
+  .sb-step.done .sb-step-title{color:var(--sub)}
+  .sb-step-sub{font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
+  .sb-step.active .sb-step-sub{color:var(--gold)}
+  .sb-skip{margin-top:auto;background:transparent;border:1px solid var(--line);color:var(--sub2);padding:10px;border-radius:5px;font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer;text-transform:uppercase}
+  .sb-skip:hover{border-color:var(--sub);color:var(--sub)}
+  /* Main */
+  .main{padding:50px 60px;overflow-y:auto;max-height:100vh}
+  .step-header{margin-bottom:30px}
+  .step-tag{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .step-title{font-family:var(--serif);font-weight:300;font-size:36px;color:var(--paper);line-height:1.2;margin-bottom:8px}
+  .step-desc{font-size:14px;color:var(--sub);line-height:1.6;max-width:600px}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:14px}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--gold)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  /* Nav buttons */
+  .nav{margin-top:30px;display:flex;justify-content:space-between;align-items:center;padding-top:20px;border-top:1px solid var(--line)}
+  .btn{padding:12px 22px;border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;font-weight:700;transition:all .15s}
+  .btn-gold{background:var(--gold);color:#000}
+  .btn-gold:hover{background:#b07f1f;transform:translateY(-1px)}
+  .btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--line)}
+  .btn-ghost:hover{color:var(--paper);border-color:var(--sub)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  /* Banners */
+  .banner{padding:14px 18px;border-radius:6px;margin-bottom:20px;display:flex;gap:12px;align-items:flex-start;font-size:13px;line-height:1.6}
+  .banner-info{background:rgba(90,125,200,0.08);border:1px solid var(--blue);color:var(--paper)}
+  .banner-success{background:rgba(39,201,63,0.08);border:1px solid var(--green);color:var(--paper)}
+  .banner-warn{background:rgba(232,148,58,0.08);border:1px solid var(--orange);color:var(--paper)}
+  .banner-icon{font-size:22px;flex-shrink:0;line-height:1}
+  /* Plataformas grid */
+  .plat-section{margin-bottom:24px}
+  .plat-section-title{font-size:13px;color:var(--sub);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+  .plat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .plat-card{background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s;user-select:none}
+  .plat-card:hover{border-color:var(--gold);background:rgba(200,146,42,0.04)}
+  .plat-card.checked{border-color:var(--gold);background:rgba(200,146,42,0.08)}
+  .plat-card .plat-check{width:18px;height:18px;border:2px solid var(--line);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:transparent;font-size:14px;font-weight:700}
+  .plat-card.checked .plat-check{background:var(--gold);border-color:var(--gold);color:#000}
+  .plat-icon{font-size:18px}
+  .plat-name{flex:1;font-size:13px;color:var(--paper);font-weight:500}
+  /* Toggles */
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+  .toggle-row:last-child{border:none}
+  .toggle-info{flex:1;padding-right:14px}
+  .toggle-title{font-size:14px;color:var(--paper);font-weight:500;margin-bottom:3px}
+  .toggle-sub{font-size:12px;color:var(--sub);line-height:1.5}
+  .switch{position:relative;width:44px;height:24px;flex-shrink:0}
+  .switch input{display:none}
+  .switch span{position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:100px;cursor:pointer;transition:background .2s}
+  .switch span:before{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left .2s}
+  .switch input:checked+span{background:var(--green)}
+  .switch input:checked+span:before{left:23px}
+  /* Resumo final */
+  .summary-card{background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:8px;padding:20px;margin-bottom:14px}
+  .summary-card h3{font-family:var(--serif);font-weight:300;font-size:18px;margin-bottom:10px}
+  .summary-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+  .summary-row span{color:var(--sub)}
+  .summary-row strong{color:var(--paper)}
+  /* Welcome */
+  .welcome-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:24px}
+  .welcome-feat{padding:18px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px}
+  .welcome-feat-icon{font-size:28px;margin-bottom:8px}
+  .welcome-feat-title{font-size:14px;color:var(--paper);font-weight:600;margin-bottom:4px}
+  .welcome-feat-desc{font-size:12px;color:var(--sub);line-height:1.5}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    .sb{position:sticky;top:0;z-index:10}
+    .main{padding:30px 20px}
+    .row{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="sb">
+    <div class="sb-logo">
+      <svg viewBox="0 0 32 32" width="22" height="22" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+      <span>Fleet<em>Pay</em></span>
+    </div>
+    <div class="sb-progress"><div class="sb-progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div id="sb-steps"></div>
+    <button class="sb-skip" onclick="saltarOnboarding()">Saltar onboarding →</button>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="loading-row" style="text-align:center;padding:60px"><p style="color:var(--sub)">A carregar...</p></div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+const STEPS = [
+  { id:1, title:'Bem-vindo',     sub:'Introdução' },
+  { id:2, title:'Empresa',       sub:'Dados legais' },
+  { id:3, title:'Branding',      sub:'Logo e tema' },
+  { id:4, title:'Plataformas',   sub:'Que serviços usas' },
+  { id:5, title:'Integrações',   sub:'Credenciais API' },
+  { id:6, title:'Concluir',      sub:'Resumo final' },
+];
+
+const PLATAFORMAS = {
+  ganhos: {
+    title: '💰 Plataformas de Ganhos',
+    items: [
+      { id:'bolt',  nome:'Bolt',  icon:'🟢', api:true },
+      { id:'uber',  nome:'Uber',  icon:'⬛', api:true },
+    ]
+  },
+  combustivel: {
+    title: '⛽ Combustível',
+    items: [
+      { id:'prio',         nome:'Prio',          icon:'🟦' },
+      { id:'galp',         nome:'Galp',          icon:'🟧' },
+      { id:'bp',           nome:'BP',            icon:'🟩' },
+      { id:'repsol',       nome:'Repsol',        icon:'🟥' },
+      { id:'cepsa',        nome:'Cepsa',         icon:'🟦' },
+      { id:'easyfuel',     nome:'Easy Fuel',     icon:'⛽' },
+    ]
+  },
+  eletrico: {
+    title: '⚡ Carregamento Eléctrico',
+    items: [
+      { id:'mobie',        nome:'Mobi.E',        icon:'🔌' },
+      { id:'edp',          nome:'EDP',           icon:'⚡' },
+      { id:'galp_electric',nome:'Galp Electric', icon:'⚡' },
+      { id:'prio_electric',nome:'Prio Electric', icon:'⚡' },
+      { id:'tesla',        nome:'Tesla',         icon:'🔋' },
+    ]
+  },
+  portagens: {
+    title: '🛣️ Portagens',
+    items: [
+      { id:'viaverde',     nome:'Via Verde',     icon:'🛣️' },
+      { id:'ctt',          nome:'CTT/Tolling',   icon:'🛣️' },
+    ]
+  },
+  outras: {
+    title: '🛠️ Outras (gestão/telemetria)',
+    items: [
+      { id:'cartrack',     nome:'Cartrack',      icon:'📡' },
+      { id:'frotcom',      nome:'Frotcom',       icon:'📡' },
+      { id:'radius',       nome:'Radius',        icon:'📡' },
+      { id:'verizon',      nome:'Verizon Connect', icon:'📡' },
+    ]
+  }
+};
+
+let currentStep = 1;
+let currentUser = null;
+let perfil = null;
+let empresa = null;
+let formData = {
+  empresa: {},
+  branding: {},
+  plataformas: [],
+  pagamentos: { iva_uber_pct: 6, calc_combustivel_iva: true },
+  integracoes: { bolt:{}, uber:{} },
+};
+
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) { window.location.href = 'login.html'; return; }
+  currentUser = session.user;
+
+  const { data: p } = await db.from('perfis').select('*, empresas(*)').eq('id', currentUser.id).single();
+  if (!p) { alert('Perfil não encontrado.'); return; }
+  perfil = p;
+  empresa = p.empresas;
+
+  if (!empresa) {
+    alert('Sem empresa associada à tua conta. Contacta suporte@fleetpay.pt.');
+    return;
+  }
+
+  // Pré-preencher com dados existentes
+  formData.empresa = {
+    nome: empresa.nome || '',
+    nipc: empresa.nipc || '',
+    licenca_tvde: empresa.licenca_tvde || '',
+    morada: empresa.morada || '',
+    telefone: empresa.telefone || '',
+    email: empresa.email || '',
+  };
+  formData.plataformas = Array.isArray(empresa.plataformas_usadas) ? empresa.plataformas_usadas : [];
+  formData.pagamentos = {
+    iva_uber_pct: empresa.iva_uber_pct ?? 6,
+    calc_combustivel_iva: empresa.calc_combustivel_iva !== false,
+  };
+  formData.integracoes.bolt = {
+    client_id: empresa.bolt_client_id || '',
+    client_secret: empresa.bolt_client_secret || '',
+    company_id: empresa.bolt_company_id || '',
+  };
+  formData.integracoes.uber = {
+    client_id: empresa.uber_client_id || '',
+    client_secret: empresa.uber_client_secret || '',
+    org_id: empresa.uber_org_id || '',
+  };
+
+  currentStep = empresa.onboarding_step || 1;
+  pintar();
+}
+
+function pintarSidebar() {
+  document.getElementById('sb-steps').innerHTML = STEPS.map(s => {
+    const cls = s.id === currentStep ? 'active' : (s.id < currentStep ? 'done' : '');
+    return `
+      <div class="sb-step ${cls}" onclick="${s.id < currentStep ? `irParaPasso(${s.id})` : ''}">
+        <div class="sb-step-num">${s.id < currentStep ? '✓' : s.id}</div>
+        <div class="sb-step-info">
+          <div class="sb-step-title">${s.title}</div>
+          <div class="sb-step-sub">${s.sub}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  const pct = ((currentStep - 1) / (STEPS.length - 1)) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function pintar() {
+  pintarSidebar();
+  const main = document.getElementById('main');
+  if (currentStep === 1) main.innerHTML = renderStep1();
+  else if (currentStep === 2) main.innerHTML = renderStep2();
+  else if (currentStep === 3) main.innerHTML = renderStep3();
+  else if (currentStep === 4) main.innerHTML = renderStep4();
+  else if (currentStep === 5) main.innerHTML = renderStep5();
+  else if (currentStep === 6) main.innerHTML = renderStep6();
+  window.scrollTo(0, 0);
+}
+
+function renderStep1() {
+  return `
+    <div class="step-header">
+      <div class="step-tag">Passo 1 de 6 · Bem-vindo</div>
+      <h1 class="step-title">Olá ${perfil?.nome?.split(' ')[0] || ''}, vamos preparar o teu FleetPay</h1>
+      <div class="step-desc">Em ~5 minutos vais ter a tua frota TVDE pronta a operar. Vamos preparar 5 áreas: dados da empresa, identidade visual, plataformas que usas, integrações de API e finalizar.</div>
+    </div>
+
+    <div class="banner banner-success">
+      <div class="banner-icon">🔒</div>
+      <div>
+        <strong>FleetPay nunca pede login ou palavra-passe das tuas plataformas.</strong><br>
+        Usamos sempre <strong>API oficial</strong> da Bolt e Uber — credenciais que tu geras no portal deles e podes revogar a qualquer momento. Não fazemos scraping nem guardamos passwords dos teus portais. As credenciais ficam encriptadas na nossa BD.
+      </div>
+    </div>
+
+    <div class="welcome-grid">
+      <div class="welcome-feat">
+        <div class="welcome-feat-icon">📊</div>
+        <div class="welcome-feat-title">Pagamentos semanais</div>
+        <div class="welcome-feat-desc">Importação CSV Uber/Bolt + cálculo automático com IVA, despesas, slot</div>
+      </div>
+      <div class="welcome-feat">
+        <div class="welcome-feat-icon">📜</div>
+        <div class="welcome-feat-title">Compliance total</div>
+        <div class="welcome-feat-desc">Termos versionados, checklist diário 19 items, tempos de condução estilo e-tacógrafo</div>
+      </div>
+      <div class="welcome-feat">
+        <div class="welcome-feat-icon">🎟️</div>
+        <div class="welcome-feat-title">Cupões e referrals</div>
+        <div class="welcome-feat-desc">Cross-sell PSI/Formação, Programa Embaixadores com bónus automáticos</div>
+      </div>
+      <div class="welcome-feat">
+        <div class="welcome-feat-icon">💬</div>
+        <div class="welcome-feat-title">Chat directo</div>
+        <div class="welcome-feat-desc">Comunicação 1-para-1 entre operador e motoristas + avisos broadcast</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" disabled>← Anterior</button>
+      <button class="btn btn-gold" onclick="proximo()">Começar →</button>
+    </div>
+  `;
+}
+
+function renderStep2() {
+  const f = formData.empresa;
+  return `
+    <div class="step-header">
+      <div class="step-tag">Passo 2 de 6 · Dados da empresa</div>
+      <h1 class="step-title">A tua empresa</h1>
+      <div class="step-desc">Estes dados vão aparecer nos contratos PDF, recibos dos motoristas e em comunicações oficiais.</div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Nome legal *</label><input id="f-nome" value="${f.nome||''}" placeholder="ex: Instituto 31 — Formação..."></div>
+      <div class="field"><label>NIPC *</label><input id="f-nipc" value="${f.nipc||''}" placeholder="9 dígitos"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Licença TVDE (IMT)</label><input id="f-licenca" value="${f.licenca_tvde||''}" placeholder="nº licença IMT"></div>
+      <div class="field"><label>Telefone</label><input id="f-tel" value="${f.telefone||''}" placeholder="+351 ..."></div>
+    </div>
+    <div class="field"><label>Email da empresa (recebe alertas)</label><input id="f-email" type="email" value="${f.email||''}" placeholder="geral@empresa.pt"></div>
+    <div class="field"><label>Morada (rua, nº, código postal, cidade)</label><input id="f-morada" value="${f.morada||''}" placeholder="Rua ... — 1234-567 Cidade"></div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
+      <button class="btn btn-gold" onclick="guardarStep2()">Guardar e continuar →</button>
+    </div>
+  `;
+}
+
+async function guardarStep2() {
+  const payload = {
+    nome: document.getElementById('f-nome').value.trim(),
+    nipc: document.getElementById('f-nipc').value.trim(),
+    licenca_tvde: document.getElementById('f-licenca').value.trim() || null,
+    telefone: document.getElementById('f-tel').value.trim() || null,
+    email: document.getElementById('f-email').value.trim() || null,
+    morada: document.getElementById('f-morada').value.trim() || null,
+  };
+  if (!payload.nome || !payload.nipc) { alert('Nome e NIPC são obrigatórios.'); return; }
+  formData.empresa = payload;
+  await db.from('empresas').update({ ...payload, onboarding_step: 3 }).eq('id', empresa.id);
+  Object.assign(empresa, payload);
+  proximo();
+}
+
+function renderStep3() {
+  return `
+    <div class="step-header">
+      <div class="step-tag">Passo 3 de 6 · Branding</div>
+      <h1 class="step-title">Logo e tema</h1>
+      <div class="step-desc">Logo aparece na sidebar do admin, app dos motoristas e cabeçalho dos contratos PDF. O tema escolhe a paleta de cores da app.</div>
+    </div>
+
+    <div class="banner banner-info">
+      <div class="banner-icon">🎨</div>
+      <div>Pode ser feito mais tarde em <strong>Configurações → Empresa</strong>. Por agora podes só carregar em "Continuar".</div>
+    </div>
+
+    <div class="field"><label>Logo (PNG/SVG quadrado, opcional)</label>
+      <input type="file" id="f-logo" accept="image/png,image/svg+xml,image/jpeg">
+      <div style="font-size:11px;color:var(--sub2);margin-top:4px">${empresa?.logo_path ? '✓ Logo já carregado: '+empresa.logo_path : 'Sem logo carregado.'}</div>
+    </div>
+    <div class="field"><label>Tema preferido</label>
+      <select id="f-tema">
+        <option value="default">Default (preto + dourado)</option>
+        <option value="sage">Sage (verde + dourado)</option>
+        <option value="warm">Warm (terracota)</option>
+        <option value="forest">Forest (verde escuro)</option>
+        <option value="tech-pro">Tech Pro (azul)</option>
+        <option value="minimal-dark">Minimal Dark</option>
+      </select>
+    </div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
+      <button class="btn btn-gold" onclick="guardarStep3()">Continuar →</button>
+    </div>
+  `;
+}
+
+async function guardarStep3() {
+  // Upload logo se fornecido
+  const fileInput = document.getElementById('f-logo');
+  const update = { onboarding_step: 4 };
+  if (fileInput.files?.[0]) {
+    const file = fileInput.files[0];
+    const path = `${empresa.id}/logo-${Date.now()}.${file.name.split('.').pop()}`;
+    const { error } = await db.storage.from('empresa-logos').upload(path, file, { upsert: true });
+    if (error) { alert('Erro upload logo: '+error.message); return; }
+    update.logo_path = path;
+  }
+  await db.from('empresas').update(update).eq('id', empresa.id);
+  Object.assign(empresa, update);
+  proximo();
+}
+
+function renderStep4() {
+  let html = `
+    <div class="step-header">
+      <div class="step-tag">Passo 4 de 6 · Plataformas</div>
+      <h1 class="step-title">Que plataformas usas?</h1>
+      <div class="step-desc">Marca tudo o que a tua frota usa. Não pedimos credenciais aqui — só queremos saber para mostrar nos relatórios e categorias certas. As integrações API são no próximo passo.</div>
+    </div>
+  `;
+  Object.entries(PLATAFORMAS).forEach(([key, sec]) => {
+    html += `
+      <div class="plat-section">
+        <div class="plat-section-title">${sec.title}</div>
+        <div class="plat-grid">
+          ${sec.items.map(it => `
+            <div class="plat-card ${formData.plataformas.includes(it.id)?'checked':''}" onclick="togglePlataforma('${it.id}')">
+              <div class="plat-check">✓</div>
+              <span class="plat-icon">${it.icon}</span>
+              <span class="plat-name">${it.nome}</span>
+              ${it.api?'<span style="font-size:9px;color:var(--gold);font-family:var(--mono);letter-spacing:.5px">API</span>':''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  });
+  html += `
+    <div class="nav">
+      <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
+      <button class="btn btn-gold" onclick="guardarStep4()">Continuar →</button>
+    </div>
+  `;
+  return html;
+}
+
+function togglePlataforma(id) {
+  const i = formData.plataformas.indexOf(id);
+  if (i >= 0) formData.plataformas.splice(i, 1);
+  else formData.plataformas.push(id);
+  pintar();
+}
+
+async function guardarStep4() {
+  await db.from('empresas').update({
+    plataformas_usadas: formData.plataformas,
+    onboarding_step: 5,
+  }).eq('id', empresa.id);
+  proximo();
+}
+
+function renderStep5() {
+  const usaBolt = formData.plataformas.includes('bolt');
+  const usaUber = formData.plataformas.includes('uber');
+  const i = formData.integracoes;
+  return `
+    <div class="step-header">
+      <div class="step-tag">Passo 5 de 6 · Integrações API</div>
+      <h1 class="step-title">Conecta as APIs oficiais</h1>
+      <div class="step-desc">Aqui pedimos credenciais de API <strong>oficiais</strong> que tu geras no portal de cada plataforma. Não pedimos a tua password de login — esse risco fica do nosso lado, não do teu.</div>
+    </div>
+
+    <div class="banner banner-success">
+      <div class="banner-icon">🔒</div>
+      <div>
+        <strong>Como funciona em segurança</strong>:<br>
+        Vais ao portal Bolt/Uber → geras credenciais API (Client ID + Secret) → colas aqui. Podes revogar a qualquer momento sem afectar a tua password de login. Diferentemente de outros sistemas, <strong>nunca pedimos email+password do portal</strong>.
+      </div>
+    </div>
+
+    <div class="banner banner-info">
+      <div class="banner-icon">📖</div>
+      <div>Não tens as credenciais agora? Podes deixar em branco e configurar depois em <strong>Configurações</strong>. O onboarding pode ser concluído sem isto.</div>
+    </div>
+
+    ${usaBolt ? `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:14px">
+        <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin-bottom:4px">🟢 Bolt API</h3>
+        <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Obtém em <a href="https://fleets.bolt.eu" target="_blank" style="color:var(--gold)">fleets.bolt.eu</a> → Definições → Ligações API de dados → Renovação</p>
+        <div class="row">
+          <div class="field"><label>Client ID</label><input id="bolt-id" value="${i.bolt.client_id||''}" placeholder="GnafV3..."></div>
+          <div class="field"><label>Client Secret</label><input id="bolt-secret" type="password" value="${i.bolt.client_secret||''}"></div>
+        </div>
+        <div class="field"><label>Company ID (numérico, no URL fleets.bolt.eu/&lt;ID&gt;/...)</label><input id="bolt-company" value="${i.bolt.company_id||''}" placeholder="ex: 204383"></div>
+      </div>
+    ` : ''}
+
+    ${usaUber ? `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:14px">
+        <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin-bottom:4px">⬛ Uber API</h3>
+        <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Obtém em <a href="https://developer.uber.com/dashboard" target="_blank" style="color:var(--gold)">developer.uber.com/dashboard</a> → Applications → Vehicle Suppliers API. <span style="color:var(--orange)">⚠️ Requer aprovação manual da Uber (1-7 dias).</span></p>
+        <div class="row">
+          <div class="field"><label>Client ID (Application ID)</label><input id="uber-id" value="${i.uber.client_id||''}" placeholder="t9RKdN..."></div>
+          <div class="field"><label>Client Secret</label><input id="uber-secret" type="password" value="${i.uber.client_secret||''}"></div>
+        </div>
+        <div class="field"><label>Org ID (UUID, vem no URL developer.uber.com/dashboard/organization/&lt;UUID&gt;/...)</label><input id="uber-org" value="${i.uber.org_id||''}" placeholder="cdfbe538-f52e-4c3f-..."></div>
+      </div>
+    ` : ''}
+
+    ${!usaBolt && !usaUber ? `
+      <div class="banner banner-warn">
+        <div class="banner-icon">ℹ️</div>
+        <div>Não marcaste Bolt nem Uber no passo anterior. <button onclick="anterior()" style="background:none;border:none;color:var(--gold);cursor:pointer;text-decoration:underline">Voltar atrás</button> para selecionar, ou continuar sem integrações API agora.</div>
+      </div>
+    ` : ''}
+
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:6px;padding:18px;margin-top:14px">
+      <h3 style="font-family:var(--serif);font-weight:300;font-size:18px;margin-bottom:14px">⚙️ Cálculo de pagamentos</h3>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-title">IVA das plataformas (6%)</div>
+          <div class="toggle-sub">Cobrar IVA conforme indicado pelas plataformas (Uber/Bolt). Recomendado.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="cfg-iva" ${formData.pagamentos.iva_uber_pct === 6 ? 'checked':''}><span></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-title">Combustível com IVA (23%)</div>
+          <div class="toggle-sub">Custo de combustível inclui IVA quando importado. Inactivo: valor sem IVA.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="cfg-comb" ${formData.pagamentos.calc_combustivel_iva ? 'checked':''}><span></span></label>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
+      <button class="btn btn-gold" onclick="guardarStep5()">Continuar →</button>
+    </div>
+  `;
+}
+
+async function guardarStep5() {
+  const update = { onboarding_step: 6 };
+  // Bolt
+  if (formData.plataformas.includes('bolt')) {
+    update.bolt_client_id = document.getElementById('bolt-id')?.value.trim() || null;
+    update.bolt_client_secret = document.getElementById('bolt-secret')?.value.trim() || null;
+    update.bolt_company_id = document.getElementById('bolt-company')?.value.trim() || null;
+    update.bolt_api_ativo = !!update.bolt_client_id;
+  }
+  // Uber
+  if (formData.plataformas.includes('uber')) {
+    update.uber_client_id = document.getElementById('uber-id')?.value.trim() || null;
+    update.uber_client_secret = document.getElementById('uber-secret')?.value.trim() || null;
+    update.uber_org_id = document.getElementById('uber-org')?.value.trim() || null;
+    update.uber_api_ativo = !!update.uber_client_id;
+  }
+  // Pagamentos
+  update.iva_uber_pct = document.getElementById('cfg-iva')?.checked ? 6 : 0;
+  update.calc_combustivel_iva = !!document.getElementById('cfg-comb')?.checked;
+
+  await db.from('empresas').update(update).eq('id', empresa.id);
+  Object.assign(empresa, update);
+  proximo();
+}
+
+function renderStep6() {
+  const e = formData.empresa;
+  const plats = formData.plataformas;
+  const boltOk = !!formData.integracoes.bolt.client_id;
+  const uberOk = !!formData.integracoes.uber.client_id;
+  return `
+    <div class="step-header">
+      <div class="step-tag">Passo 6 de 6 · Concluir</div>
+      <h1 class="step-title">Tudo pronto, ${perfil?.nome?.split(' ')[0] || ''}!</h1>
+      <div class="step-desc">Revê as configurações abaixo. Podes alterar tudo depois em <strong>Configurações</strong>. Quando estiveres pronta, carrega no botão para entrar no admin.</div>
+    </div>
+
+    <div class="summary-card">
+      <h3>📋 Empresa</h3>
+      <div class="summary-row"><span>Nome legal</span><strong>${e.nome || '—'}</strong></div>
+      <div class="summary-row"><span>NIPC</span><strong>${e.nipc || '—'}</strong></div>
+      ${e.licenca_tvde ? `<div class="summary-row"><span>Licença TVDE</span><strong>${e.licenca_tvde}</strong></div>` : ''}
+      ${e.email ? `<div class="summary-row"><span>Email</span><strong>${e.email}</strong></div>` : ''}
+    </div>
+
+    <div class="summary-card">
+      <h3>🔌 Plataformas (${plats.length})</h3>
+      ${plats.length === 0 ? '<div style="font-size:12px;color:var(--sub2)">Nenhuma seleccionada</div>' : `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          ${plats.map(p => `<span style="padding:3px 10px;background:rgba(200,146,42,0.08);border:1px solid var(--gold);border-radius:100px;font-size:11px;font-family:var(--mono);letter-spacing:.5px">${p}</span>`).join('')}
+        </div>
+      `}
+    </div>
+
+    <div class="summary-card">
+      <h3>🔐 Integrações API</h3>
+      <div class="summary-row"><span>Bolt API</span><strong style="color:${boltOk?'var(--green)':'var(--sub2)'}">${boltOk?'✓ Configurada':'Pendente'}</strong></div>
+      <div class="summary-row"><span>Uber API</span><strong style="color:${uberOk?'var(--orange)':'var(--sub2)'}">${uberOk?'⏳ Aguarda aprovação Uber':'Pendente'}</strong></div>
+    </div>
+
+    <div class="banner banner-success">
+      <div class="banner-icon">🎉</div>
+      <div><strong>Próximo passo no admin:</strong> Convidar os teus motoristas (envio magic link) e fazer o primeiro upload CSV de pagamentos. Tudo o que falta podes fazer com calma — o FleetPay está pronto.</div>
+    </div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
+      <button class="btn btn-gold" onclick="concluirOnboarding()">Concluir e entrar no admin →</button>
+    </div>
+  `;
+}
+
+async function concluirOnboarding() {
+  await db.from('empresas').update({
+    onboarding_completed: true,
+    onboarding_completed_at: new Date().toISOString(),
+    onboarding_step: 6,
+  }).eq('id', empresa.id);
+  window.location.href = 'admin.html';
+}
+
+async function saltarOnboarding() {
+  if (!confirm('Saltar o onboarding? Podes reabrir depois em Configurações → Reabrir onboarding.')) return;
+  await db.from('empresas').update({
+    onboarding_completed: true,
+    onboarding_completed_at: new Date().toISOString(),
+  }).eq('id', empresa.id);
+  window.location.href = 'admin.html';
+}
+
+function proximo() {
+  if (currentStep < 6) { currentStep++; pintar(); }
+}
+function anterior() {
+  if (currentStep > 1) { currentStep--; pintar(); }
+}
+function irParaPasso(n) {
+  if (n >= 1 && n <= 6) { currentStep = n; pintar(); }
+}
+
+init();
+</script>
+</body>
+</html>

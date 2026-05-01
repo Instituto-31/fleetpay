@@ -27,12 +27,19 @@ const corsHeaders = {
 
 const UBER_OAUTH_URL = 'https://login.uber.com/oauth/v2/token';
 const UBER_API_BASE = 'https://api.uber.com';
-// Scopes prováveis para Vehicle Suppliers API. Tentamos vários no fallback.
+// Scopes oficiais Vehicle Suppliers API (confirmados via developer.uber.com docs):
+//   - solutions.suppliers.metrics.read     → Get Drivers + Get Vehicles (Fleet)
+//   - solutions.suppliers.drivers.status.read → alternativa Get Drivers
+//   - vehicle_suppliers.organizations.read → Get Orgs (descobrir encrypted org_id)
+//   - vehicle_suppliers.vehicles.read      → Get Vehicle (single, Rentals)
+//   - vehicle_suppliers.drivers.read       → Search Drivers (Rentals)
 const SCOPE_CANDIDATES = [
+  'solutions.suppliers.metrics.read solutions.suppliers.drivers.status.read vehicle_suppliers.organizations.read',
+  'solutions.suppliers.metrics.read vehicle_suppliers.organizations.read',
+  'solutions.suppliers.metrics.read',
+  'vehicle_suppliers.organizations.read',
+  // Fallbacks (provavelmente errados mas mantemos por segurança)
   'vehicle_suppliers.drivers.read vehicle_suppliers.vehicles.read',
-  'supplier.performance-data',
-  'vehicle.suppliers',
-  'fleet.read',
 ];
 
 async function getUberToken(clientId: string, clientSecret: string): Promise<string> {
@@ -133,14 +140,31 @@ serve(async (req) => {
     // 3) OAuth
     const token = await getUberToken(emp.uber_client_id, emp.uber_client_secret);
 
-    // 4) Get drivers
-    const drivers = await fetchAllPages('/v1/vehicle-suppliers/drivers', emp.uber_org_id, token, 'drivers');
+    // 4) Get Organizations PRIMEIRO — Uber requer encrypted org_id (não o UUID raw do dashboard)
+    // Doc: https://developer.uber.com/docs/vehicles/references/api/v1/org-management/get-orgs
+    let encryptedOrgId = emp.uber_org_id;  // fallback se Get Orgs falhar
+    try {
+      const orgsResp = await uberGet('/v1/vehicle-suppliers/orgs', {}, token);
+      const orgs: any[] = orgsResp?.organizations || orgsResp?.orgs || orgsResp?.data || [];
+      console.log(`[uber-sync] Get Orgs: ${orgs.length} orgs disponíveis`);
+      // Tentar match por raw UUID, ou usar o primeiro
+      const matched = orgs.find((o: any) => o.id === emp.uber_org_id || o.parent_org_id === emp.uber_org_id) || orgs[0];
+      if (matched?.id) {
+        encryptedOrgId = matched.id;
+        console.log(`[uber-sync] encrypted org_id: ${encryptedOrgId.slice(0, 20)}... (nome: ${matched.name})`);
+      }
+    } catch (e) {
+      console.warn('[uber-sync] Get Orgs falhou, fallback para uber_org_id raw:', (e as Error).message);
+    }
+
+    // 5) Get drivers — usa encrypted org_id obtido em (4)
+    const drivers = await fetchAllPages('/v1/vehicle-suppliers/drivers', encryptedOrgId, token, 'drivers');
     console.log(`[uber-sync] drivers: ${drivers.length}`);
 
-    // 5) Get vehicles
+    // 6) Get vehicles
     let vehicles: any[] = [];
     try {
-      vehicles = await fetchAllPages('/v2/vehicle-suppliers/vehicles', emp.uber_org_id, token, 'vehicles');
+      vehicles = await fetchAllPages('/v2/vehicle-suppliers/vehicles', encryptedOrgId, token, 'vehicles');
       console.log(`[uber-sync] vehicles: ${vehicles.length}`);
     } catch (e) {
       console.error('[uber-sync] vehicles falhou:', (e as Error).message);
