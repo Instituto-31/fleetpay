@@ -244,9 +244,14 @@ serve(async (req) => {
     // Log raw samples para debug
     if (boltDrivers.length === 0) {
       console.log('[bolt-sync] DRIVERS retornou 0. Raw sample:', JSON.stringify(driversResult.firstResp || {}).slice(0, 1000));
+    } else {
+      // Log do PRIMEIRO driver para ver os campos exactos (debug)
+      console.log('[bolt-sync] DRIVER #0 sample fields:', JSON.stringify(boltDrivers[0]).slice(0, 800));
     }
     if (boltVehicles.length === 0 && vehiclesRawSample) {
       console.log('[bolt-sync] VEHICLES retornou 0. Raw sample:', JSON.stringify(vehiclesRawSample).slice(0, 1000));
+    } else if (boltVehicles.length > 0) {
+      console.log('[bolt-sync] VEHICLE #0 sample fields:', JSON.stringify(boltVehicles[0]).slice(0, 800));
     }
 
     // 7) Upsert drivers
@@ -266,12 +271,18 @@ serve(async (req) => {
 
     for (const bd of boltDrivers) {
       try {
-        const boltId = String(bd.id || bd.driver_id || bd.uuid || '');
-        if (!boltId) { summary.drivers_skipped++; continue; }
-        const nome = `${bd.first_name || ''} ${bd.last_name || ''}`.trim() || bd.name || bd.full_name || `Bolt ${boltId}`;
-        const email = bd.email || null;
-        const phone = bd.phone || bd.phone_number || null;
-        const status = bd.status || bd.state || null;
+        // Tentar múltiplos campos comuns para Bolt ID (varia conforme versão da API)
+        const boltIdRaw = bd.id ?? bd.driver_id ?? bd.uuid ?? bd.driverId ?? bd.user_id ?? bd.userId ?? bd.external_id ?? null;
+        const boltId = boltIdRaw != null ? String(boltIdRaw) : '';
+        if (!boltId) {
+          summary.drivers_skipped++;
+          summary.errors.push(`driver sem ID — campos disponíveis: ${Object.keys(bd).slice(0, 10).join(',')}`);
+          continue;
+        }
+        const nome = `${bd.first_name || bd.firstName || ''} ${bd.last_name || bd.lastName || ''}`.trim() || bd.name || bd.full_name || bd.fullName || `Bolt ${boltId}`;
+        const email = bd.email || bd.email_address || null;
+        const phone = bd.phone || bd.phone_number || bd.phoneNumber || bd.mobile || null;
+        const status = bd.status || bd.state || bd.portal_status || null;
 
         // Match: 1º por bolt_driver_id, 2º por email, 3º por telefone
         let { data: existing } = await supabase

@@ -4871,8 +4871,10 @@ async function sincronizarBolt() {
       return;
     }
     const s = data.summary || {};
-    const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} erros (ver consola)` : '';
-    alert(`✅ Sincronização concluída\n\n👤 Motoristas: ${s.drivers_received||0} recebidos (${s.drivers_created||0} novos, ${s.drivers_updated||0} atualizados)\n🚗 Viaturas: ${s.vehicles_received||0} recebidas (${s.vehicles_created||0} novas, ${s.vehicles_updated||0} atualizadas)${erros}`);
+    const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} ERROS:\n${s.errors.slice(0, 5).join('\n')}${s.errors.length>5?'\n...':''}` : '';
+    const skippedDrivers = s.drivers_skipped ? ` · ${s.drivers_skipped} ignorados` : '';
+    const skippedVehicles = s.vehicles_skipped ? ` · ${s.vehicles_skipped} ignoradas` : '';
+    alert(`✅ Sincronização concluída\n\n👤 Motoristas: ${s.drivers_received||0} recebidos (${s.drivers_created||0} novos, ${s.drivers_updated||0} atualizados${skippedDrivers})\n🚗 Viaturas: ${s.vehicles_received||0} recebidas (${s.vehicles_created||0} novas, ${s.vehicles_updated||0} atualizadas${skippedVehicles})${erros}`);
     // Recarrega empresa para mostrar novo last_sync
     const { data: emp } = await db.from('empresas').select('*').eq('id', empresa.id).single();
     if (emp) Object.assign(empresa, emp);
