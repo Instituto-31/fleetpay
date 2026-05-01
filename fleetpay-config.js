@@ -323,3 +323,94 @@ themes.init();
 function toggleTheme() { themes.toggleMode(); }
 
 console.log('✅ FleetPay v2.0 — Supabase + temas inicializados');
+
+// ── Service Worker registration (PWA) ──
+// Registo: detecta nova versão e mostra toast para o user actualizar
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      console.log('[PWA] Service Worker registado');
+
+      // Detectar nova versão disponível
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Há nova versão pronta para activar
+            mostrarToastNovaVersao(newWorker);
+          }
+        });
+      });
+    }).catch((err) => console.warn('[PWA] SW registration failed:', err));
+
+    // Quando SW activa (após user aceitar), recarregar página
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+  });
+
+  function mostrarToastNovaVersao(newWorker) {
+    // Não mostra se já existe
+    if (document.getElementById('pwa-update-toast')) return;
+    const toast = document.createElement('div');
+    toast.id = 'pwa-update-toast';
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#c8922a;color:#000;padding:14px 20px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;font-weight:500;z-index:9999;display:flex;gap:14px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,0.4);max-width:90%;animation:slideUp .3s ease-out';
+    toast.innerHTML = `
+      <span>✨ Nova versão disponível</span>
+      <button id="pwa-update-btn" style="background:#000;color:#c8922a;border:none;padding:7px 14px;border-radius:5px;font-weight:700;cursor:pointer;font-size:12px;letter-spacing:.5px;text-transform:uppercase">Actualizar</button>
+      <button id="pwa-update-dismiss" style="background:transparent;color:#000;border:none;font-size:18px;cursor:pointer;padding:0 4px">×</button>
+      <style>@keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}</style>
+    `;
+    document.body.appendChild(toast);
+    document.getElementById('pwa-update-btn').onclick = () => {
+      newWorker.postMessage('SKIP_WAITING');
+      toast.remove();
+    };
+    document.getElementById('pwa-update-dismiss').onclick = () => toast.remove();
+  }
+}
+
+// ── Botão "Instalar app" (PWA install prompt) ──
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = '';
+});
+
+// Mostrar botão também em iOS (que não dispara beforeinstallprompt)
+// e esconder se já está instalada (display-mode standalone)
+document.addEventListener('DOMContentLoaded', () => {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
+  if (isStandalone) return; // já instalada, não mostrar botão
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    setTimeout(() => {
+      const btn = document.getElementById('pwa-install-btn');
+      if (btn) btn.style.display = '';
+    }, 1500);
+  }
+});
+
+window.fleetpayInstallApp = async function() {
+  if (!deferredInstallPrompt) {
+    // iOS / browsers que não suportam beforeinstallprompt
+    alert('Para instalar a app FleetPay no telemóvel:\n\n' +
+          '📱 iOS (Safari): Carrega em Partilhar (□↑) → "Adicionar ao ecrã principal"\n\n' +
+          '📱 Android (Chrome): Menu (⋮) → "Adicionar ao ecrã principal" ou "Instalar app"');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  console.log('[PWA] install', outcome);
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = 'none';
+};

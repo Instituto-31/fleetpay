@@ -7,6 +7,17 @@
 <meta name="theme-color" content="#0a0905">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="manifest" href="manifest.json">
+<!-- PWA Apple iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FleetPay">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- PWA Android/Chrome -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="FleetPay">
+<!-- PWA Windows -->
+<meta name="msapplication-TileColor" content="#0a0905">
+<meta name="msapplication-TileImage" content="icons/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1677,6 +1688,10 @@ async function abrirPerfil() {
             }).join('')}
           </div>
         </div>
+
+        <button id="pwa-install-btn" onclick="fleetpayInstallApp()" style="display:none;width:100%;padding:12px;background:rgba(200,146,42,0.1);border:1px solid var(--gold);border-radius:3px;color:var(--gold);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);margin-bottom:10px">
+          📱 Instalar app no telemóvel
+        </button>
 
         <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
           style="width:100%;padding:12px;background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);border-radius:3px;color:var(--red);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">

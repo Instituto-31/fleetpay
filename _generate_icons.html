@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<title>Gerar ícones FleetPay (uso interno)</title>
+<style>
+  body{font-family:system-ui;background:#0a0905;color:#f7f4ef;padding:40px;text-align:center}
+  h1{color:#c8922a;font-weight:300}
+  .preview{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:30px 0}
+  .preview canvas{border:1px solid #333;background:#0a0905}
+  button{background:#c8922a;color:#000;border:none;padding:12px 24px;border-radius:6px;font-weight:700;cursor:pointer;margin:5px}
+  .info{max-width:600px;margin:20px auto;font-size:14px;color:#a89c87;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>🎨 Gerar ícones PWA FleetPay</h1>
+<div class="info">
+  Esta página gera os ícones PWA. Carrega <strong>"Descarregar todos"</strong> e os 4 ícones descarregam automaticamente. Depois move para <code>/icons/</code> no repo.
+</div>
+
+<div class="preview" id="preview"></div>
+
+<button onclick="downloadAll()">⬇️ Descarregar todos os ícones</button>
+
+<script>
+const ICONS = [
+  { name: 'icon-192.png',          size: 192, maskable: false },
+  { name: 'icon-512.png',          size: 512, maskable: false },
+  { name: 'icon-maskable-192.png', size: 192, maskable: true  },
+  { name: 'icon-maskable-512.png', size: 512, maskable: true  },
+];
+
+function drawIcon(canvas, size, maskable) {
+  const ctx = canvas.getContext('2d');
+  canvas.width = size;
+  canvas.height = size;
+
+  // Background
+  ctx.fillStyle = '#0a0905';
+  ctx.fillRect(0, 0, size, size);
+
+  // Maskable: precisa de "safe zone" — desenhar mais pequeno
+  // Não-maskable: usa o tamanho todo
+  const padding = maskable ? size * 0.18 : size * 0.10;
+  const drawSize = size - padding * 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = drawSize / 2 - padding * 0.2;
+
+  // Anel dourado (igual ao favicon)
+  ctx.strokeStyle = '#c8922a';
+  ctx.lineWidth = drawSize * 0.12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Texto "FP" no centro (opcional, melhor para reconhecer)
+  if (size >= 192) {
+    ctx.fillStyle = '#c8922a';
+    ctx.font = `300 ${drawSize * 0.32}px Georgia, serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FP', cx, cy + drawSize * 0.02);
+  }
+}
+
+function render() {
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+  ICONS.forEach((cfg) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'text-align:center';
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = `width:${Math.min(cfg.size, 192)}px;height:${Math.min(cfg.size, 192)}px;display:block`;
+    canvas.id = cfg.name;
+    drawIcon(canvas, cfg.size, cfg.maskable);
+    wrap.appendChild(canvas);
+    const label = document.createElement('div');
+    label.textContent = cfg.name + (cfg.maskable ? ' (maskable)' : '');
+    label.style.cssText = 'font-size:11px;color:#a89c87;margin-top:6px';
+    wrap.appendChild(label);
+    preview.appendChild(wrap);
+  });
+}
+
+function downloadAll() {
+  ICONS.forEach((cfg) => {
+    const canvas = document.getElementById(cfg.name);
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = cfg.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+}
+
+render();
+</script>
+</body>
+</html>
