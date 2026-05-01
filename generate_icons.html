@@ -2,25 +2,32 @@
 <html lang="pt-PT">
 <head>
 <meta charset="UTF-8">
-<title>Gerar ícones FleetPay (uso interno)</title>
+<title>Gerar ícones FleetPay</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,300;1,500;1,600&display=swap" rel="stylesheet">
 <style>
-  body{font-family:system-ui;background:#0a0905;color:#f7f4ef;padding:40px;text-align:center}
-  h1{color:#c8922a;font-weight:300}
-  .preview{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:30px 0}
-  .preview canvas{border:1px solid #333;background:#0a0905}
-  button{background:#c8922a;color:#000;border:none;padding:12px 24px;border-radius:6px;font-weight:700;cursor:pointer;margin:5px}
-  .info{max-width:600px;margin:20px auto;font-size:14px;color:#a89c87;line-height:1.6}
+  body{font-family:system-ui;background:#0a0905;color:#f7f4ef;padding:40px;text-align:center;margin:0}
+  h1{color:#c8922a;font-weight:300;font-family:'Cormorant Garamond',serif;font-size:36px;margin-bottom:8px}
+  .sub{color:#a89c87;font-size:13px;margin-bottom:30px}
+  .preview{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;margin:30px 0}
+  .preview canvas{border-radius:18%;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
+  button{background:linear-gradient(180deg,#c8922a,#a87a23);color:#000;border:none;padding:14px 28px;border-radius:8px;font-weight:700;cursor:pointer;margin:5px;font-size:14px;letter-spacing:.5px;box-shadow:0 4px 14px rgba(200,146,42,0.3)}
+  button:hover{transform:translateY(-1px)}
+  .info{max-width:640px;margin:20px auto;font-size:14px;color:#a89c87;line-height:1.7}
+  .label{font-size:11px;color:#a89c87;margin-top:10px;font-family:'Courier New',monospace;letter-spacing:.5px}
+  .variant h2{color:#c8922a;font-weight:300;font-family:'Cormorant Garamond',serif;font-size:24px;margin:30px 0 12px}
 </style>
 </head>
 <body>
-<h1>🎨 Gerar ícones PWA FleetPay</h1>
-<div class="info">
-  Esta página gera os ícones PWA. Carrega <strong>"Descarregar todos"</strong> e os 4 ícones descarregam automaticamente. Depois move para <code>/icons/</code> no repo.
+<h1>FleetPay — Ícones PWA</h1>
+<p class="sub">Monograma serif itálico em dourado, com anel duplo + glow subtil</p>
+
+<div class="variant">
+  <div class="preview" id="preview-dark"></div>
 </div>
 
-<div class="preview" id="preview"></div>
+<button onclick="downloadAll()">⬇️ Descarregar todos (4 ícones)</button>
 
-<button onclick="downloadAll()">⬇️ Descarregar todos os ícones</button>
+<p class="info">🌑 Fundo gradiente preto profundo · 🟡 Anel duplo dourado · ✨ "FP" serif itálico com glow · 🎨 Maskable com safe zone para Android</p>
 
 <script>
 const ICONS = [
@@ -35,49 +42,93 @@ function drawIcon(canvas, size, maskable) {
   canvas.width = size;
   canvas.height = size;
 
-  // Background
-  ctx.fillStyle = '#0a0905';
+  // Background gradient radial preto profundo
+  const bgGrad = ctx.createRadialGradient(size/2, size*0.42, size*0.05, size/2, size/2, size*0.7);
+  bgGrad.addColorStop(0, '#1a1407');
+  bgGrad.addColorStop(0.5, '#0d0b06');
+  bgGrad.addColorStop(1, '#040302');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, size, size);
 
-  // Maskable: precisa de "safe zone" — desenhar mais pequeno
-  // Não-maskable: usa o tamanho todo
-  const padding = maskable ? size * 0.18 : size * 0.10;
+  // Vignette dourada subtil no topo
+  const vignette = ctx.createRadialGradient(size/2, size*0.3, 0, size/2, size*0.3, size*0.6);
+  vignette.addColorStop(0, 'rgba(200,146,42,0.10)');
+  vignette.addColorStop(1, 'rgba(200,146,42,0)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, size, size);
+
+  // Padding (maskable precisa safe zone)
+  const padding = maskable ? size * 0.18 : size * 0.08;
   const drawSize = size - padding * 2;
   const cx = size / 2;
   const cy = size / 2;
-  const r = drawSize / 2 - padding * 0.2;
+  const rOuter = drawSize / 2 - drawSize * 0.02;
+  const rInner = rOuter - drawSize * 0.075;
 
-  // Anel dourado (igual ao favicon)
+  // Anel externo fino
+  ctx.shadowColor = 'rgba(200,146,42,0.35)';
+  ctx.shadowBlur = drawSize * 0.06;
   ctx.strokeStyle = '#c8922a';
-  ctx.lineWidth = drawSize * 0.12;
+  ctx.lineWidth = drawSize * 0.012;
   ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.arc(cx, cy, rOuter, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Anel interno mais grosso, gradient dourado
+  const ringGrad = ctx.createLinearGradient(cx, cy - rInner, cx, cy + rInner);
+  ringGrad.addColorStop(0, '#e0a93e');
+  ringGrad.addColorStop(0.5, '#c8922a');
+  ringGrad.addColorStop(1, '#9a7220');
+  ctx.strokeStyle = ringGrad;
+  ctx.lineWidth = drawSize * 0.048;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Texto "FP" no centro (opcional, melhor para reconhecer)
-  if (size >= 192) {
-    ctx.fillStyle = '#c8922a';
-    ctx.font = `300 ${drawSize * 0.32}px Georgia, serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('FP', cx, cy + drawSize * 0.02);
-  }
+  // Monograma "FP" — serif itálico
+  const fontSize = drawSize * 0.42;
+  ctx.font = `italic 500 ${fontSize}px "Cormorant Garamond", "Times New Roman", Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(200,146,42,0.5)';
+  ctx.shadowBlur = drawSize * 0.04;
+
+  // Texto com gradient vertical dourado
+  const textGrad = ctx.createLinearGradient(cx, cy - fontSize/2, cx, cy + fontSize/2);
+  textGrad.addColorStop(0, '#f0c869');
+  textGrad.addColorStop(0.5, '#e0a93e');
+  textGrad.addColorStop(1, '#a87a23');
+  ctx.fillStyle = textGrad;
+  ctx.fillText('FP', cx, cy - fontSize * 0.02);
+  ctx.shadowBlur = 0;
+
+  // Linha decorativa subtil abaixo
+  const lineY = cy + fontSize * 0.32;
+  const lineW = fontSize * 0.5;
+  const accentGrad = ctx.createLinearGradient(cx - lineW/2, lineY, cx + lineW/2, lineY);
+  accentGrad.addColorStop(0, 'rgba(200,146,42,0)');
+  accentGrad.addColorStop(0.5, '#c8922a');
+  accentGrad.addColorStop(1, 'rgba(200,146,42,0)');
+  ctx.fillStyle = accentGrad;
+  ctx.fillRect(cx - lineW/2, lineY, lineW, drawSize * 0.008);
 }
 
 function render() {
-  const preview = document.getElementById('preview');
+  const preview = document.getElementById('preview-dark');
   preview.innerHTML = '';
   ICONS.forEach((cfg) => {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'text-align:center';
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = `width:${Math.min(cfg.size, 192)}px;height:${Math.min(cfg.size, 192)}px;display:block`;
+    const displaySize = Math.min(cfg.size, 180);
+    canvas.style.cssText = `width:${displaySize}px;height:${displaySize}px;display:block`;
     canvas.id = cfg.name;
     drawIcon(canvas, cfg.size, cfg.maskable);
     wrap.appendChild(canvas);
     const label = document.createElement('div');
-    label.textContent = cfg.name + (cfg.maskable ? ' (maskable)' : '');
-    label.style.cssText = 'font-size:11px;color:#a89c87;margin-top:6px';
+    label.textContent = cfg.name + (cfg.maskable ? ' · maskable' : '');
+    label.className = 'label';
     wrap.appendChild(label);
     preview.appendChild(wrap);
   });
@@ -99,7 +150,9 @@ function downloadAll() {
   });
 }
 
-render();
+// Esperar fonte serif carregar antes de renderizar (importante)
+document.fonts.ready.then(() => render());
+setTimeout(() => render(), 1500);
 </script>
 </body>
 </html>
