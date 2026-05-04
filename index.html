@@ -1,16 +1,541 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-PT">
 <head>
 <meta charset="UTF-8">
-<title>FleetPay</title>
-<meta http-equiv="refresh" content="0; url=login.html">
-<link rel="canonical" href="login.html">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetPay — Plataforma de gestão TVDE em Portugal</title>
+<meta name="description" content="Pagamentos automáticos, integração API oficial Bolt+Uber, cupões, programa de embaixadores, e-tacógrafo e compliance TVDE. A plataforma que a tua frota merece.">
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FleetPay">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta property="og:title" content="FleetPay — Gestão de frota TVDE">
+<meta property="og:description" content="A plataforma que a tua frota merece. API oficial Bolt+Uber, pagamentos automáticos, e-tacógrafo, compliance TVDE.">
+<meta property="og:image" content="https://fleetpay.pt/icons/icon-512.png">
+<meta property="og:url" content="https://fleetpay.pt">
+<meta property="og:type" content="website">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  body{font-family:system-ui,sans-serif;background:#0a0905;color:#f7f4ef;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-  a{color:#c8922a}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--ink2:#0e0c08;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--line2:rgba(255,255,255,0.06);
+  --sub:#8a7d6a;--sub2:#a09484;
+  --green:#27c93f;--red:#e05252;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Outfit',-apple-system,sans-serif;
+  --mono:'Geist Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--ink);color:var(--paper);line-height:1.6;-webkit-font-smoothing:antialiased}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,black 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+/* NAV */
+.nav{
+  position:sticky;top:0;z-index:50;
+  padding:18px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,9,5,0.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:22px;font-weight:400;text-decoration:none;color:inherit}
+.nav-logo em{font-style:italic;color:var(--gold)}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{color:var(--sub2);text-decoration:none;font-size:13px;transition:color .15s}
+.nav-links a:hover{color:var(--paper)}
+.nav-cta{display:flex;gap:10px;align-items:center}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 22px;border-radius:3px;
+  font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;border:none;text-decoration:none;
+  transition:all .2s;white-space:nowrap;
+}
+.btn-gold{background:var(--gold);color:var(--ink)}
+.btn-gold:hover{background:var(--gold-light);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
+.btn-lg{padding:14px 28px;font-size:12px}
+
+/* SECTIONS */
+.section{position:relative;z-index:1;padding:80px 32px;max-width:1180px;margin:0 auto}
+.section-tag{display:inline-flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2.5px;text-transform:uppercase}
+.section-tag::before{content:'';width:24px;height:1px;background:var(--gold)}
+.section-h{font-family:var(--serif);font-size:clamp(36px,5vw,56px);font-weight:300;line-height:1.1;letter-spacing:-1px;margin-bottom:18px}
+.section-h em{font-style:italic;color:var(--gold)}
+.section-sub{font-size:16px;color:var(--sub2);max-width:640px;line-height:1.7}
+
+/* HERO */
+.hero{padding:80px 32px 100px;text-align:center;position:relative;z-index:1;max-width:1180px;margin:0 auto}
+.hero-tag{display:inline-flex;align-items:center;gap:10px;margin-bottom:24px;padding:8px 16px;border:1px solid var(--line);border-radius:100px;font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;background:rgba(200,146,42,0.04)}
+.hero-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.hero-h{font-family:var(--serif);font-size:clamp(44px,7vw,88px);font-weight:300;line-height:1.05;letter-spacing:-2px;margin-bottom:24px}
+.hero-h em{font-style:italic;color:var(--gold)}
+.hero-sub{font-size:18px;color:var(--sub2);max-width:620px;margin:0 auto 40px;line-height:1.7}
+.hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+/* MOCKUP */
+.hero-mockup{
+  margin:60px auto 0;max-width:980px;
+  border:1px solid var(--line);border-radius:8px;
+  background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0));
+  padding:40px;position:relative;
+  box-shadow:0 40px 80px -30px rgba(200,146,42,0.15);
+}
+.hero-mockup::before{
+  content:'';position:absolute;top:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.mockup-bar{display:flex;gap:6px;margin-bottom:24px}
+.mockup-dot{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,0.1)}
+.mockup-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.mockup-kpi{background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;padding:16px;text-align:left}
+.mockup-kpi-label{font-family:var(--mono);font-size:8px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.mockup-kpi-val{font-family:var(--serif);font-size:24px;font-weight:300;color:var(--gold);letter-spacing:-.5px}
+.mockup-rows{display:grid;gap:6px}
+.mockup-row{display:grid;grid-template-columns:1fr 80px 80px 70px;gap:12px;padding:10px 14px;background:rgba(255,255,255,0.015);border:1px solid var(--line);border-radius:3px;font-size:12px;align-items:center;text-align:left}
+.mockup-row strong{font-weight:500;color:var(--paper)}
+.mockup-tag{display:inline-block;padding:2px 8px;border-radius:100px;font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:center}
+.mockup-tag.ok{background:rgba(39,201,63,0.1);color:var(--green)}
+
+/* DIFFERENTIATORS */
+.diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:42px}
+.diff-card{
+  padding:28px;border:1px solid var(--line);border-radius:6px;
+  background:linear-gradient(180deg,rgba(200,146,42,0.04),rgba(200,146,42,0));
+  transition:transform .25s,border-color .25s;
+}
+.diff-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.diff-icon{font-size:32px;margin-bottom:14px;display:block}
+.diff-title{font-family:var(--serif);font-size:24px;font-weight:400;margin-bottom:8px}
+.diff-title em{font-style:italic;color:var(--gold)}
+.diff-desc{color:var(--sub2);font-size:14px;line-height:1.65}
+
+/* FEATURES */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:42px}
+.feat{padding:24px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,0.015);transition:border-color .2s}
+.feat:hover{border-color:rgba(200,146,42,0.4)}
+.feat-icon{font-size:24px;margin-bottom:12px;display:block}
+.feat-title{font-size:15px;font-weight:600;color:var(--paper);margin-bottom:6px;letter-spacing:.2px}
+.feat-desc{font-size:13px;color:var(--sub2);line-height:1.65}
+
+/* HOW IT WORKS */
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px}
+.how-step{padding:30px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,0.015);position:relative}
+.how-num{
+  position:absolute;top:-18px;left:24px;
+  width:36px;height:36px;border-radius:50%;
+  background:var(--gold);color:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  border:3px solid var(--ink);
+}
+.how-title{font-family:var(--serif);font-size:22px;font-weight:400;margin:14px 0 10px}
+.how-desc{font-size:13px;color:var(--sub2);line-height:1.7}
+
+/* PRICING */
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px}
+.price-card{
+  padding:36px 28px;border:1px solid var(--line);border-radius:8px;
+  background:rgba(255,255,255,0.02);position:relative;
+  display:flex;flex-direction:column;
+}
+.price-card.featured{
+  border-color:var(--gold);
+  background:linear-gradient(180deg,rgba(200,146,42,0.08),rgba(200,146,42,0.02));
+  box-shadow:0 20px 60px -20px rgba(200,146,42,0.25);
+}
+.price-badge{
+  position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+  background:var(--gold);color:var(--ink);
+  padding:4px 14px;border-radius:100px;
+  font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;
+}
+.price-name{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px}
+.price-val{font-family:var(--serif);font-size:42px;font-weight:300;line-height:1;letter-spacing:-1px}
+.price-val em{font-style:italic;color:var(--gold)}
+.price-unit{font-family:var(--mono);font-size:11px;color:var(--sub);margin-top:6px;letter-spacing:.5px}
+.price-desc{font-size:13px;color:var(--sub2);margin:18px 0 22px;line-height:1.6;min-height:36px}
+.price-feat{display:flex;flex-direction:column;gap:9px;flex:1;margin-bottom:24px;list-style:none}
+.price-feat li{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--paper)}
+.price-feat li::before{content:'✓';color:var(--gold);font-weight:600;flex-shrink:0}
+
+/* FAQ */
+.faq{margin-top:42px;border-top:1px solid var(--line)}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-q{
+  width:100%;padding:24px 0;background:none;border:none;color:var(--paper);
+  font-family:var(--sans);font-size:16px;font-weight:500;cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;text-align:left;gap:20px;
+}
+.faq-q::after{content:'+';color:var(--gold);font-size:24px;font-weight:300;transition:transform .25s}
+.faq-item.open .faq-q::after{transform:rotate(45deg)}
+.faq-a{
+  display:none;padding:0 0 24px;color:var(--sub2);font-size:14px;line-height:1.75;max-width:820px;
+}
+.faq-item.open .faq-a{display:block}
+
+/* CTA FINAL */
+.cta-final{
+  margin:80px auto;max-width:1180px;
+  padding:60px 32px;border:1px solid var(--gold);border-radius:8px;
+  background:linear-gradient(135deg,rgba(200,146,42,0.1),rgba(200,146,42,0.02));
+  text-align:center;position:relative;z-index:1;
+}
+.cta-h{font-family:var(--serif);font-size:clamp(32px,4vw,48px);font-weight:300;line-height:1.15;margin-bottom:14px;letter-spacing:-.5px}
+.cta-h em{font-style:italic;color:var(--gold)}
+.cta-sub{color:var(--sub2);font-size:16px;margin-bottom:30px;max-width:560px;margin-left:auto;margin-right:auto}
+
+/* FOOTER */
+.footer{
+  border-top:1px solid var(--line);padding:50px 32px 30px;
+  position:relative;z-index:1;background:var(--ink2);
+}
+.footer-wrap{max-width:1180px;margin:0 auto 40px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
+.footer-brand{font-family:var(--serif);font-size:22px;font-weight:400;margin-bottom:12px}
+.footer-brand em{font-style:italic;color:var(--gold)}
+.footer-tag{font-size:13px;color:var(--sub2);max-width:280px;line-height:1.7}
+.footer-col-h{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px}
+.footer-col a{display:block;color:var(--sub2);text-decoration:none;font-size:13px;padding:5px 0;transition:color .15s}
+.footer-col a:hover{color:var(--paper)}
+.footer-bottom{
+  max-width:1180px;margin:0 auto;padding-top:24px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;
+  font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;
+}
+
+/* MOBILE */
+@media (max-width:768px){
+  .nav{padding:14px 18px}
+  .nav-links{display:none}
+  .nav-cta .btn-ghost{display:none}
+  .nav-logo{font-size:18px}
+
+  .section{padding:50px 18px}
+  .hero{padding:50px 18px 60px}
+  .hero-mockup{padding:18px;margin-top:36px}
+  .mockup-grid{grid-template-columns:repeat(2,1fr)}
+  .mockup-row{grid-template-columns:1fr 70px;gap:6px}
+  .mockup-row > :nth-child(3),.mockup-row > :nth-child(4){display:none}
+
+  .diff-grid{grid-template-columns:1fr;gap:12px}
+  .diff-card{padding:22px}
+
+  .feat-grid{grid-template-columns:1fr;gap:10px}
+
+  .how-grid{grid-template-columns:1fr;gap:32px;margin-top:36px}
+
+  .price-grid{grid-template-columns:1fr;gap:14px}
+
+  .cta-final{margin:50px 18px;padding:40px 22px}
+
+  .footer{padding:36px 18px 24px}
+  .footer-wrap{grid-template-columns:1fr;gap:28px}
+
+  .hero-cta{flex-direction:column;align-items:stretch}
+}
 </style>
 </head>
 <body>
-<p>A redirecionar para <a href="login.html">login</a>…</p>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </a>
+  <div class="nav-links">
+    <a href="#diferenciadores">Diferenciadores</a>
+    <a href="#features">Funcionalidades</a>
+    <a href="#como">Como funciona</a>
+    <a href="#pricing">Preços</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <div class="nav-cta">
+    <a href="login.html" class="btn btn-ghost">Entrar</a>
+    <a href="signup.html" class="btn btn-gold">Começar grátis</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">Gestão TVDE · Portugal</div>
+  <h1 class="hero-h">A plataforma que<br>a tua frota <em>merece.</em></h1>
+  <p class="hero-sub">
+    Pagamentos automáticos, integração API oficial Bolt+Uber, cupões com programa de embaixadores, e-tacógrafo e compliance TVDE — tudo num só lugar.
+  </p>
+  <div class="hero-cta">
+    <a href="signup.html" class="btn btn-gold btn-lg">Começar grátis →</a>
+    <a href="login.html" class="btn btn-ghost btn-lg">Já tenho conta</a>
+  </div>
+  <p style="margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1px">Até 2 motoristas grátis · Sem cartão de crédito</p>
+
+  <div class="hero-mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot"></div>
+      <div class="mockup-dot"></div>
+      <div class="mockup-dot"></div>
+    </div>
+    <div class="mockup-grid">
+      <div class="mockup-kpi"><div class="mockup-kpi-label">Receita Sem.</div><div class="mockup-kpi-val">€8.420</div></div>
+      <div class="mockup-kpi"><div class="mockup-kpi-label">Motoristas</div><div class="mockup-kpi-val">12</div></div>
+      <div class="mockup-kpi"><div class="mockup-kpi-label">Viaturas</div><div class="mockup-kpi-val">9</div></div>
+      <div class="mockup-kpi"><div class="mockup-kpi-label">Pagamentos</div><div class="mockup-kpi-val">11</div></div>
+    </div>
+    <div class="mockup-rows">
+      <div class="mockup-row"><strong>João Silva</strong><span style="color:var(--sub2)">€812</span><span style="color:var(--sub)">25-30 Abr</span><span class="mockup-tag ok">Pago</span></div>
+      <div class="mockup-row"><strong>Maria Costa</strong><span style="color:var(--sub2)">€689</span><span style="color:var(--sub)">25-30 Abr</span><span class="mockup-tag ok">Pago</span></div>
+      <div class="mockup-row"><strong>Rui Tavares</strong><span style="color:var(--sub2)">€745</span><span style="color:var(--sub)">25-30 Abr</span><span class="mockup-tag ok">Pago</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- TRUST BANNER — NÃO pedimos password Bolt/Uber -->
+<section class="section" style="padding-top:40px;padding-bottom:40px">
+  <div style="border:1px solid var(--gold);border-radius:8px;padding:32px;background:linear-gradient(135deg,rgba(200,146,42,0.08),rgba(200,146,42,0.02));position:relative;overflow:hidden">
+    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center" class="trust-grid">
+      <div style="font-size:48px;line-height:1">🛡️</div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Segurança · Importante</div>
+        <h3 style="font-family:var(--serif);font-size:26px;font-weight:300;letter-spacing:-.5px;margin-bottom:8px">Nunca pedimos a tua <em style="color:var(--gold);font-style:italic">password</em> do Bolt ou Uber.</h3>
+        <p style="color:var(--sub2);font-size:14px;line-height:1.7;max-width:680px">As outras plataformas pedem-te o login do portal Bolt/Uber porque fazem <strong style="color:var(--paper)">scraping</strong> — viola os Termos de Serviço e arrisca o banimento da tua conta. O FleetPay usa <strong style="color:var(--paper)">credenciais API oficiais</strong> (Client ID + Secret), o método aprovado pela Bolt e Uber para parceiros.</p>
+      </div>
+      <div style="text-align:right" class="trust-cta">
+        <a href="#diferenciadores" style="display:inline-flex;align-items:center;gap:6px;color:var(--gold);text-decoration:none;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600">Saber mais →</a>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+@media (max-width:768px){
+  .trust-grid{grid-template-columns:1fr !important;gap:14px !important;text-align:center}
+  .trust-cta{text-align:center !important}
+}
+</style>
+
+<section class="section" id="diferenciadores">
+  <div class="section-tag">O que nos torna diferentes</div>
+  <h2 class="section-h">Não somos <em>só</em> mais uma plataforma TVDE.</h2>
+  <p class="section-sub">Construído com integrações oficiais e funcionalidades únicas que nenhum concorrente oferece.</p>
+
+  <div class="diff-grid">
+    <div class="diff-card">
+      <span class="diff-icon">🛡️</span>
+      <h3 class="diff-title">API <em>oficial</em> Bolt + Uber</h3>
+      <p class="diff-desc">Integração com endpoints oficiais — não scraping. Sem risco de banimento, sem violação de Termos. Sustentável a longo prazo.</p>
+    </div>
+    <div class="diff-card">
+      <span class="diff-icon">🎟️</span>
+      <h3 class="diff-title">Cupões + <em>Embaixadores</em></h3>
+      <p class="diff-desc">Sistema de cross-selling, parcerias com fornecedores e programa de referência com bónus automáticos para motoristas.</p>
+    </div>
+    <div class="diff-card">
+      <span class="diff-icon">⏱️</span>
+      <h3 class="diff-title">E-tacógrafo <em>UE 165/2014</em></h3>
+      <p class="diff-desc">5 estados oficiais (volante, pausas, repouso) com auditoria PDF/CSV. Pronto para fiscalização IMT.</p>
+    </div>
+    <div class="diff-card">
+      <span class="diff-icon">💬</span>
+      <h3 class="diff-title">Chat <em>operador ↔ motorista</em></h3>
+      <p class="diff-desc">Comunicação directa em tempo real, broadcasts e comunicações fixadas com prioridade. Tudo dentro da plataforma.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="section-tag">Funcionalidades</div>
+  <h2 class="section-h">Tudo o que precisas <em>num só lugar.</em></h2>
+  <p class="section-sub">Desde o primeiro motorista ao quinquagésimo, o FleetPay cresce contigo.</p>
+
+  <div class="feat-grid">
+    <div class="feat"><span class="feat-icon">💰</span><div class="feat-title">Pagamentos automáticos</div><div class="feat-desc">Cálculo semanal de receitas, IVA, deduções, combustível e Via Verde. Recibos PDF gerados automaticamente.</div></div>
+    <div class="feat"><span class="feat-icon">📊</span><div class="feat-title">Dashboard em tempo real</div><div class="feat-desc">KPIs de receita, viagens, ocupação por motorista e por viatura. Comparativos semana a semana.</div></div>
+    <div class="feat"><span class="feat-icon">🚗</span><div class="feat-title">Gestão de frota</div><div class="feat-desc">Motoristas, viaturas, contratos, manutenção, IUC, seguros. Tudo centralizado e auditável.</div></div>
+    <div class="feat"><span class="feat-icon">📋</span><div class="feat-title">Compliance TVDE</div><div class="feat-desc">Checklist diário 19 pontos, termos versionados, contratos com assinatura digital e auditoria completa.</div></div>
+    <div class="feat"><span class="feat-icon">⛽</span><div class="feat-title">Combustível & Energia</div><div class="feat-desc">Integração PRIO, Galp, BP, Repsol e EDP. Imports automáticos com conciliação e alertas de fraude.</div></div>
+    <div class="feat"><span class="feat-icon">📱</span><div class="feat-title">App PWA motorista</div><div class="feat-desc">Instala-se no telemóvel como app nativa. Login com biometria (Face ID, digital), recibos offline.</div></div>
+  </div>
+</section>
+
+<section class="section" id="como">
+  <div class="section-tag">Em 3 passos</div>
+  <h2 class="section-h">Pronto a usar <em>em horas</em>, não em meses.</h2>
+  <p class="section-sub">Sem migrações complicadas. Sem instalações. Tudo na cloud, com onboarding guiado.</p>
+
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-num">1</div>
+      <div class="how-title">Cria a tua conta</div>
+      <p class="how-desc">Wizard de 6 passos para configurar empresa, branding, motoristas e plataformas que usas (Bolt, Uber, PRIO, Via Verde…).</p>
+    </div>
+    <div class="how-step">
+      <div class="how-num">2</div>
+      <div class="how-title">Conecta as APIs</div>
+      <p class="how-desc">Liga as tuas credenciais oficiais Bolt e Uber. Importamos motoristas, viaturas e viagens dos últimos 6 meses automaticamente.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-num">3</div>
+      <div class="how-title">Automatiza tudo</div>
+      <p class="how-desc">Pagamentos semanais calculados, recibos enviados, alertas de compliance — a tua frota gere-se sozinha.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="pricing">
+  <div class="section-tag">Preços transparentes</div>
+  <h2 class="section-h">Um plano para <em>cada frota.</em></h2>
+  <p class="section-sub">Sem fidelizações. Sem surpresas. Cancelas quando quiseres.</p>
+
+  <div class="price-grid">
+    <div class="price-card">
+      <div class="price-name">Starter</div>
+      <div class="price-val">Grátis</div>
+      <div class="price-unit">Até 2 motoristas · Para sempre</div>
+      <p class="price-desc">Perfeito para começar e experimentar a plataforma sem compromisso.</p>
+      <ul class="price-feat">
+        <li>Dashboard + pagamentos</li>
+        <li>Gestão de motoristas</li>
+        <li>App PWA motorista</li>
+        <li>Suporte por email</li>
+      </ul>
+      <a href="signup.html" class="btn btn-ghost">Começar grátis</a>
+    </div>
+
+    <div class="price-card featured">
+      <div class="price-badge">Mais popular</div>
+      <div class="price-name">Pro</div>
+      <div class="price-val"><em>Sob</em> consulta</div>
+      <div class="price-unit">Por motorista / mês</div>
+      <p class="price-desc">A solução completa para frotas em crescimento.</p>
+      <ul class="price-feat">
+        <li>Tudo do plano Starter</li>
+        <li>API oficial Bolt + Uber</li>
+        <li>Cupões + Embaixadores</li>
+        <li>E-tacógrafo + Compliance</li>
+        <li>Chat motorista ↔ operador</li>
+        <li>Combustível + Via Verde</li>
+        <li>Suporte prioritário</li>
+      </ul>
+      <a href="#cta" class="btn btn-gold">Pedir orçamento</a>
+    </div>
+
+    <div class="price-card">
+      <div class="price-name">Enterprise</div>
+      <div class="price-val"><em>Custom</em></div>
+      <div class="price-unit">Frotas grandes</div>
+      <p class="price-desc">Para empresas com mais de 30 motoristas, multi-empresa ou integrações personalizadas.</p>
+      <ul class="price-feat">
+        <li>Tudo do plano Pro</li>
+        <li>Multi-empresa</li>
+        <li>White-label opcional</li>
+        <li>Integrações à medida</li>
+        <li>Account manager dedicado</li>
+      </ul>
+      <a href="#cta" class="btn btn-ghost">Falar connosco</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="faq">
+  <div class="section-tag">Perguntas frequentes</div>
+  <h2 class="section-h">Dúvidas? <em>Temos respostas.</em></h2>
+
+  <div class="faq">
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">Quanto tempo demora a colocar a minha frota a funcionar?</button>
+      <div class="faq-a">Em média, entre 2 a 4 horas. O onboarding wizard guia-te em 6 passos: configuração de empresa, motoristas, viaturas, ligação das APIs Bolt/Uber e configuração de pagamentos. Importamos automaticamente os últimos 6 meses de viagens dos motoristas.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">Porque é que dizem que usam "API oficial" e os outros "scraping"?</button>
+      <div class="faq-a">A maioria das plataformas TVDE em Portugal usa scraping — fazem login no portal Bolt/Uber com a tua password e leem dados como se fossem tu. Isto viola os Termos de Serviço e pode resultar no banimento da tua conta. O FleetPay usa as APIs oficiais que a Bolt e Uber disponibilizam para parceiros — é seguro e sustentável a longo prazo.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">O e-tacógrafo é mesmo válido para fiscalização IMT?</button>
+      <div class="faq-a">Sim. Implementámos os 5 estados oficiais previstos no Regulamento UE 165/2014 (volante, outros trabalhos, disponibilidade, pausa e repouso) com timestamps imutáveis e exportação PDF/CSV auditável. É a mesma estrutura que os tacógrafos digitais usam.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">Os meus motoristas precisam de instalar alguma app?</button>
+      <div class="faq-a">Não é obrigatório, mas é recomendado. O FleetPay é uma PWA (Progressive Web App) — basta o motorista abrir o link no telemóvel e adicionar ao ecrã principal. Funciona como app nativa, com login biométrico (Face ID, digital) e suporta uso offline para ver recibos.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">E os meus dados? Estão seguros?</button>
+      <div class="faq-a">Sim. Os dados ficam alojados em infraestrutura europeia (Supabase + AWS Frankfurt), com encriptação em trânsito e em repouso, RLS ao nível da base de dados e backup diário. Cumprimos RGPD e podes exportar ou apagar os teus dados a qualquer momento.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">Posso cancelar quando quiser?</button>
+      <div class="faq-a">Sim, sem fidelização e sem custos de cancelamento. Cancelas com 1 clique e podes exportar todos os teus dados antes. Também temos um plano gratuito para até 3 motoristas — sem cartão de crédito necessário.</div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-final" id="cta">
+  <h2 class="cta-h">Pronto para a tua frota <em>brilhar?</em></h2>
+  <p class="cta-sub">Cria a tua conta em 2 minutos. Até 2 motoristas grátis para sempre.<br>Sem cartão de crédito, sem fidelização.</p>
+  <div class="hero-cta">
+    <a href="signup.html" class="btn btn-gold btn-lg">Começar grátis →</a>
+    <a href="login.html" class="btn btn-ghost btn-lg">Já tenho conta</a>
+  </div>
+  <p style="margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1px">Tens uma frota grande? <a href="mailto:geral@fleetpay.pt?subject=Or%C3%A7amento%20FleetPay%20Enterprise" style="color:var(--gold);text-decoration:none">Pede orçamento Enterprise</a></p>
+</section>
+
+<footer class="footer">
+  <div class="footer-wrap">
+    <div>
+      <div class="footer-brand">Fleet<em>Pay</em></div>
+      <p class="footer-tag">A plataforma de gestão TVDE construída para Portugal — com integrações oficiais e foco em compliance.</p>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-h">Produto</div>
+      <a href="#features">Funcionalidades</a>
+      <a href="#diferenciadores">Diferenciadores</a>
+      <a href="#pricing">Preços</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-h">Empresa</div>
+      <a href="signup.html">Começar grátis</a>
+      <a href="login.html">Entrar</a>
+      <a href="mailto:geral@fleetpay.pt">Contacto</a>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-h">Legal</div>
+      <a href="#">Termos de utilização</a>
+      <a href="#">Política de privacidade</a>
+      <a href="#">RGPD</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 FleetPay · Instituto 31</span>
+    <span>Feito em Portugal</span>
+  </div>
+</footer>
+
+<script>
+function toggleFaq(btn) {
+  btn.parentElement.classList.toggle('open');
+}
+
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id.length <= 1) return;
+    const el = document.querySelector(id);
+    if (el) {
+      e.preventDefault();
+      el.scrollIntoView({ behavior:'smooth', block:'start' });
+    }
+  });
+});
+</script>
+
 </body>
 </html>

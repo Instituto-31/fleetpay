@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar conta — FleetPay</title>
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FleetPay">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#8a7d6a;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'Geist Mono',monospace;--sans:'Outfit',sans-serif;
+  --red:#e05252;--green:#27c93f;
+}
+html,body{min-height:100vh;font-family:var(--sans);background:var(--ink);color:var(--paper)}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 0%,transparent 100%);
+  pointer-events:none;z-index:0;
+}
+
+.wrap{
+  min-height:100vh;display:grid;grid-template-columns:1fr 1.1fr;
+  position:relative;z-index:1;
+}
+
+/* LEFT — branding */
+.left{
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:60px;border-right:1px solid var(--line);position:sticky;top:0;height:100vh;
+}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:28px;font-weight:400}
+.logo em{font-style:italic;color:var(--gold)}
+.left-mid{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:440px}
+.left-tag{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.left-tag-line{width:28px;height:1px;background:var(--gold)}
+.left-tag-text{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase}
+.left-h{font-family:var(--serif);font-size:clamp(36px,3.6vw,52px);font-weight:300;line-height:1.1;letter-spacing:-1.2px;margin-bottom:24px}
+.left-h em{font-style:italic;color:var(--gold)}
+.left-p{font-size:15px;color:var(--sub2);line-height:1.8;font-weight:300;margin-bottom:24px}
+
+.benefit-list{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.benefit{display:flex;align-items:flex-start;gap:12px;font-size:14px;color:var(--paper)}
+.benefit::before{
+  content:'✓';color:var(--gold);font-weight:600;
+  width:22px;height:22px;border-radius:50%;
+  background:rgba(200,146,42,0.12);border:1px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;
+}
+
+.left-foot{font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1px}
+.left-foot a{color:var(--gold);text-decoration:none}
+
+/* RIGHT — form */
+.right{padding:60px;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh}
+.form-box{width:100%;max-width:480px}
+.form-title{font-family:var(--serif);font-size:34px;font-weight:300;letter-spacing:-.5px;margin-bottom:8px}
+.form-sub{font-size:14px;color:var(--sub2);margin-bottom:32px}
+.form-sub a{color:var(--gold);text-decoration:none}
+
+.field{margin-bottom:18px}
+.field label{display:block;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.field label .opt{color:var(--sub);text-transform:none;font-family:var(--sans);letter-spacing:0;font-size:11px}
+.field input,.field select{
+  width:100%;padding:13px 16px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--line);border-radius:3px;
+  color:var(--paper);font-size:16px;font-family:var(--sans);
+  outline:none;transition:border-color .2s;
+}
+.field input:focus,.field select:focus{border-color:var(--gold)}
+.field input::placeholder{color:var(--sub)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+.checkbox-row{display:flex;align-items:flex-start;gap:10px;margin:24px 0 8px;font-size:13px;line-height:1.6;color:var(--sub2)}
+.checkbox-row input{accent-color:var(--gold);margin-top:3px;flex-shrink:0}
+.checkbox-row a{color:var(--gold);text-decoration:none}
+
+.btn-submit{
+  width:100%;padding:15px;margin-top:18px;
+  background:var(--gold);color:var(--ink);
+  border:none;border-radius:3px;
+  font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;
+  transition:background .2s,transform .15s;
+}
+.btn-submit:hover:not(:disabled){background:var(--gold-light);transform:translateY(-1px)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed}
+
+.msg{margin-top:18px;padding:12px 16px;border-radius:3px;font-size:13px;display:none}
+.msg.error{background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);color:var(--red)}
+.msg.success{background:rgba(39,201,63,0.1);border:1px solid rgba(39,201,63,0.3);color:var(--green)}
+.msg.show{display:block}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.2);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.footer-note{margin-top:24px;text-align:center;font-size:13px;color:var(--sub2)}
+.footer-note a{color:var(--gold);text-decoration:none}
+
+/* MOBILE */
+@media (max-width:900px){
+  body{overflow-x:hidden}
+  .wrap{grid-template-columns:1fr}
+  .left{position:relative;height:auto;padding:30px 22px 24px;border-right:none;border-bottom:1px solid var(--line)}
+  .left-mid{max-width:none}
+  .left-h{font-size:28px}
+  .benefit-list{gap:10px}
+  .benefit{font-size:13px}
+  .left-foot{display:none}
+  .right{padding:32px 22px 60px;min-height:auto}
+  .form-title{font-size:26px}
+  .field-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <!-- LEFT branding -->
+  <div class="left">
+    <a href="/" class="logo" style="text-decoration:none;color:inherit">
+      <svg viewBox="0 0 32 32" width="32" height="32" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+      <span>Fleet<em>Pay</em></span>
+    </a>
+
+    <div class="left-mid">
+      <div class="left-tag">
+        <span class="left-tag-line"></span>
+        <span class="left-tag-text">2 minutos · Grátis</span>
+      </div>
+      <h1 class="left-h">A tua frota merece <em>uma plataforma à altura.</em></h1>
+      <p class="left-p">Cria a tua conta e começa a gerir até 2 motoristas grátis. Sem cartão de crédito, sem fidelizações.</p>
+
+      <div class="benefit-list">
+        <div class="benefit">Pagamentos automáticos semanais</div>
+        <div class="benefit">API oficial Bolt + Uber (sem scraping)</div>
+        <div class="benefit">App PWA para os motoristas</div>
+        <div class="benefit">Compliance TVDE + e-tacógrafo UE 165/2014</div>
+      </div>
+    </div>
+
+    <div class="left-foot">
+      Já tens conta? <a href="login.html">Entrar →</a>
+    </div>
+  </div>
+
+  <!-- RIGHT form -->
+  <div class="right">
+    <div class="form-box">
+      <h2 class="form-title">Criar conta</h2>
+      <p class="form-sub">Plano <strong style="color:var(--paper)">Starter grátis</strong> — até 2 motoristas, para sempre.</p>
+
+      <form id="signup-form" onsubmit="event.preventDefault(); criarConta()">
+        <div class="field">
+          <label>Nome da empresa</label>
+          <input type="text" id="empresa" placeholder="Ex.: Frota Silva, Lda." required autocomplete="organization">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>NIPC <span class="opt">(opcional)</span></label>
+            <input type="text" id="nif" placeholder="500000000" autocomplete="off" inputmode="numeric" maxlength="9">
+          </div>
+          <div class="field">
+            <label>Telefone</label>
+            <input type="tel" id="telefone" placeholder="912 000 000" autocomplete="tel" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>O teu nome</label>
+          <input type="text" id="nome" placeholder="Maria Costa" required autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="email" placeholder="maria@frotasilva.pt" required autocomplete="email">
+        </div>
+
+        <div class="field">
+          <label>Password <span class="opt">(mín. 8 caracteres)</span></label>
+          <input type="password" id="password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="aceitar" required>
+          <span>Aceito os <a href="#" onclick="event.preventDefault();alert('Termos em construção. Até lá vale o bom senso :)')">Termos de utilização</a> e a <a href="#" onclick="event.preventDefault();alert('Política de privacidade em construção.')">Política de privacidade</a>.</span>
+        </label>
+
+        <button type="submit" id="btn-submit" class="btn-submit">Criar conta grátis →</button>
+
+        <div class="msg" id="msg"></div>
+      </form>
+
+      <p class="footer-note">
+        Já tens conta? <a href="login.html">Entrar</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+function showMsg(text, type) {
+  const m = document.getElementById('msg');
+  m.textContent = text;
+  m.className = 'msg show ' + type;
+}
+
+async function criarConta() {
+  const btn = document.getElementById('btn-submit');
+  const empresa = document.getElementById('empresa').value.trim();
+  const nif = document.getElementById('nif').value.trim();
+  const nome = document.getElementById('nome').value.trim();
+  const telefone = document.getElementById('telefone').value.trim();
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const password = document.getElementById('password').value;
+  const aceitar = document.getElementById('aceitar').checked;
+
+  if (!aceitar) { showMsg('Tens de aceitar os termos para continuar.', 'error'); return; }
+  if (password.length < 8) { showMsg('A password tem de ter pelo menos 8 caracteres.', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>A criar conta…';
+
+  try {
+    // 1. Criar user no auth
+    const { data: signData, error: signErr } = await db.auth.signUp({
+      email,
+      password,
+      options: { data: { nome, empresa } }
+    });
+    if (signErr) {
+      // Email já existe?
+      if (signErr.message?.toLowerCase().includes('already')) {
+        throw new Error('Já existe uma conta com este email. Faz login ou recupera a password.');
+      }
+      throw signErr;
+    }
+
+    // 2. Auto-login (caso confirmação por email esteja desligada na Supabase)
+    if (!signData.session) {
+      const { error: loginErr } = await db.auth.signInWithPassword({ email, password });
+      if (loginErr) {
+        // Confirmação de email obrigatória — informa o user
+        showMsg('Verifica o teu email para confirmar a conta. Depois faz login em /login.html', 'success');
+        btn.innerHTML = 'Verifica o teu email →';
+        return;
+      }
+    }
+
+    // 3. Criar empresa + perfil via RPC
+    const { data: empresaId, error: rpcErr } = await db.rpc('criar_empresa_publica', {
+      p_nome_empresa: empresa,
+      p_nif: nif,
+      p_nome_responsavel: nome,
+      p_telefone: telefone
+    });
+    if (rpcErr) throw rpcErr;
+
+    showMsg('✓ Conta criada! A redireccionar para o onboarding…', 'success');
+
+    // 4. Redirect para onboarding
+    setTimeout(() => { window.location.href = 'onboarding.html'; }, 800);
+
+  } catch (e) {
+    console.error(e);
+    showMsg(e.message || 'Erro ao criar conta. Tenta de novo.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Criar conta grátis →';
+  }
+}
+
+// Pré-preencher email se vier por query string (?email=)
+const params = new URLSearchParams(location.search);
+if (params.get('email')) document.getElementById('email').value = params.get('email');
+</script>
+
+</body>
+</html>
