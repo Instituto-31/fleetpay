@@ -179,6 +179,24 @@ body.theme-sage .tab { color:var(--sub2); }
 body.theme-sage .btn-magic { color:var(--paper); border-color:var(--line); }
 body.theme-sage body::before { opacity:0.4; }
 
+/* MOBILE — empilhar painéis, scroll vertical, inputs anti-zoom iOS */
+@media (max-width: 768px) {
+  html, body { overflow: auto; height: auto; }
+  .wrap { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+  .left {
+    padding: 28px 24px 20px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .left-mid { display: none; }
+  .stats { display: none; }
+  .right { padding: 32px 20px 60px; }
+  .form-box { max-width: 100%; }
+  .form-title { font-size: 26px; }
+  .form-sub { margin-bottom: 28px; }
+  .field input { font-size: 16px; padding: 12px 14px; }
+  .btn-submit, .btn-magic { font-size: 12px; }
+}
 </style>
 </head>
 <body>
