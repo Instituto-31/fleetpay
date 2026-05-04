@@ -100,9 +100,18 @@
 
   @media (max-width:900px){
     .wrap{grid-template-columns:1fr}
-    .sb{position:sticky;top:0;z-index:10}
-    .main{padding:30px 20px}
+    .sb{position:sticky;top:0;z-index:10;padding:18px 16px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px}
+    .sb-logo{margin-bottom:0;flex:1}
+    .sb-progress{order:5;width:100%;margin:0}
+    #sb-steps{display:none}
+    .sb-skip{margin-top:0;padding:7px 12px;font-size:9px}
+    .main{padding:24px 16px;max-height:none}
+    .step-title{font-size:26px}
     .row{grid-template-columns:1fr}
+    .field input,.field select,.field textarea{font-size:16px}
+    .nav{flex-wrap:wrap;gap:10px}
+    .nav .btn{flex:1;min-width:120px}
+    .welcome-grid{grid-template-columns:1fr}
   }
 </style>
 </head>
