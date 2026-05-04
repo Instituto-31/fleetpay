@@ -255,7 +255,7 @@ body::before{
     <span>Fleet<em>Pay</em></span>
   </a>
   <div class="nav-links">
-    <a href="#diferenciadores">Diferenciadores</a>
+    <a href="seguranca.html">🔒 Segurança</a>
     <a href="#features">Funcionalidades</a>
     <a href="#como">Como funciona</a>
     <a href="#pricing">Preços</a>
@@ -300,27 +300,22 @@ body::before{
 </section>
 
 <!-- TRUST BANNER — NÃO pedimos password Bolt/Uber -->
-<section class="section" style="padding-top:40px;padding-bottom:40px">
-  <div style="border:1px solid var(--gold);border-radius:8px;padding:32px;background:linear-gradient(135deg,rgba(200,146,42,0.08),rgba(200,146,42,0.02));position:relative;overflow:hidden">
-    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center" class="trust-grid">
-      <div style="font-size:48px;line-height:1">🛡️</div>
-      <div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Segurança · Importante</div>
-        <h3 style="font-family:var(--serif);font-size:26px;font-weight:300;letter-spacing:-.5px;margin-bottom:8px">Nunca pedimos a tua <em style="color:var(--gold);font-style:italic">password</em> do Bolt ou Uber.</h3>
-        <p style="color:var(--sub2);font-size:14px;line-height:1.7;max-width:680px">As outras plataformas pedem-te o login do portal Bolt/Uber porque fazem <strong style="color:var(--paper)">scraping</strong> — viola os Termos de Serviço e arrisca o banimento da tua conta. O FleetPay usa <strong style="color:var(--paper)">credenciais API oficiais</strong> (Client ID + Secret), o método aprovado pela Bolt e Uber para parceiros.</p>
-      </div>
-      <div style="text-align:right" class="trust-cta">
-        <a href="#diferenciadores" style="display:inline-flex;align-items:center;gap:6px;color:var(--gold);text-decoration:none;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600">Saber mais →</a>
-      </div>
+<section class="section" id="seguranca-hero" style="padding-top:60px;padding-bottom:60px">
+  <div style="border:1px solid var(--gold);border-radius:10px;padding:48px 40px;background:linear-gradient(135deg,rgba(200,146,42,0.1),rgba(200,146,42,0.02));position:relative;overflow:hidden;text-align:center">
+    <div style="font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:18px">🔒 Segurança</div>
+    <h2 style="font-family:var(--serif);font-size:clamp(32px,4.5vw,46px);font-weight:300;letter-spacing:-1px;line-height:1.1;margin-bottom:22px;max-width:780px;margin-left:auto;margin-right:auto">FleetPay nunca pede a tua <em style="color:var(--gold);font-style:italic">password.</em></h2>
+
+    <div style="max-width:680px;margin:0 auto;color:var(--sub2);font-size:16px;line-height:1.8">
+      <p style="margin-bottom:16px">Outros sistemas TVDE pedem o teu login do portal Uber e Bolt para "integrar". Isso é <strong style="color:var(--paper)">scraping</strong>. Viola TOS. E pode banir-te a conta.</p>
+      <p style="margin-bottom:16px">Nós usamos só <strong style="color:var(--paper)">API oficial</strong>. Credenciais que tu geras e podes revogar. Sem riscos. Sem violar regras. Sem dores de cabeça.</p>
+      <p style="font-family:var(--serif);font-style:italic;color:var(--gold);font-size:18px;margin-top:24px">A diferença que protege o teu negócio.</p>
     </div>
+
+    <a href="seguranca.html" style="display:inline-flex;align-items:center;gap:8px;margin-top:32px;padding:13px 26px;border:1px solid var(--gold);border-radius:3px;color:var(--gold);text-decoration:none;font-family:var(--sans);font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600;transition:background .2s,color .2s">
+      Saber mais sobre segurança →
+    </a>
   </div>
 </section>
-<style>
-@media (max-width:768px){
-  .trust-grid{grid-template-columns:1fr !important;gap:14px !important;text-align:center}
-  .trust-cta{text-align:center !important}
-}
-</style>
 
 <section class="section" id="diferenciadores">
   <div class="section-tag">O que nos torna diferentes</div>
@@ -456,7 +451,7 @@ body::before{
     </div>
     <div class="faq-item">
       <button class="faq-q" onclick="toggleFaq(this)">Porque é que dizem que usam "API oficial" e os outros "scraping"?</button>
-      <div class="faq-a">A maioria das plataformas TVDE em Portugal usa scraping — fazem login no portal Bolt/Uber com a tua password e leem dados como se fossem tu. Isto viola os Termos de Serviço e pode resultar no banimento da tua conta. O FleetPay usa as APIs oficiais que a Bolt e Uber disponibilizam para parceiros — é seguro e sustentável a longo prazo.</div>
+      <div class="faq-a">A maioria das plataformas TVDE em Portugal usa scraping — fazem login no portal Bolt/Uber com a tua password e leem dados como se fossem tu. Isto viola os Termos de Serviço e pode resultar no banimento da tua conta. O FleetPay usa as APIs oficiais que a Bolt e Uber disponibilizam para parceiros — é seguro e sustentável a longo prazo. <a href="seguranca.html" style="color:var(--gold);text-decoration:none;font-weight:500">Lê a explicação completa →</a></div>
     </div>
     <div class="faq-item">
       <button class="faq-q" onclick="toggleFaq(this)">O e-tacógrafo é mesmo válido para fiscalização IMT?</button>
@@ -496,7 +491,7 @@ body::before{
     <div class="footer-col">
       <div class="footer-col-h">Produto</div>
       <a href="#features">Funcionalidades</a>
-      <a href="#diferenciadores">Diferenciadores</a>
+      <a href="seguranca.html">🔒 Segurança</a>
       <a href="#pricing">Preços</a>
       <a href="#faq">FAQ</a>
     </div>

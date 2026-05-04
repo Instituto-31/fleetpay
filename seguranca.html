@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Segurança — Porque o FleetPay nunca pede a tua password</title>
+<meta name="description" content="Outros SaaS TVDE pedem o teu login Uber e Bolt e fazem scraping. O FleetPay usa API oficial. Sem risco de banimento, sem violar TOS.">
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FleetPay">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta property="og:title" content="Porque o FleetPay nunca pede a tua password do portal Uber ou Bolt">
+<meta property="og:description" content="A diferença que protege o teu negócio: API oficial em vez de scraping.">
+<meta property="og:image" content="https://fleetpay.pt/icons/icon-512.png">
+<meta property="og:url" content="https://fleetpay.pt/seguranca.html">
+<meta property="og:type" content="article">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--ink2:#0e0c08;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#8a7d6a;--sub2:#a09484;
+  --green:#27c93f;--red:#e05252;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Outfit',-apple-system,sans-serif;
+  --mono:'Geist Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--ink);color:var(--paper);line-height:1.7;-webkit-font-smoothing:antialiased}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,black 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+/* NAV */
+.nav{
+  position:sticky;top:0;z-index:50;
+  padding:18px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,9,5,0.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:22px;font-weight:400;text-decoration:none;color:inherit}
+.nav-logo em{font-style:italic;color:var(--gold)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 22px;border-radius:3px;
+  font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  font-family:var(--sans);cursor:pointer;border:none;text-decoration:none;
+  transition:all .2s;white-space:nowrap;
+}
+.btn-gold{background:var(--gold);color:var(--ink)}
+.btn-gold:hover{background:var(--gold-light);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
+.btn-lg{padding:14px 28px;font-size:12px}
+
+.nav-cta{display:flex;gap:10px;align-items:center}
+
+/* ARTICLE */
+.article{max-width:780px;margin:0 auto;padding:60px 32px 80px;position:relative;z-index:1}
+.article-tag{display:inline-flex;align-items:center;gap:10px;margin-bottom:20px;font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:2.5px;text-transform:uppercase}
+.article-tag::before{content:'🔒';font-size:14px}
+
+h1.article-h{
+  font-family:var(--serif);font-size:clamp(36px,5vw,58px);font-weight:300;
+  line-height:1.1;letter-spacing:-1.5px;margin-bottom:24px;
+}
+h1.article-h em{font-style:italic;color:var(--gold)}
+
+.article-lead{font-size:19px;color:var(--sub2);line-height:1.7;margin-bottom:42px;max-width:680px}
+
+.article h2{
+  font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:-.5px;
+  margin:56px 0 18px;line-height:1.2;
+}
+.article h2 em{font-style:italic;color:var(--gold)}
+
+.article h3{
+  font-family:var(--sans);font-size:18px;font-weight:600;
+  margin:32px 0 12px;color:var(--paper);
+}
+
+.article p{font-size:16px;color:var(--sub2);margin-bottom:18px;line-height:1.8}
+.article p strong{color:var(--paper);font-weight:600}
+.article a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(200,146,42,0.3);transition:border-color .2s}
+.article a:hover{border-color:var(--gold)}
+.article ol,.article ul{margin:18px 0 18px 24px}
+.article li{font-size:16px;color:var(--sub2);margin-bottom:10px;line-height:1.7;padding-left:6px}
+.article li::marker{color:var(--gold);font-family:var(--mono);font-weight:600}
+.article blockquote{
+  border-left:3px solid var(--gold);
+  padding:6px 0 6px 24px;
+  margin:28px 0;
+  font-family:var(--serif);font-style:italic;font-size:22px;
+  color:var(--paper);line-height:1.5;
+}
+
+/* AUTHOR INTRO */
+.author-intro{
+  display:flex;gap:18px;align-items:center;
+  padding:24px;border:1px solid var(--line);border-radius:8px;
+  background:rgba(255,255,255,0.02);margin-bottom:42px;
+}
+.author-avatar{
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(135deg,var(--gold),var(--gold-light));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-size:24px;font-weight:400;color:var(--ink);
+  flex-shrink:0;
+}
+.author-name{font-family:var(--serif);font-size:20px;font-weight:400;line-height:1.2}
+.author-name em{font-style:italic;color:var(--gold)}
+.author-title{font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px}
+
+/* FAKE LOGIN BAD */
+.bad-example{
+  background:rgba(224,82,82,0.05);border:1px solid rgba(224,82,82,0.25);
+  border-radius:6px;padding:24px;margin:24px 0;
+  font-family:var(--mono);font-size:13px;color:var(--sub2);
+}
+.bad-example::before{
+  content:'⚠️ Como NÃO deve ser';display:block;
+  font-family:var(--sans);font-size:11px;color:var(--red);
+  letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:14px;
+}
+.bad-example .field-fake{margin:8px 0;color:var(--paper)}
+.bad-example .field-fake span{color:var(--sub)}
+
+/* CHECKLIST QUESTIONS */
+.check-q{
+  border:1px solid var(--line);border-radius:6px;padding:24px;
+  background:rgba(255,255,255,0.02);margin-bottom:14px;
+}
+.check-q-title{font-family:var(--serif);font-size:20px;font-weight:400;margin-bottom:14px;color:var(--paper);font-style:italic}
+.check-line{display:flex;gap:10px;align-items:flex-start;margin:8px 0;font-size:14px}
+.check-line.ok{color:var(--paper)}
+.check-line.bad{color:var(--sub2)}
+.check-line .ico{flex-shrink:0;margin-top:2px;font-size:14px;line-height:1}
+.check-line strong{color:var(--paper)}
+
+/* SIGNATURE */
+.signature{
+  margin-top:60px;padding:30px 0 0;border-top:1px solid var(--line);
+  font-family:var(--serif);font-size:20px;color:var(--sub2);font-style:italic;
+}
+.signature strong{font-style:normal;color:var(--paper);display:block;margin-top:8px;font-weight:400}
+
+/* CTA */
+.cta-final{
+  margin:60px auto 0;padding:42px 32px;border:1px solid var(--gold);border-radius:8px;
+  background:linear-gradient(135deg,rgba(200,146,42,0.1),rgba(200,146,42,0.02));
+  text-align:center;
+}
+.cta-final h3{font-family:var(--serif);font-size:28px;font-weight:300;margin-bottom:10px;letter-spacing:-.5px;color:var(--paper)}
+.cta-final h3 em{font-style:italic;color:var(--gold)}
+.cta-final p{color:var(--sub2);font-size:14px;margin-bottom:24px}
+.cta-final-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* FOOTER */
+.footer{
+  border-top:1px solid var(--line);padding:36px 32px;
+  position:relative;z-index:1;background:var(--ink2);
+  text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;
+}
+.footer a{color:var(--gold);text-decoration:none}
+
+/* MOBILE */
+@media (max-width:768px){
+  .nav{padding:14px 18px}
+  .nav-cta .btn-ghost{display:none}
+  .nav-logo{font-size:18px}
+  .article{padding:40px 18px 60px}
+  .article h2{font-size:26px;margin:42px 0 14px}
+  .article-lead{font-size:17px}
+  .article blockquote{font-size:18px;padding-left:18px}
+  .cta-final{padding:32px 18px}
+  .cta-final-btns{flex-direction:column}
+  .author-intro{flex-direction:column;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </a>
+  <div class="nav-cta">
+    <a href="login.html" class="btn btn-ghost">Entrar</a>
+    <a href="signup.html" class="btn btn-gold">Começar grátis</a>
+  </div>
+</nav>
+
+<article class="article">
+
+  <div class="article-tag">Segurança</div>
+  <h1 class="article-h">Porque o FleetPay <em>nunca</em> pede a tua password do portal Uber ou Bolt</h1>
+  <p class="article-lead">
+    A decisão técnica que custou-nos meses de espera mas vai compensar para sempre — e porque devias exigir o mesmo de qualquer SaaS TVDE que avalies.
+  </p>
+
+  <div class="author-intro">
+    <div class="author-avatar">F</div>
+    <div>
+      <div class="author-name">Olá, sou a <em>Flávia</em>.</div>
+      <div class="author-title">Fundadora · FleetPay</div>
+    </div>
+  </div>
+
+  <p>Quando começámos a construir o FleetPay para operadores TVDE em Portugal, tomámos uma decisão técnica que custou-nos meses de espera mas vai compensar para sempre: <strong>nunca pedir aos operadores a sua password do portal Uber ou fleets.bolt.eu</strong>.</p>
+
+  <h2>O caminho fácil que outros <em>escolheram</em></h2>
+
+  <p>Vê os SaaS de gestão TVDE no mercado. Quase todos têm um passo de onboarding parecido com este:</p>
+
+  <div class="bad-example">
+    <div class="field-fake"><span>Login Uber:</span> ____________</div>
+    <div class="field-fake"><span>Senha Uber:</span> ____________</div>
+  </div>
+
+  <p>Isto não é integração. É automação que faz login com as tuas credenciais e raspa dados do portal. Tem 3 problemas graves:</p>
+
+  <ol>
+    <li><strong>Viola Termos de Serviço da Uber e Bolt.</strong> Ambas proíbem expressamente automação de acesso.</li>
+    <li><strong>Arrisca banimento da tua conta TVDE</strong> — se Uber/Bolt detectarem padrão de bot (e detectam, eventualmente), perdes acesso à plataforma. Adeus negócio.</li>
+    <li><strong>Frágil</strong> — cada vez que Uber ou Bolt actualizam o portal, a integração parte. O SaaS que escolheste fica off-line e não recebes pagamentos.</li>
+  </ol>
+
+  <h2>O caminho difícil que <em>escolhemos</em></h2>
+
+  <p><strong>API oficial.</strong> Credenciais que tu geras no portal Uber/Bolt e podes revogar a qualquer momento sem afectar o teu login. Documentação estável. SLA garantido. Versionamento.</p>
+
+  <p>A <strong>Bolt</strong> já temos integrada — confirma em <a href="https://fleets.bolt.eu" target="_blank" rel="noopener">fleets.bolt.eu</a> → Definições → Ligações API de dados → secção "Renovação". Geras Client ID + Secret e colas no FleetPay. <strong>A tua password de login do portal nunca passa por nós.</strong></p>
+
+  <p>A <strong>Uber</strong> estamos em processo de aprovação como Vehicle Suppliers Partner — leva tempo (a Uber é exigente, e bem), mas é o único caminho sustentável. Quando aprovarem, é igual: API oficial, sem passwords.</p>
+
+  <h2>Porque <em>importa</em> para ti</h2>
+
+  <p>Quando escolheres um SaaS para gerir a tua frota TVDE, faz uma pergunta simples:</p>
+
+  <blockquote>
+    "Pedem a minha password do portal?"
+  </blockquote>
+
+  <p>Se sim, sai dali. Não importa quão bom é o produto — estás a um update do Uber/Bolt de perderes a conta.</p>
+  <p>Se não, está no caminho certo.</p>
+
+  <p style="font-family:var(--serif);font-style:italic;font-size:19px;color:var(--paper);margin:32px 0;line-height:1.5;text-align:center">A tua conta Uber e Bolt é o teu negócio.<br>Não a entregues a um SaaS que faça login com ela cada hora.</p>
+
+  <h2>Como <em>verificar</em> antes de assinar</h2>
+
+  <p>Pede ao SaaS que estás a avaliar:</p>
+
+  <div class="check-q">
+    <div class="check-q-title">"Que tipo de credenciais pedem para integrar com Uber e Bolt?"</div>
+    <div class="check-line ok"><span class="ico">✅</span><span><strong>Resposta correcta:</strong> "Client ID e Client Secret gerados no portal API oficial"</span></div>
+    <div class="check-line bad"><span class="ico">🚩</span><span><strong>Resposta de fugir:</strong> "Email e password do portal"</span></div>
+  </div>
+
+  <div class="check-q">
+    <div class="check-q-title">"O vosso SaaS está aprovado como Fleet Partner pela Bolt e Vehicle Supplier pela Uber?"</div>
+    <div class="check-line ok"><span class="ico">✅</span><span><strong>Resposta correcta:</strong> "Sim, temos credenciais oficiais aprovadas"</span></div>
+    <div class="check-line bad"><span class="ico">🚩</span><span><strong>Resposta de fugir:</strong> silêncio ou desvio</span></div>
+  </div>
+
+  <div class="check-q">
+    <div class="check-q-title">"Posso revogar o acesso ao SaaS sem afectar o meu login do portal?"</div>
+    <div class="check-line ok"><span class="ico">✅</span><span><strong>Resposta correcta:</strong> "Sim, basta apagar a Client Secret no portal"</span></div>
+    <div class="check-line bad"><span class="ico">🚩</span><span><strong>Resposta de fugir:</strong> "Tem que mudar a password" (= scraping)</span></div>
+  </div>
+
+  <h2>Quem <em>somos</em></h2>
+
+  <p>FleetPay é o SaaS de gestão de frotas TVDE construído para operadores Portugueses que valorizam <strong>segurança, robustez e relação correcta</strong> com os Termos de Serviço das plataformas.</p>
+
+  <p>Construído pelo <strong>Instituto 31</strong>, operador TVDE com licença IMT em Portugal. Conhecemos a dor do operador porque vivemos ela todos os dias.</p>
+
+  <div class="signature">
+    — <strong>Flávia Correia, FleetPay</strong>
+  </div>
+
+  <!-- CTA FINAL -->
+  <div class="cta-final">
+    <h3>Pronto a gerir a tua frota <em>com segurança?</em></h3>
+    <p>Cria conta grátis em 2 minutos. Até 2 motoristas, para sempre.</p>
+    <div class="cta-final-btns">
+      <a href="signup.html" class="btn btn-gold btn-lg">Começar grátis →</a>
+      <a href="/" class="btn btn-ghost btn-lg">Voltar ao site</a>
+    </div>
+  </div>
+
+</article>
+
+<footer class="footer">
+  © 2026 FleetPay · Instituto 31 · <a href="/">Início</a> · <a href="login.html">Entrar</a> · <a href="mailto:geral@fleetpay.pt">Contacto</a>
+</footer>
+
+</body>
+</html>
