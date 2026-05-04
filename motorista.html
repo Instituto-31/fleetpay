@@ -446,6 +446,81 @@ async function init() {
 
   // ── COMPLIANCE: validar Termos aceites + check diário ──
   await verificarCompliance();
+
+  // ── PASSWORD: oferecer definir password se nunca foi feito (só passa por aqui no 1º login) ──
+  setTimeout(() => sugerirDefinirPassword(), 4000);
+}
+
+async function sugerirDefinirPassword() {
+  // Só sugere se o user NÃO tem password definida (entrou via magic link)
+  // Marca em localStorage para não voltar a sugerir se ele dispensar
+  const dispensado = localStorage.getItem(`fp-pwd-dispensed-${currentUser.id}`);
+  if (dispensado) return;
+
+  // Detectar se já tem password: tentamos ver no metadata
+  const temPassword = currentUser?.user_metadata?.has_password
+                   || currentUser?.app_metadata?.providers?.includes('password');
+  if (temPassword) return;
+
+  // Modal
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid var(--gold);border-radius:12px;max-width:420px;width:100%;padding:28px 24px">
+      <div style="text-align:center;font-size:42px;margin-bottom:8px">🔐</div>
+      <h2 style="font-family:var(--serif);font-weight:300;font-size:24px;margin:0 0 6px;text-align:center;color:var(--paper)">Define uma password</h2>
+      <p style="text-align:center;font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:20px">
+        Da próxima vez podes entrar em <strong>5 segundos</strong> sem esperar email.<br>
+        O telemóvel pode também usar <strong>Face ID ou impressão digital</strong> 🤳 para entrar automaticamente.
+      </p>
+      <form id="form-pwd" style="display:flex;flex-direction:column;gap:10px">
+        <input type="email" id="pwd-email" autocomplete="username" value="${currentUser.email}" readonly style="display:none">
+        <input type="password" id="pwd-new" autocomplete="new-password" placeholder="Nova password (mín. 6 caracteres)" minlength="6" required style="padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:14px">
+        <input type="password" id="pwd-confirm" autocomplete="new-password" placeholder="Repete a password" minlength="6" required style="padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:14px">
+        <button type="submit" style="background:var(--gold);color:#000;border:none;padding:13px;border-radius:5px;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-weight:700;margin-top:6px">✓ Guardar password</button>
+        <button type="button" onclick="dispensarPassword()" style="background:transparent;color:var(--sub);border:none;padding:11px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:1px;margin-top:4px">Agora não</button>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('form-pwd').onsubmit = async (e) => {
+    e.preventDefault();
+    const p1 = document.getElementById('pwd-new').value;
+    const p2 = document.getElementById('pwd-confirm').value;
+    if (p1.length < 6) { alert('Mínimo 6 caracteres.'); return; }
+    if (p1 !== p2) { alert('Passwords não coincidem.'); return; }
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = '⏳ A guardar...';
+    const { error } = await db.auth.updateUser({
+      password: p1,
+      data: { has_password: true }  // marca em metadata para não pedir de novo
+    });
+    if (error) { alert('Erro: '+error.message); btn.disabled = false; btn.textContent = '✓ Guardar password'; return; }
+    overlay.remove();
+    // Tentar guardar credencial para futura biometria via Credential Management API
+    if (window.PasswordCredential) {
+      try {
+        const cred = new PasswordCredential({
+          id: currentUser.email,
+          password: p1,
+          name: motorista.nome || currentUser.email,
+        });
+        await navigator.credentials.store(cred);
+      } catch(e) { console.warn('credentials.store falhou', e); }
+    }
+    // Toast confirmação
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:12px 20px;border-radius:8px;font-family:var(--sans);font-size:13px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,0.3)';
+    t.textContent = '✅ Password guardada — próxima vez entras com Face ID/digital';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  };
+}
+
+function dispensarPassword() {
+  if (currentUser?.id) localStorage.setItem(`fp-pwd-dispensed-${currentUser.id}`, '1');
+  document.querySelectorAll('[style*="z-index:500"]').forEach(el => el.remove());
 }
 
 async function carregarAvisosECupoes() {

@@ -283,16 +283,46 @@ body.theme-sage body::before { opacity:0.4; }
         <button class="btn-submit" onclick="definirNovaPass()">Guardar nova password</button>
       </div>
 
-      <!-- FORM MOTORISTA (magic link) -->
+      <!-- FORM MOTORISTA (magic link OU password) -->
       <div id="form-motorista" style="display:none">
-        <div class="field">
-          <label>O teu email</label>
-          <input type="email" id="mot-email" placeholder="motorista@email.pt" autocomplete="email">
+        <!-- Sub-tabs: password / magic link -->
+        <div style="display:flex;gap:6px;margin-bottom:18px;background:rgba(255,255,255,0.04);padding:4px;border-radius:6px">
+          <button id="mot-tab-pwd" onclick="setMotoristaTab('pwd')" style="flex:1;padding:9px;background:rgba(200,146,42,0.15);color:var(--gold);border:none;border-radius:4px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;font-weight:600">🔐 Password</button>
+          <button id="mot-tab-magic" onclick="setMotoristaTab('magic')" style="flex:1;padding:9px;background:transparent;color:var(--sub);border:none;border-radius:4px;font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer">📧 Magic Link</button>
         </div>
-        <button class="btn-submit" onclick="loginMotorista()">Receber link de acesso</button>
-        <p style="font-size:12px;color:var(--sub2);margin-top:12px;line-height:1.6">
-          Receberás um link por email. Não precisas de password.
-        </p>
+
+        <!-- Modo Password (default — usa Credential Management API + autocomplete) -->
+        <div id="mot-modo-pwd">
+          <form onsubmit="event.preventDefault();loginMotoristaPassword();" autocomplete="on">
+            <div class="field">
+              <label>Email</label>
+              <input type="email" id="mot-email-pwd" placeholder="motorista@email.pt" autocomplete="username" required>
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="mot-pass" placeholder="••••••••" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn-submit">Entrar</button>
+          </form>
+          <p style="font-size:11px;color:var(--sub2);margin-top:10px;text-align:center;line-height:1.6">
+            <a href="#" onclick="setMotoristaTab('magic');return false" style="color:var(--gold)">Esqueci a password</a> · ou usa magic link
+          </p>
+          <p style="font-size:10px;color:var(--sub2);margin-top:14px;text-align:center;line-height:1.5">
+            🤳 Se já entraste antes, o teu telemóvel pode oferecer Face ID / impressão digital automaticamente.
+          </p>
+        </div>
+
+        <!-- Modo Magic Link -->
+        <div id="mot-modo-magic" style="display:none">
+          <div class="field">
+            <label>O teu email</label>
+            <input type="email" id="mot-email" placeholder="motorista@email.pt" autocomplete="email">
+          </div>
+          <button class="btn-submit" onclick="loginMotorista()">Receber link de acesso</button>
+          <p style="font-size:12px;color:var(--sub2);margin-top:12px;line-height:1.6;text-align:center">
+            Receberás um link por email. Não precisas de password.
+          </p>
+        </div>
       </div>
 
       <!-- Magic link enviado -->
@@ -436,6 +466,60 @@ async function loginMotorista() {
   } catch(e) {
     showMsg('Erro ao enviar email. Tenta novamente.');
   } finally { setLoading(false); }
+}
+
+// Sub-tab Password vs Magic Link no formulário do motorista
+function setMotoristaTab(modo) {
+  const isPwd = modo === 'pwd';
+  document.getElementById('mot-modo-pwd').style.display = isPwd ? '' : 'none';
+  document.getElementById('mot-modo-magic').style.display = isPwd ? 'none' : '';
+  // Botões visuais
+  const btnPwd = document.getElementById('mot-tab-pwd');
+  const btnMagic = document.getElementById('mot-tab-magic');
+  btnPwd.style.background = isPwd ? 'rgba(200,146,42,0.15)' : 'transparent';
+  btnPwd.style.color = isPwd ? 'var(--gold)' : 'var(--sub)';
+  btnPwd.style.fontWeight = isPwd ? '600' : '400';
+  btnMagic.style.background = !isPwd ? 'rgba(200,146,42,0.15)' : 'transparent';
+  btnMagic.style.color = !isPwd ? 'var(--gold)' : 'var(--sub)';
+  btnMagic.style.fontWeight = !isPwd ? '600' : '400';
+}
+
+async function loginMotoristaPassword() {
+  const email = document.getElementById('mot-email-pwd').value.trim();
+  const pass = document.getElementById('mot-pass').value;
+  if (!email || !pass) { showMsg('Preenche email e password.'); return; }
+
+  setLoading(true); hideMsg();
+  try {
+    const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+
+    // Tentar guardar credencial no Credential Manager do device → permite biometria nas próximas
+    if (window.PasswordCredential) {
+      try {
+        const cred = new PasswordCredential({ id: email, password: pass, name: email });
+        await navigator.credentials.store(cred);
+      } catch(e) { /* user pode rejeitar — ignorar */ }
+    }
+
+    await redirectByRole();
+  } catch(e) {
+    showMsg('Email ou password incorretos. Se esqueceste, usa o magic link.');
+  } finally { setLoading(false); }
+}
+
+// Auto-fill via Credential Management API (Face ID / impressão digital se device suporta)
+if (window.PasswordCredential && navigator.credentials?.get) {
+  navigator.credentials.get({ password: true, mediation: 'optional' }).then((cred) => {
+    if (cred && cred.type === 'password') {
+      // Pre-preenche o form Password do motorista
+      document.getElementById('mot-email-pwd').value = cred.id;
+      document.getElementById('mot-pass').value = cred.password;
+      // Muda para tab motorista + sub-tab password automaticamente
+      setTab('motorista');
+      setMotoristaTab('pwd');
+    }
+  }).catch(() => {});
 }
 
 async function redirectByRole() {
