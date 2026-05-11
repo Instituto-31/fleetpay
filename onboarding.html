@@ -646,8 +646,8 @@ async function guardarStep5() {
 function renderStep6() {
   const e = formData.empresa;
   const plats = formData.plataformas;
-  const boltOk = !!formData.integracoes.bolt.client_id;
-  const uberOk = !!formData.integracoes.uber.client_id;
+  const boltOk = !!empresa.bolt_client_id;
+  const uberOk = !!empresa.uber_client_id;
   return `
     <div class="step-header">
       <div class="step-tag">Passo 6 de 6 · Concluir</div>
