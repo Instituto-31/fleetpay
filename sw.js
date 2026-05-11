@@ -7,15 +7,22 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v2-2026-05-04-mobile';
+const CACHE_VERSION = 'fleetpay-v3-2026-05-11-signup';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
 // Recursos críticos pré-cached
 const PRECACHE_URLS = [
   '/',
+  '/index.html',
   '/motorista.html',
   '/login.html',
+  '/signup.html',
+  '/confirmar.html',
+  '/onboarding.html',
+  '/seguranca.html',
+  '/termos.html',
+  '/privacidade.html',
   '/favicon.svg',
   '/manifest.json',
 ];

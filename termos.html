@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termos de Utilização — FleetPay</title>
+<meta name="description" content="Termos de utilização do serviço FleetPay — plataforma de gestão TVDE.">
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--ink2:#0e0c08;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#8a7d6a;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Outfit',-apple-system,sans-serif;
+  --mono:'Geist Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--ink);color:var(--paper);line-height:1.75;-webkit-font-smoothing:antialiased}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,black 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+.nav{
+  position:sticky;top:0;z-index:50;padding:18px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,9,5,0.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:22px;text-decoration:none;color:inherit}
+.nav-logo em{font-style:italic;color:var(--gold)}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:3px;
+  font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  text-decoration:none;border:1px solid var(--line);color:var(--paper);
+}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.article{max-width:780px;margin:0 auto;padding:50px 32px 80px;position:relative;z-index:1}
+.tag{display:inline-flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:2.5px;text-transform:uppercase}
+.tag::before{content:'';width:24px;height:1px;background:var(--gold)}
+
+h1{font-family:var(--serif);font-size:clamp(36px,5vw,52px);font-weight:300;line-height:1.1;letter-spacing:-1px;margin-bottom:20px}
+h1 em{font-style:italic;color:var(--gold)}
+.lead{font-size:16px;color:var(--sub2);margin-bottom:32px}
+
+h2{font-family:var(--serif);font-size:26px;font-weight:400;letter-spacing:-.3px;margin:42px 0 14px;line-height:1.3}
+h2 em{font-style:italic;color:var(--gold)}
+
+p{font-size:15px;color:var(--sub2);margin-bottom:14px;line-height:1.8}
+p strong{color:var(--paper);font-weight:500}
+ul,ol{margin:12px 0 14px 22px}
+li{font-size:15px;color:var(--sub2);margin-bottom:8px;line-height:1.7;padding-left:4px}
+li::marker{color:var(--gold)}
+a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(200,146,42,0.3)}
+a:hover{border-color:var(--gold)}
+.meta{font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1.5px;margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+
+.footer{border-top:1px solid var(--line);padding:30px 32px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;background:var(--ink2);position:relative;z-index:1}
+.footer a{color:var(--gold);border:none}
+
+@media (max-width:768px){
+  .nav{padding:14px 18px}
+  .nav-logo{font-size:18px}
+  .article{padding:32px 18px 60px}
+  h2{font-size:22px}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </a>
+  <a href="/" class="btn">← Voltar</a>
+</nav>
+
+<article class="article">
+  <div class="tag">Termos de Utilização</div>
+  <h1>Termos de <em>Utilização</em></h1>
+  <p class="lead">
+    Ao usar o FleetPay, aceitas estas condições. Lê-as com calma — escrevemo-las em português claro, sem juridiquês desnecessário.
+  </p>
+
+  <h2>1. Quem <em>somos</em></h2>
+  <p>O FleetPay é um serviço de software (SaaS) de gestão de frotas TVDE, fornecido pelo <strong>Instituto 31</strong>, NIPC 517069234, com sede em Portugal. Daqui em diante referido como "FleetPay" ou "nós".</p>
+
+  <h2>2. O que <em>oferecemos</em></h2>
+  <p>O FleetPay disponibiliza uma plataforma online que permite a operadores TVDE:</p>
+  <ul>
+    <li>Gerir motoristas, viaturas e contratos</li>
+    <li>Calcular e processar pagamentos semanais</li>
+    <li>Integrar com APIs oficiais da Bolt e Uber</li>
+    <li>Cumprir obrigações de compliance (e-tacógrafo, checklist diário, contratos digitais)</li>
+    <li>Comunicar com motoristas via chat interno</li>
+  </ul>
+  <p>As funcionalidades disponíveis dependem do plano subscrito.</p>
+
+  <h2>3. <em>Conta</em> e elegibilidade</h2>
+  <ul>
+    <li>Para criar conta tens de ser maior de 18 anos e representar legalmente uma empresa ou actividade TVDE em Portugal.</li>
+    <li>És responsável pelas credenciais da tua conta. Não as partilhes.</li>
+    <li>O plano Starter (gratuito) está limitado a 2 motoristas activos. Planos pagos têm limites e funcionalidades distintas.</li>
+    <li>Podemos suspender ou encerrar contas que violem estes termos ou usem o serviço para fins ilegais.</li>
+  </ul>
+
+  <h2>4. <em>Pagamentos</em> e cobranças</h2>
+  <ul>
+    <li>O plano Starter é gratuito até 2 motoristas activos, sem prazo de validade.</li>
+    <li>Planos pagos são facturados mensalmente ou anualmente, conforme escolha do cliente.</li>
+    <li>Não há fidelização — podes cancelar a qualquer momento, com efeito no fim do ciclo de facturação em curso.</li>
+    <li>Reembolsos por períodos não usados não são automáticos; entra em contacto via <a href="mailto:geral@fleetpay.pt">geral@fleetpay.pt</a>.</li>
+  </ul>
+
+  <h2>5. Integrações com <em>Bolt e Uber</em></h2>
+  <p>O FleetPay usa exclusivamente as <strong>APIs oficiais</strong> da Bolt e Uber. Nunca pedimos a tua password de login do portal — apenas Client ID e Client Secret gerados por ti nos portais oficiais.</p>
+  <p>Os dados sincronizados a partir destas plataformas (viagens, motoristas, viaturas, valores) ficam armazenados na tua conta FleetPay para efeitos de gestão e arquivo.</p>
+  <p>A continuidade destas integrações depende das políticas da Bolt e Uber; não nos responsabilizamos por interrupções fora do nosso controlo.</p>
+
+  <h2>6. Os teus <em>dados</em></h2>
+  <p>Tratamos os dados pessoais dos teus motoristas e os teus dados de gestão de acordo com a <a href="privacidade.html">Política de Privacidade</a>.</p>
+  <p>Tu és o <strong>responsável pelo tratamento</strong> dos dados dos motoristas que adicionas. Nós actuamos como <strong>subcontratante</strong> do tratamento.</p>
+  <p>Podes exportar todos os teus dados (CSV, PDF) a qualquer momento. Podes pedir a eliminação da conta e dados associados em <a href="mailto:geral@fleetpay.pt">geral@fleetpay.pt</a> — eliminamos em 30 dias úteis, salvo obrigações legais de retenção.</p>
+
+  <h2>7. Uso <em>aceitável</em></h2>
+  <p>Não podes usar o FleetPay para:</p>
+  <ul>
+    <li>Actividades ilegais ou contrárias aos Termos da Bolt, Uber ou da regulamentação TVDE em Portugal</li>
+    <li>Tentar extrair, copiar ou fazer engenharia reversa do código da plataforma</li>
+    <li>Sobrecarregar a infraestrutura através de pedidos automáticos massivos</li>
+    <li>Partilhar credenciais com terceiros não autorizados</li>
+  </ul>
+
+  <h2>8. <em>Disponibilidade</em> do serviço</h2>
+  <p>Empenhamo-nos numa disponibilidade elevada mas o serviço é fornecido <strong>"tal como está"</strong>, sem garantias absolutas. Manutenções programadas serão comunicadas com antecedência.</p>
+  <p>Não somos responsáveis por perdas indirectas resultantes de indisponibilidade do serviço, falhas de terceiros (Bolt, Uber, Supabase, etc.) ou eventos de força maior.</p>
+
+  <h2>9. <em>Alterações</em> a estes termos</h2>
+  <p>Podemos actualizar estes termos para reflectir mudanças no serviço ou na lei. Avisar-te-emos por email com pelo menos 30 dias de antecedência para alterações significativas.</p>
+
+  <h2>10. <em>Lei aplicável</em></h2>
+  <p>Estes termos regem-se pela lei portuguesa. Qualquer litígio será resolvido nos tribunais competentes em Portugal.</p>
+
+  <h2>11. <em>Contacto</em></h2>
+  <p>Dúvidas, reclamações ou pedidos de informação:</p>
+  <ul>
+    <li>Email: <a href="mailto:geral@fleetpay.pt">geral@fleetpay.pt</a></li>
+    <li>Operador: Instituto 31, NIPC 517069234</li>
+  </ul>
+
+  <div class="meta">
+    Última actualização: 11 de Maio de 2026 · v1.0
+  </div>
+</article>
+
+<footer class="footer">
+  © 2026 FleetPay · Instituto 31 · <a href="/">Início</a> · <a href="privacidade.html">Privacidade</a> · <a href="mailto:geral@fleetpay.pt">Contacto</a>
+</footer>
+
+</body>
+</html>

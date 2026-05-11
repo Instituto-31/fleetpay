@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Política de Privacidade — FleetPay</title>
+<meta name="description" content="Como o FleetPay trata os teus dados pessoais e os dos teus motoristas, com base no RGPD.">
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--ink2:#0e0c08;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#8a7d6a;--sub2:#a09484;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Outfit',-apple-system,sans-serif;
+  --mono:'Geist Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--ink);color:var(--paper);line-height:1.75;-webkit-font-smoothing:antialiased}
+
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,black 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+.nav{
+  position:sticky;top:0;z-index:50;padding:18px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,9,5,0.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:22px;text-decoration:none;color:inherit}
+.nav-logo em{font-style:italic;color:var(--gold)}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:3px;
+  font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  text-decoration:none;border:1px solid var(--line);color:var(--paper);
+}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.article{max-width:780px;margin:0 auto;padding:50px 32px 80px;position:relative;z-index:1}
+.tag{display:inline-flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:2.5px;text-transform:uppercase}
+.tag::before{content:'';width:24px;height:1px;background:var(--gold)}
+
+h1{font-family:var(--serif);font-size:clamp(36px,5vw,52px);font-weight:300;line-height:1.1;letter-spacing:-1px;margin-bottom:20px}
+h1 em{font-style:italic;color:var(--gold)}
+.lead{font-size:16px;color:var(--sub2);margin-bottom:32px}
+
+h2{font-family:var(--serif);font-size:26px;font-weight:400;letter-spacing:-.3px;margin:42px 0 14px;line-height:1.3}
+h2 em{font-style:italic;color:var(--gold)}
+
+p{font-size:15px;color:var(--sub2);margin-bottom:14px;line-height:1.8}
+p strong{color:var(--paper);font-weight:500}
+ul,ol{margin:12px 0 14px 22px}
+li{font-size:15px;color:var(--sub2);margin-bottom:8px;line-height:1.7;padding-left:4px}
+li::marker{color:var(--gold)}
+a{color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(200,146,42,0.3)}
+a:hover{border-color:var(--gold)}
+
+.tbl{width:100%;border-collapse:collapse;margin:18px 0;border:1px solid var(--line);border-radius:4px;overflow:hidden;font-size:14px}
+.tbl th,.tbl td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.tbl th{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);background:rgba(200,146,42,0.04)}
+.tbl td{color:var(--sub2)}
+.tbl tr:last-child td{border-bottom:none}
+
+.meta{font-family:var(--mono);font-size:11px;color:var(--sub);letter-spacing:1.5px;margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+
+.footer{border-top:1px solid var(--line);padding:30px 32px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;background:var(--ink2);position:relative;z-index:1}
+.footer a{color:var(--gold);border:none}
+
+@media (max-width:768px){
+  .nav{padding:14px 18px}
+  .nav-logo{font-size:18px}
+  .article{padding:32px 18px 60px}
+  h2{font-size:22px}
+  .tbl{font-size:13px}
+  .tbl th,.tbl td{padding:10px 8px}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </a>
+  <a href="/" class="btn">← Voltar</a>
+</nav>
+
+<article class="article">
+  <div class="tag">Política de Privacidade · RGPD</div>
+  <h1>Política de <em>Privacidade</em></h1>
+  <p class="lead">
+    Levamos a sério a tua privacidade e a dos teus motoristas. Esta política explica que dados recolhemos, porquê, durante quanto tempo, e quais os teus direitos. Cumpre o RGPD (Regulamento UE 2016/679).
+  </p>
+
+  <h2>1. Quem é o <em>responsável</em> pelo tratamento</h2>
+  <p>O <strong>Instituto 31</strong>, NIPC 517069234, com sede em Portugal, é responsável pelo tratamento dos dados pessoais relativos à tua conta FleetPay (operador) e contactos comerciais.</p>
+  <p>Para os dados dos teus motoristas e dados operacionais (viagens, pagamentos, viaturas), <strong>tu (operador)</strong> és o responsável pelo tratamento e o FleetPay actua como <strong>subcontratante</strong> nos termos do art. 28.º RGPD.</p>
+
+  <h2>2. Que <em>dados</em> tratamos</h2>
+
+  <table class="tbl">
+    <thead>
+      <tr><th>Categoria</th><th>Exemplos</th><th>Finalidade</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Conta de operador</td>
+        <td>Nome, email, telefone, NIPC, password (hash)</td>
+        <td>Criar e gerir a conta; comunicar contigo</td>
+      </tr>
+      <tr>
+        <td>Empresa</td>
+        <td>Nome, NIPC, morada, licença TVDE, logo</td>
+        <td>Operação da plataforma e documentos legais</td>
+      </tr>
+      <tr>
+        <td>Motoristas</td>
+        <td>Nome, NIF, IBAN, contactos, documentos (CC, Carta, TVDE)</td>
+        <td>Pagamentos, contratos, compliance TVDE</td>
+      </tr>
+      <tr>
+        <td>Viaturas</td>
+        <td>Matrícula, marca, IUC, seguro, manutenção</td>
+        <td>Gestão de frota</td>
+      </tr>
+      <tr>
+        <td>Operacionais</td>
+        <td>Viagens (Bolt/Uber), pagamentos, despesas, comunicações</td>
+        <td>Cálculo de recibos, histórico, dossier técnico</td>
+      </tr>
+      <tr>
+        <td>Técnicos</td>
+        <td>IP, browser, registos de acesso, cookies estritamente necessários</td>
+        <td>Segurança, prevenção de fraude</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. <em>Base legal</em></h2>
+  <ul>
+    <li><strong>Execução do contrato</strong> (art. 6.º/1/b RGPD) — para te prestar o serviço subscrito</li>
+    <li><strong>Obrigações legais</strong> (art. 6.º/1/c RGPD) — facturação, retenção fiscal, cumprimento TVDE</li>
+    <li><strong>Interesse legítimo</strong> (art. 6.º/1/f RGPD) — prevenção de fraude, segurança e melhoria do serviço</li>
+    <li><strong>Consentimento</strong> (art. 6.º/1/a RGPD) — para emails de marketing (que podes recusar a qualquer momento)</li>
+  </ul>
+
+  <h2>4. <em>Subcontratantes</em></h2>
+  <p>Para entregar o serviço usamos os seguintes subcontratantes, todos com garantias adequadas de protecção de dados:</p>
+  <ul>
+    <li><strong>Supabase</strong> (base de dados e autenticação) — infraestrutura na União Europeia (Frankfurt, AWS)</li>
+    <li><strong>GitHub Pages</strong> (frontend estático)</li>
+    <li><strong>Resend</strong> (envio de emails transaccionais)</li>
+    <li><strong>Bolt</strong> e <strong>Uber</strong> (apenas para integração API oficial; os dados que recolhemos das tuas viagens vêm destas plataformas, com base nas tuas credenciais)</li>
+  </ul>
+
+  <h2>5. <em>Localização</em> dos dados</h2>
+  <p>Os dados são armazenados em infraestrutura na <strong>União Europeia</strong> (servidores AWS Frankfurt geridos pela Supabase). Não fazemos transferências para fora do EEE excepto quando indispensável para o serviço (ex.: APIs Bolt/Uber), com salvaguardas contratuais adequadas.</p>
+
+  <h2>6. <em>Prazos</em> de conservação</h2>
+  <ul>
+    <li>Dados de conta activa: enquanto a conta estiver activa</li>
+    <li>Após cancelamento: <strong>30 dias úteis</strong> para eliminação, salvo retenção legal obrigatória</li>
+    <li>Dados financeiros (recibos, facturas): <strong>10 anos</strong> (art. 123.º CIRC)</li>
+    <li>Dados TVDE (contratos, fiscalização): conforme legislação aplicável (≥5 anos)</li>
+    <li>Registos técnicos de acesso: até 6 meses</li>
+  </ul>
+
+  <h2>7. Os teus <em>direitos</em></h2>
+  <p>Como titular dos dados, tens direito a:</p>
+  <ul>
+    <li><strong>Acesso</strong> — saber que dados temos sobre ti</li>
+    <li><strong>Rectificação</strong> — corrigir dados incorrectos</li>
+    <li><strong>Apagamento</strong> ("direito ao esquecimento") — pedir eliminação dos dados</li>
+    <li><strong>Limitação</strong> do tratamento</li>
+    <li><strong>Portabilidade</strong> — receber os dados em formato estruturado (CSV/JSON)</li>
+    <li><strong>Oposição</strong> — recusar o tratamento para certas finalidades (ex.: marketing)</li>
+    <li><strong>Não decisões automatizadas</strong> — não tomamos decisões com efeitos jurídicos baseadas exclusivamente em tratamento automatizado</li>
+  </ul>
+  <p>Para exercer estes direitos, envia email para <a href="mailto:geral@fleetpay.pt">geral@fleetpay.pt</a>. Respondemos em 30 dias.</p>
+
+  <h2>8. <em>Cookies</em></h2>
+  <p>O FleetPay usa apenas cookies <strong>estritamente necessários</strong> ao funcionamento (sessão de login, preferências de tema). Não usamos cookies de marketing ou tracking de terceiros.</p>
+
+  <h2>9. <em>Segurança</em></h2>
+  <p>Aplicamos medidas técnicas e organizativas adequadas:</p>
+  <ul>
+    <li>Encriptação em trânsito (TLS 1.3) e em repouso</li>
+    <li>Row Level Security (RLS) ao nível da base de dados — cada operador só vê os seus dados</li>
+    <li>Passwords armazenadas com hash bcrypt</li>
+    <li>Backup automático diário</li>
+    <li>Acesso aos sistemas restrito e auditável</li>
+  </ul>
+
+  <h2>10. <em>Reclamações</em></h2>
+  <p>Se considerares que o tratamento dos teus dados viola o RGPD, podes apresentar reclamação à autoridade de controlo competente:</p>
+  <ul>
+    <li><strong>Comissão Nacional de Protecção de Dados (CNPD)</strong></li>
+    <li>Web: <a href="https://www.cnpd.pt" target="_blank" rel="noopener">www.cnpd.pt</a></li>
+  </ul>
+
+  <h2>11. <em>Contacto</em></h2>
+  <p>Encarregado de Protecção de Dados (DPO): <a href="mailto:geral@fleetpay.pt">geral@fleetpay.pt</a></p>
+
+  <div class="meta">
+    Última actualização: 11 de Maio de 2026 · v1.0
+  </div>
+</article>
+
+<footer class="footer">
+  © 2026 FleetPay · Instituto 31 · <a href="/">Início</a> · <a href="termos.html">Termos</a> · <a href="mailto:geral@fleetpay.pt">Contacto</a>
+</footer>
+
+</body>
+</html>

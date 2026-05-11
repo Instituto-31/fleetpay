@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A finalizar a tua conta — FleetPay</title>
+<meta name="theme-color" content="#0a0905">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0905;--paper:#f7f4ef;--gold:#c8922a;--gold-light:#e8b86d;
+  --line:rgba(200,146,42,0.15);--sub:#8a7d6a;--sub2:#a09484;
+  --green:#27c93f;--red:#e05252;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Outfit',-apple-system,sans-serif;
+  --mono:'Geist Mono',monospace;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--ink);color:var(--paper)}
+body{display:flex;align-items:center;justify-content:center;padding:20px}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 0%,transparent 100%);
+  pointer-events:none;
+}
+.card{
+  position:relative;z-index:1;
+  max-width:480px;width:100%;text-align:center;
+  border:1px solid var(--line);border-radius:8px;padding:50px 40px;
+  background:rgba(255,255,255,0.02);
+}
+.logo{display:inline-flex;align-items:center;gap:10px;font-family:var(--serif);font-size:24px;margin-bottom:36px}
+.logo em{font-style:italic;color:var(--gold)}
+.spinner{
+  width:60px;height:60px;
+  border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;
+  animation:spin .9s linear infinite;
+  margin:0 auto 28px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:-.5px;margin-bottom:14px;line-height:1.2}
+h1 em{font-style:italic;color:var(--gold)}
+p{font-size:15px;color:var(--sub2);line-height:1.7}
+.step{
+  font-family:var(--mono);font-size:11px;color:var(--gold);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;
+}
+.err{
+  margin-top:20px;padding:14px;border-radius:4px;
+  background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);
+  color:var(--red);font-size:13px;line-height:1.6;
+}
+.btn{
+  display:inline-block;margin-top:24px;padding:12px 28px;
+  background:var(--gold);color:var(--ink);text-decoration:none;
+  font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+  border-radius:3px;
+}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" width="26" height="26" fill="none"><circle cx="16" cy="16" r="11" stroke="#c8922a" stroke-width="3.5"/></svg>
+    <span>Fleet<em>Pay</em></span>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="step">A finalizar</div>
+    <h1>A criar a tua <em>conta</em>…</h1>
+    <p>Estamos a configurar a tua empresa. Demora 1-2 segundos.</p>
+  </div>
+
+  <div id="success" style="display:none">
+    <div style="font-size:64px;margin-bottom:20px">✓</div>
+    <div class="step" style="color:var(--green)">Pronto!</div>
+    <h1>Bem-vinda ao <em>FleetPay</em>.</h1>
+    <p>A redireccionar para o onboarding…</p>
+  </div>
+
+  <div id="error" style="display:none">
+    <div style="font-size:64px;margin-bottom:20px">⚠️</div>
+    <h1>Algo correu <em>mal</em>.</h1>
+    <p id="err-msg">Não conseguimos finalizar a tua conta.</p>
+    <div class="err" id="err-detail" style="display:none"></div>
+    <a href="login.html" class="btn">Tentar entrar</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+function show(id) {
+  ['loading','success','error'].forEach(x => {
+    document.getElementById(x).style.display = (x === id) ? 'block' : 'none';
+  });
+}
+
+function showError(msg, detail) {
+  show('error');
+  if (msg) document.getElementById('err-msg').textContent = msg;
+  if (detail) {
+    const d = document.getElementById('err-detail');
+    d.textContent = detail;
+    d.style.display = 'block';
+  }
+}
+
+async function finalizar() {
+  try {
+    // 1. Esperar pela session (vem do magic link / confirmação email)
+    let { data: { session } } = await db.auth.getSession();
+
+    // Se ainda não tem session, aguarda o evento (Supabase processa hash)
+    if (!session) {
+      await new Promise((resolve) => {
+        const { data: { subscription } } = db.auth.onAuthStateChange((_event, s) => {
+          if (s) { subscription.unsubscribe(); resolve(s); }
+        });
+        setTimeout(resolve, 4000); // timeout 4s
+      });
+      const r = await db.auth.getSession();
+      session = r.data.session;
+    }
+
+    if (!session) {
+      showError('Não estás autenticada.', 'Tenta fazer login manualmente em /login.html.');
+      return;
+    }
+
+    // 2. Verificar se já tem empresa associada (caso já tenha corrido antes)
+    const { data: perfil } = await db.from('perfis').select('empresa_id, role').eq('id', session.user.id).maybeSingle();
+
+    if (perfil?.empresa_id) {
+      // Já tem empresa — redirect directo
+      show('success');
+      setTimeout(() => {
+        const dest = (perfil.role === 'motorista') ? 'motorista.html' : 'onboarding.html';
+        window.location.href = dest;
+      }, 800);
+      return;
+    }
+
+    // 3. Ler dados da empresa do user_metadata (guardados no signup.html)
+    const meta = session.user.user_metadata || {};
+    const nomeEmpresa = meta.empresa;
+    const nome = meta.nome;
+    const nif = meta.nif || '';
+    const telefone = meta.telefone || '';
+
+    if (!nomeEmpresa || !nome) {
+      showError('Faltam dados.', 'Não encontrámos o nome da empresa. Vai fazer login normalmente.');
+      return;
+    }
+
+    // 4. Chamar RPC para criar empresa + perfil
+    const { error: rpcErr } = await db.rpc('criar_empresa_publica', {
+      p_nome_empresa: nomeEmpresa,
+      p_nif: nif,
+      p_nome_responsavel: nome,
+      p_telefone: telefone
+    });
+    if (rpcErr) {
+      showError('Erro ao criar empresa.', rpcErr.message);
+      return;
+    }
+
+    // 5. Sucesso → onboarding
+    show('success');
+    setTimeout(() => { window.location.href = 'onboarding.html'; }, 1000);
+
+  } catch (e) {
+    console.error(e);
+    showError('Erro inesperado.', e.message);
+  }
+}
+
+finalizar();
+</script>
+
+</body>
+</html>

@@ -197,7 +197,7 @@ body::before{
 
         <label class="checkbox-row">
           <input type="checkbox" id="aceitar" required>
-          <span>Aceito os <a href="#" onclick="event.preventDefault();alert('Termos em construção. Até lá vale o bom senso :)')">Termos de utilização</a> e a <a href="#" onclick="event.preventDefault();alert('Política de privacidade em construção.')">Política de privacidade</a>.</span>
+          <span>Aceito os <a href="termos.html" target="_blank" rel="noopener">Termos de utilização</a> e a <a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>.</span>
         </label>
 
         <button type="submit" id="btn-submit" class="btn-submit">Criar conta grátis →</button>
@@ -238,33 +238,38 @@ async function criarConta() {
   btn.innerHTML = '<span class="spinner"></span>A criar conta…';
 
   try {
-    // 1. Criar user no auth
+    // 1. Criar user no auth + guardar todos os dados em user_metadata
+    //    (para sobreviverem à confirmação por email se estiver ligada)
     const { data: signData, error: signErr } = await db.auth.signUp({
       email,
       password,
-      options: { data: { nome, empresa } }
+      options: {
+        data: {
+          nome,
+          empresa,
+          nif: nif || null,
+          telefone,
+          tipo: 'signup_publico'
+        },
+        emailRedirectTo: window.location.origin + '/confirmar.html'
+      }
     });
     if (signErr) {
-      // Email já existe?
       if (signErr.message?.toLowerCase().includes('already')) {
         throw new Error('Já existe uma conta com este email. Faz login ou recupera a password.');
       }
       throw signErr;
     }
 
-    // 2. Auto-login (caso confirmação por email esteja desligada na Supabase)
+    // 2. Se NÃO veio session → Confirm email está ON
+    //    Mostra ecrã "verifica o teu email" e termina
     if (!signData.session) {
-      const { error: loginErr } = await db.auth.signInWithPassword({ email, password });
-      if (loginErr) {
-        // Confirmação de email obrigatória — informa o user
-        showMsg('Verifica o teu email para confirmar a conta. Depois faz login em /login.html', 'success');
-        btn.innerHTML = 'Verifica o teu email →';
-        return;
-      }
+      mostrarVerificaEmail(email);
+      return;
     }
 
-    // 3. Criar empresa + perfil via RPC
-    const { data: empresaId, error: rpcErr } = await db.rpc('criar_empresa_publica', {
+    // 3. Session imediata → criar empresa+perfil via RPC e redirect
+    const { error: rpcErr } = await db.rpc('criar_empresa_publica', {
       p_nome_empresa: empresa,
       p_nif: nif,
       p_nome_responsavel: nome,
@@ -273,8 +278,6 @@ async function criarConta() {
     if (rpcErr) throw rpcErr;
 
     showMsg('✓ Conta criada! A redireccionar para o onboarding…', 'success');
-
-    // 4. Redirect para onboarding
     setTimeout(() => { window.location.href = 'onboarding.html'; }, 800);
 
   } catch (e) {
@@ -283,6 +286,26 @@ async function criarConta() {
     btn.disabled = false;
     btn.innerHTML = 'Criar conta grátis →';
   }
+}
+
+function mostrarVerificaEmail(email) {
+  document.querySelector('.form-box').innerHTML = `
+    <div style="text-align:center;padding:20px 0">
+      <div style="font-size:64px;margin-bottom:20px">📧</div>
+      <h2 style="font-family:var(--serif);font-size:32px;font-weight:300;letter-spacing:-.5px;margin-bottom:14px">Verifica o teu <em style="font-style:italic;color:var(--gold)">email</em></h2>
+      <p style="font-size:15px;color:var(--sub2);line-height:1.7;max-width:380px;margin:0 auto 20px">
+        Enviámos um link de confirmação para <strong style="color:var(--paper)">${email}</strong>.<br>
+        Clica no link para finalizares a tua conta.
+      </p>
+      <div style="border:1px solid var(--line);border-radius:6px;padding:18px;margin:24px 0;background:rgba(200,146,42,0.04);text-align:left;font-size:13px;color:var(--sub2);line-height:1.7">
+        <strong style="color:var(--paper);display:block;margin-bottom:8px">Não vês o email?</strong>
+        • Verifica a pasta de spam ou promoções<br>
+        • Espera 1-2 minutos — pode demorar<br>
+        • Confirma que o email está correcto
+      </div>
+      <a href="login.html" style="display:inline-block;margin-top:18px;font-size:13px;color:var(--sub2);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:2px">Já confirmei — entrar →</a>
+    </div>
+  `;
 }
 
 // Pré-preencher email se vier por query string (?email=)
