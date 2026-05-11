@@ -383,21 +383,94 @@ function renderStep3() {
       <div style="font-size:11px;color:var(--sub2);margin-top:4px">${empresa?.logo_path ? '✓ Logo já carregado: '+empresa.logo_path : 'Sem logo carregado.'}</div>
     </div>
     <div class="field"><label>Tema preferido</label>
-      <select id="f-tema">
-        <option value="default">Default (preto + dourado)</option>
-        <option value="sage">Sage (verde + dourado)</option>
-        <option value="warm">Warm (terracota)</option>
-        <option value="forest">Forest (verde escuro)</option>
-        <option value="tech-pro">Tech Pro (azul)</option>
-        <option value="minimal-dark">Minimal Dark</option>
-      </select>
+      <input type="hidden" id="f-tema" value="default">
+      <div class="tema-grid" id="tema-grid">
+        <button type="button" class="tema-card selected" onclick="selecionarTema(this,'default',false)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#0a0905 0%,#0a0905 60%,#c8922a 60%,#c8922a 100%)"></div>
+          <div class="tema-nome">Default</div>
+          <div class="tema-sub">Preto + dourado</div>
+        </button>
+        <button type="button" class="tema-card pro" onclick="selecionarTema(this,'sage',true)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#FAF7F2 0%,#FAF7F2 60%,#7A8C66 60%,#7A8C66 100%)"></div>
+          <div class="tema-nome">Sage</div>
+          <div class="tema-sub">Verde + dourado</div>
+          <div class="tema-badge">PRO</div>
+        </button>
+        <button type="button" class="tema-card pro" onclick="selecionarTema(this,'warm',true)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#FBF6EE 0%,#FBF6EE 60%,#E08560 60%,#E08560 100%)"></div>
+          <div class="tema-nome">Warm</div>
+          <div class="tema-sub">Terracota</div>
+          <div class="tema-badge">PRO</div>
+        </button>
+        <button type="button" class="tema-card pro" onclick="selecionarTema(this,'forest',true)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#0d1f12 0%,#0d1f12 60%,#5a9067 60%,#5a9067 100%)"></div>
+          <div class="tema-nome">Forest</div>
+          <div class="tema-sub">Verde escuro</div>
+          <div class="tema-badge">PRO</div>
+        </button>
+        <button type="button" class="tema-card pro" onclick="selecionarTema(this,'tech-pro',true)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#0a0e1a 0%,#0a0e1a 60%,#5A7DC8 60%,#5A7DC8 100%)"></div>
+          <div class="tema-nome">Tech Pro</div>
+          <div class="tema-sub">Azul</div>
+          <div class="tema-badge">PRO</div>
+        </button>
+        <button type="button" class="tema-card pro" onclick="selecionarTema(this,'minimal-dark',true)">
+          <div class="tema-swatch" style="background:linear-gradient(135deg,#1a1a1a 0%,#1a1a1a 60%,#e0e0e0 60%,#e0e0e0 100%)"></div>
+          <div class="tema-nome">Minimal Dark</div>
+          <div class="tema-sub">Cinza + branco</div>
+          <div class="tema-badge">PRO</div>
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--sub);font-family:var(--mono);letter-spacing:.5px;margin-top:10px">
+        Plano Starter inclui só o tema Default. Faz upgrade para Pro para desbloquear os outros.
+      </div>
     </div>
+
+    <style>
+      .tema-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px}
+      .tema-card{
+        position:relative;display:flex;flex-direction:column;align-items:flex-start;
+        padding:12px;background:rgba(255,255,255,0.03);
+        border:1.5px solid var(--line);border-radius:6px;
+        cursor:pointer;transition:border-color .15s,background .15s;
+        font-family:var(--sans);text-align:left;
+      }
+      .tema-card:hover:not(.pro){border-color:var(--gold);background:rgba(200,146,42,0.06)}
+      .tema-card.selected{border-color:var(--gold);background:rgba(200,146,42,0.08);box-shadow:0 0 0 3px rgba(200,146,42,0.12)}
+      .tema-card.pro{cursor:not-allowed;opacity:.55}
+      .tema-swatch{
+        width:100%;height:36px;border-radius:4px;margin-bottom:10px;
+        border:1px solid rgba(255,255,255,0.06);
+      }
+      .tema-nome{font-size:13px;font-weight:600;color:var(--paper);margin-bottom:2px}
+      .tema-sub{font-size:11px;color:var(--sub2);font-family:var(--mono);letter-spacing:.3px}
+      .tema-badge{
+        position:absolute;top:8px;right:8px;
+        background:var(--gold);color:#000;
+        font-family:var(--mono);font-size:8px;letter-spacing:1px;font-weight:700;
+        padding:2px 6px;border-radius:100px;
+      }
+      @media (max-width:600px){
+        .tema-grid{grid-template-columns:repeat(2,1fr)}
+      }
+    </style>
 
     <div class="nav">
       <button class="btn btn-ghost" onclick="anterior()">← Anterior</button>
       <button class="btn btn-gold" onclick="guardarStep3()">Continuar →</button>
     </div>
   `;
+}
+
+function selecionarTema(card, valor, isPro) {
+  if (isPro) {
+    alert('Este tema está disponível só no plano Pro. Mantém o Default por agora — podes mudar quando fizeres upgrade.');
+    return;
+  }
+  document.querySelectorAll('.tema-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  document.getElementById('f-tema').value = valor;
+  if (window.themes?.apply) window.themes.apply(valor);
 }
 
 async function guardarStep3() {
