@@ -214,9 +214,11 @@ serve(async (req) => {
     let skippedNoTimestamp = 0;
     let skippedNoDriver = 0;
     let skippedNoPrice = 0;
+    const statusBreakdown: Record<string, number> = {};
 
     for (const o of allOrders) {
-      const status = String(o.order_status || '').toLowerCase();
+      const status = String(o.order_status || 'unknown').toLowerCase();
+      statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
       if (status !== 'finished' && status !== 'completed') { skippedNotFinished++; continue; }
 
       const tsRaw = o.order_finished_timestamp ?? o.finished_at ?? o.finished_timestamp ?? o.order_created_timestamp;
@@ -254,6 +256,7 @@ serve(async (req) => {
       skipped_no_timestamp: skippedNoTimestamp,
       skipped_no_driver: skippedNoDriver,
       skipped_no_price: skippedNoPrice,
+      status_breakdown: statusBreakdown,
       buckets: buckets.size,
       pagamentos_created: 0,
       pagamentos_updated: 0,
