@@ -746,14 +746,23 @@ async function confirmarAssinatura() {
     console.log('[PDF] tmpWrap dimensions:', rect.width, 'x', rect.height);
 
     // Gerar PDF
+    // NOTA: html2canvas tem limite ~16384px de altura. Com scale:2 e tmpWrap
+    // alto (29k+ chars de contrato), o canvas excede o limite → PDF vazio.
+    // Fix: scale dinâmico em função da altura, e pagebreak sem 'avoid-all'
+    // (para quebrar em páginas em vez de tentar caber tudo).
+    const wrapH = tmpWrap.getBoundingClientRect().height;
+    const maxCanvasH = 14000; // margem de segurança vs limite ~16384
+    const scaleDyn = Math.min(2, Math.max(1, maxCanvasH / Math.max(wrapH, 1)));
+    console.log('[PDF] using html2canvas scale:', scaleDyn);
+
     const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(mot.nome||'motorista').split(' ')[0]}_assinado.pdf`;
     const pdfWorker = html2pdf().set({
       margin: [0, 0, 0, 0],
       filename: fname,
       image: { type:'jpeg', quality: 0.94 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
+      html2canvas: { scale: scaleDyn, useCORS: true, logging: false, letterRendering: true },
       jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
-      pagebreak: { mode:['avoid-all','css','legacy'] }
+      pagebreak: { mode:['css','legacy'] }
     }).from(tmpWrap);
 
     pdfBlob = await pdfWorker.outputPdf('blob');
