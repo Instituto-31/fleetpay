@@ -272,7 +272,7 @@ serve(async (req) => {
     for (const bd of boltDrivers) {
       try {
         // Tentar múltiplos campos comuns para Bolt ID (varia conforme versão da API)
-        const boltIdRaw = bd.id ?? bd.driver_id ?? bd.uuid ?? bd.driverId ?? bd.user_id ?? bd.userId ?? bd.external_id ?? null;
+        const boltIdRaw = bd.driver_uuid ?? bd.id ?? bd.driver_id ?? bd.uuid ?? bd.driverId ?? bd.user_id ?? bd.userId ?? bd.external_id ?? null;
         const boltId = boltIdRaw != null ? String(boltIdRaw) : '';
         if (!boltId) {
           summary.drivers_skipped++;
@@ -336,8 +336,12 @@ serve(async (req) => {
     // 8) Upsert vehicles
     for (const bv of boltVehicles) {
       try {
-        const boltId = String(bv.id || bv.car_id || bv.vehicle_id || bv.uuid || '');
-        if (!boltId) { summary.vehicles_skipped++; continue; }
+        const boltId = String(bv.car_uuid || bv.id || bv.car_id || bv.vehicle_id || bv.uuid || '');
+        if (!boltId) {
+          summary.vehicles_skipped++;
+          summary.errors.push(`vehicle sem ID — campos disponíveis: ${Object.keys(bv).slice(0, 10).join(',')}`);
+          continue;
+        }
         const matricula = (bv.license_plate || bv.plate || bv.registration || '').toUpperCase();
         const marca = bv.brand || bv.make || null;
         const modelo = bv.model || null;
