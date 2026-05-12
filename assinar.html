@@ -652,9 +652,10 @@ async function confirmarAssinatura() {
     const dataAss = new Date();
     const dataAssStr = dataAss.toLocaleString('pt-PT');
 
-    // Container temporário invisível
+    // Container temporário — visível mas com opacity 0 e por trás de tudo
+    // (left:-9999px causava problemas de layout no docx-preview em alguns browsers)
     const tmpWrap = document.createElement('div');
-    tmpWrap.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:#fff';
+    tmpWrap.style.cssText = 'position:fixed;left:0;top:0;width:794px;background:#fff;opacity:0;pointer-events:none;z-index:-1';
     tmpWrap.id = 'pdf-target';
 
     // Cabeçalho
@@ -721,21 +722,28 @@ async function confirmarAssinatura() {
 
     // Renderizar contrato dentro
     const docTarget = tmpWrap.querySelector('#pdf-doc-content');
+    console.log('[PDF] docxBlobFinal size:', docxBlobFinal?.size, 'bytes');
     await docx.renderAsync(docxBlobFinal, docTarget, null, {
       className: 'docx', inWrapper: false, ignoreWidth: true, ignoreHeight: true, breakPages: false
     });
+    console.log('[PDF] docx.renderAsync done. docTarget HTML length:', docTarget.innerHTML.length);
 
     // Garantir 2 frames de paint para o browser fazer layout do tmpWrap
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    // Dar tempo extra para docx-preview montar imagens/tabelas (era 250ms, pouco)
-    await new Promise(r => setTimeout(r, 800));
+    // Dar tempo extra para docx-preview montar imagens/tabelas
+    await new Promise(r => setTimeout(r, 1200));
 
     // Validação: se a div ficou vazia, o docx não renderizou — abortar e avisar
     const docText = (docTarget.textContent || '').trim();
+    console.log('[PDF] docTarget textContent length:', docText.length, 'first 100:', docText.substring(0, 100));
     if (docText.length < 20) {
       document.body.removeChild(tmpWrap);
-      throw new Error('Não foi possível ler o conteúdo do contrato. Recarrega a página e tenta de novo.');
+      throw new Error('Conteúdo do contrato vazio. Recarrega a página (Ctrl+Shift+R) e tenta de novo. Se persistir, contacta suporte.');
     }
+
+    // Dimensões do tmpWrap (sanity check)
+    const rect = tmpWrap.getBoundingClientRect();
+    console.log('[PDF] tmpWrap dimensions:', rect.width, 'x', rect.height);
 
     // Gerar PDF
     const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(mot.nome||'motorista').split(' ')[0]}_assinado.pdf`;

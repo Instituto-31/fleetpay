@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v4-2026-05-12-fechar-overlay';
+const CACHE_VERSION = 'fleetpay-v5-2026-05-12-pdf-fix';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
@@ -20,6 +20,7 @@ const PRECACHE_URLS = [
   '/signup.html',
   '/confirmar.html',
   '/onboarding.html',
+  '/assinar.html',
   '/seguranca.html',
   '/termos.html',
   '/privacidade.html',
