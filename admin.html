@@ -4237,7 +4237,8 @@ function renderConfig() {
           <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials. Company ID está visível no URL ou em Settings → Company.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-gold" onclick="guardarConfigBolt()">💾 Guardar credenciais</button>
-            <button class="btn btn-ghost" onclick="sincronizarBolt()" ${!empresa?.bolt_client_id?'disabled':''}>🔄 Sincronizar agora</button>
+            <button class="btn btn-ghost" onclick="sincronizarBolt()" ${!empresa?.bolt_client_id?'disabled':''}>🔄 Motoristas + Viaturas</button>
+            <button class="btn btn-ghost" onclick="sincronizarBoltPagamentos()" ${!empresa?.bolt_client_id?'disabled':''}>💰 Pagamentos (últimas 8 semanas)</button>
           </div>
           ${empresa?.bolt_last_sync_at ? `
             <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:4px;font-size:12px;color:var(--sub)">
@@ -4988,6 +4989,38 @@ async function sincronizarBolt() {
     renderConfig();
   } catch (e) {
     console.error('[bolt-sync]', e);
+    alert('Erro inesperado: '+e.message);
+  }
+}
+
+async function sincronizarBoltPagamentos() {
+  if (!confirm('Vai buscar as corridas Bolt das últimas 8 semanas e agregar em pagamentos por motorista. Continuar?')) return;
+  toast('💰 A buscar corridas Bolt...');
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { toast('Sessão expirou — recarrega a página','error'); return; }
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/bolt-earnings`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({ empresa_id: empresa.id, months: 2 }),
+    });
+    const data = await r.json();
+    console.log('[bolt-earnings] resposta:', data);
+    if (!r.ok) {
+      alert('Erro Bolt earnings:\n\n' + (data.error || JSON.stringify(data)));
+      return;
+    }
+    const s = data.summary || {};
+    const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} ERROS:\n${s.errors.slice(0, 5).join('\n')}${s.errors.length>5?'\n...':''}` : '';
+    alert(`✅ Pagamentos Bolt sincronizados\n\n📦 ${s.orders_received||0} corridas recebidas\n📊 ${s.buckets||0} semanas × motorista agrupadas\n💾 ${s.pagamentos_created||0} criados · ${s.pagamentos_updated||0} atualizados${s.pagamentos_skipped_no_motorista?` · ${s.pagamentos_skipped_no_motorista} sem motorista`:''}${erros}`);
+    await carregarDados();
+    showPage('pagamentos');
+  } catch (e) {
+    console.error('[bolt-earnings]', e);
     alert('Erro inesperado: '+e.message);
   }
 }
