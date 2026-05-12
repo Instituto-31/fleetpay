@@ -765,8 +765,20 @@ async function confirmarAssinatura() {
       pagebreak: { mode:['css','legacy'] }
     }).from(tmpWrap);
 
-    pdfBlob = await pdfWorker.outputPdf('blob');
+    try {
+      pdfBlob = await pdfWorker.outputPdf('blob');
+    } catch (pdfErr) {
+      console.error('[PDF] html2pdf error:', pdfErr);
+      document.body.removeChild(tmpWrap);
+      throw new Error('html2pdf falhou: ' + (pdfErr.message || pdfErr));
+    }
+    console.log('[PDF] pdfBlob size:', pdfBlob?.size || 0, 'bytes');
     document.body.removeChild(tmpWrap);
+
+    // Sanity check: PDF tem de ter conteúdo (mín. 10 KB para contratos reais)
+    if (!pdfBlob || pdfBlob.size < 10000) {
+      throw new Error('PDF gerado vazio (' + (pdfBlob?.size || 0) + ' bytes). Contrato tem ' + Math.round(wrapH) + 'px de altura, pode estar a ultrapassar limite do browser. Contacta suporte.');
+    }
 
     // Upload PDF
     const path = `${contrato.empresa_id}/${contrato.id}.pdf`;
