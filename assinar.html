@@ -725,7 +725,17 @@ async function confirmarAssinatura() {
       className: 'docx', inWrapper: false, ignoreWidth: true, ignoreHeight: true, breakPages: false
     });
 
-    await new Promise(r => setTimeout(r, 250)); // dar tempo ao docx-preview
+    // Garantir 2 frames de paint para o browser fazer layout do tmpWrap
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // Dar tempo extra para docx-preview montar imagens/tabelas (era 250ms, pouco)
+    await new Promise(r => setTimeout(r, 800));
+
+    // Validação: se a div ficou vazia, o docx não renderizou — abortar e avisar
+    const docText = (docTarget.textContent || '').trim();
+    if (docText.length < 20) {
+      document.body.removeChild(tmpWrap);
+      throw new Error('Não foi possível ler o conteúdo do contrato. Recarrega a página e tenta de novo.');
+    }
 
     // Gerar PDF
     const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(mot.nome||'motorista').split(' ')[0]}_assinado.pdf`;
