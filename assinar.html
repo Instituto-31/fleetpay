@@ -749,6 +749,7 @@ async function confirmarAssinatura() {
     // Gerar PDF via html2canvas + jsPDF (chunked por página A4)
     // Razão: html2pdf wrapper falha silenciosamente com elementos altos
     // (>5000px). Fazendo manualmente conseguimos cortar em páginas A4.
+    const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(mot.nome||'motorista').split(' ')[0]}_assinado.pdf`;
     const wrapH = tmpWrap.getBoundingClientRect().height;
     const wrapW = tmpWrap.getBoundingClientRect().width;
     const scaleDyn = Math.min(2, Math.max(1, 14000 / Math.max(wrapH, 1)));
