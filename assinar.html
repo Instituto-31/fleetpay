@@ -745,39 +745,75 @@ async function confirmarAssinatura() {
     const rect = tmpWrap.getBoundingClientRect();
     console.log('[PDF] tmpWrap dimensions:', rect.width, 'x', rect.height);
 
-    // Gerar PDF
-    // NOTA: html2canvas tem limite ~16384px de altura. Com scale:2 e tmpWrap
-    // alto (29k+ chars de contrato), o canvas excede o limite → PDF vazio.
-    // Fix: scale dinâmico em função da altura, e pagebreak sem 'avoid-all'
-    // (para quebrar em páginas em vez de tentar caber tudo).
+    // Gerar PDF via html2canvas + jsPDF (chunked por página A4)
+    // Razão: html2pdf wrapper falha silenciosamente com elementos altos
+    // (>5000px). Fazendo manualmente conseguimos cortar em páginas A4.
     const wrapH = tmpWrap.getBoundingClientRect().height;
-    const maxCanvasH = 14000; // margem de segurança vs limite ~16384
-    const scaleDyn = Math.min(2, Math.max(1, maxCanvasH / Math.max(wrapH, 1)));
+    const wrapW = tmpWrap.getBoundingClientRect().width;
+    const scaleDyn = Math.min(2, Math.max(1, 14000 / Math.max(wrapH, 1)));
     console.log('[PDF] using html2canvas scale:', scaleDyn);
 
-    const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${(mot.nome||'motorista').split(' ')[0]}_assinado.pdf`;
-    const pdfWorker = html2pdf().set({
-      margin: [0, 0, 0, 0],
-      filename: fname,
-      image: { type:'jpeg', quality: 0.94 },
-      html2canvas: { scale: scaleDyn, useCORS: true, logging: false, letterRendering: true },
-      jsPDF: { unit:'pt', format:'a4', orientation:'portrait', compress:true },
-      pagebreak: { mode:['css','legacy'] }
-    }).from(tmpWrap);
-
-    try {
-      pdfBlob = await pdfWorker.outputPdf('blob');
-    } catch (pdfErr) {
-      console.error('[PDF] html2pdf error:', pdfErr);
-      document.body.removeChild(tmpWrap);
-      throw new Error('html2pdf falhou: ' + (pdfErr.message || pdfErr));
+    // Encontrar html2canvas e jsPDF (bundlados em html2pdf.bundle.min.js)
+    const html2canvasFn = window.html2canvas;
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!html2canvasFn || !jsPDFCtor) {
+      throw new Error('Bibliotecas html2canvas/jsPDF não disponíveis.');
     }
+
+    // 1. Render TUDO num único canvas
+    let fullCanvas;
+    try {
+      fullCanvas = await html2canvasFn(tmpWrap, {
+        scale: scaleDyn, useCORS: true, logging: false,
+        letterRendering: true, backgroundColor: '#ffffff',
+        windowWidth: wrapW, windowHeight: wrapH
+      });
+    } catch (canvasErr) {
+      console.error('[PDF] html2canvas error:', canvasErr);
+      document.body.removeChild(tmpWrap);
+      throw new Error('html2canvas falhou: ' + (canvasErr.message || canvasErr));
+    }
+    console.log('[PDF] fullCanvas:', fullCanvas.width, 'x', fullCanvas.height);
+
+    if (!fullCanvas.width || !fullCanvas.height) {
+      document.body.removeChild(tmpWrap);
+      throw new Error('Canvas devolvido vazio.');
+    }
+
+    // 2. Criar PDF A4 e adicionar páginas a partir de fatias do canvas
+    const pdf = new jsPDFCtor({ unit:'pt', format:'a4', orientation:'portrait', compress:true });
+    const PAGE_W = 595;  // A4 width em pt
+    const PAGE_H = 842;  // A4 height em pt
+    const ratio = PAGE_W / fullCanvas.width;
+    const scaledTotalH = fullCanvas.height * ratio;
+    const totalPages = Math.ceil(scaledTotalH / PAGE_H);
+    console.log('[PDF] totalPages:', totalPages, 'scaledTotalH:', scaledTotalH);
+
+    for (let i = 0; i < totalPages; i++) {
+      if (i > 0) pdf.addPage();
+      const srcY = (i * PAGE_H) / ratio;
+      const srcH = Math.min(PAGE_H / ratio, fullCanvas.height - srcY);
+
+      // Recortar fatia
+      const slice = document.createElement('canvas');
+      slice.width = fullCanvas.width;
+      slice.height = srcH;
+      const ctx = slice.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(fullCanvas, 0, srcY, fullCanvas.width, srcH, 0, 0, fullCanvas.width, srcH);
+
+      const imgData = slice.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W, srcH * ratio);
+    }
+
+    pdfBlob = pdf.output('blob');
     console.log('[PDF] pdfBlob size:', pdfBlob?.size || 0, 'bytes');
     document.body.removeChild(tmpWrap);
 
-    // Sanity check: PDF tem de ter conteúdo (mín. 10 KB para contratos reais)
+    // Sanity check
     if (!pdfBlob || pdfBlob.size < 10000) {
-      throw new Error('PDF gerado vazio (' + (pdfBlob?.size || 0) + ' bytes). Contrato tem ' + Math.round(wrapH) + 'px de altura, pode estar a ultrapassar limite do browser. Contacta suporte.');
+      throw new Error('PDF gerado vazio (' + (pdfBlob?.size || 0) + ' bytes). Contacta suporte.');
     }
 
     // Upload PDF
