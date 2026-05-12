@@ -352,7 +352,7 @@ serve(async (req) => {
           summary.errors.push(`vehicle sem ID — campos disponíveis: ${Object.keys(bv).slice(0, 10).join(',')}`);
           continue;
         }
-        const matricula = (bv.license_plate || bv.plate || bv.registration || '').toUpperCase();
+        const matricula = (bv.reg_number || bv.license_plate || bv.plate || bv.registration || '').toUpperCase();
         const marca = bv.brand || bv.make || null;
         const modelo = bv.model || null;
         const ano = bv.year || bv.production_year || null;
