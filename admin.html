@@ -835,6 +835,16 @@ function closeModal(e) {
     document.getElementById('modal-overlay').classList.remove('open');
 }
 
+// Fecha o overlay (qualquer elemento com position:fixed) que contém el
+function fecharOverlay(el) {
+  let node = el;
+  while (node && node !== document.body) {
+    const cs = getComputedStyle(node);
+    if (cs.position === 'fixed') { node.remove(); return; }
+    node = node.parentElement;
+  }
+}
+
 // ── INIT ──
 async function init() {
   const { data: { session } } = await db.auth.getSession();
@@ -910,7 +920,7 @@ function abrirSeletorEmpresa(e) {
     <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:520px;width:100%">
       <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:var(--serif);font-size:20px;font-weight:300">Selecionar empresa</div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:20px">
         <p style="font-size:11px;color:var(--sub2);margin-bottom:14px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">És superadmin · gere ${empresasDisponiveis.length} empresas</p>

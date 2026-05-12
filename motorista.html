@@ -382,6 +382,16 @@ const fmt = (v) => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'
 const fmtData = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT', {day:'2-digit',month:'short'}) : '—';
 const fmtMes = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT', {month:'long',year:'numeric'}) : '';
 
+// Fecha o overlay (qualquer elemento com position:fixed) que contém el
+function fecharOverlay(el) {
+  let node = el;
+  while (node && node !== document.body) {
+    const cs = getComputedStyle(node);
+    if (cs.position === 'fixed') { node.remove(); return; }
+    node = node.parentElement;
+  }
+}
+
 async function init() {
   // Verificar sessão
   const { data: { session } } = await db.auth.getSession();
@@ -1698,7 +1708,7 @@ async function abrirPerfil() {
     <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto">
       <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--ink);z-index:10">
         <div style="font-family:var(--serif);font-size:22px;font-weight:300">O meu perfil</div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:24px">
         <div style="margin-bottom:24px">
@@ -1826,7 +1836,7 @@ async function abrirViatura() {
       <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;text-align:center">
         <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
           <div style="font-family:var(--serif);font-size:22px;font-weight:300">A minha viatura</div>
-          <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+          <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
         </div>
         <div style="padding:48px 24px">
           <div style="font-size:48px;margin-bottom:16px">🚗</div>
@@ -1847,7 +1857,7 @@ async function abrirViatura() {
     <div style="background:var(--ink);border:1px solid var(--line);border-radius:8px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto">
       <div style="padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:var(--serif);font-size:22px;font-weight:300">A minha viatura</div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:24px">
         <!-- Hero -->
@@ -1980,7 +1990,7 @@ function abrirAviso(id) {
           <span>${p.icon}</span>
           <span style="font-family:var(--mono);font-size:10px;color:${p.cor};letter-spacing:1px;text-transform:uppercase">${a.prioridade}</span>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:22px">
         <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0 0 12px;color:var(--paper)">${a.titulo}</h2>
@@ -2002,13 +2012,13 @@ function abrirTodosAvisos() {
     <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;max-width:520px;width:100%;max-height:85vh;display:flex;flex-direction:column">
       <div style="padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
         <h2 style="font-family:var(--serif);font-weight:300;font-size:20px;margin:0">📣 Todos os avisos</h2>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:14px 18px;overflow-y:auto;flex:1">
         ${avisos.map(a => {
           const p = PRIORIDADE_AVISO[a.prioridade] || PRIORIDADE_AVISO.info;
           return `
-          <div style="border-left:3px solid ${p.cor};padding:12px 14px;background:rgba(255,255,255,0.02);border-radius:4px;margin-bottom:10px;cursor:pointer" onclick="this.closest('[style*=\\'position:fixed\\']').remove();abrirAviso('${a.id}')">
+          <div style="border-left:3px solid ${p.cor};padding:12px 14px;background:rgba(255,255,255,0.02);border-radius:4px;margin-bottom:10px;cursor:pointer" onclick="fecharOverlay(this);abrirAviso('${a.id}')">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
               <span>${p.icon}</span>
               <strong style="font-size:13px;color:var(--paper)">${a.titulo}</strong>
@@ -2036,7 +2046,7 @@ function abrirCupoes() {
           <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0">🎟️ Vantagens</h2>
           <div style="font-size:11px;color:var(--sub);margin-top:2px">Descontos exclusivos do operador e parceiros</div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:14px 18px;overflow-y:auto;flex:1">
         ${cupoesDisponiveis.length === 0 ? `
@@ -2178,7 +2188,7 @@ function abrirMinhasIndicacoes() {
           <h2 style="font-family:var(--serif);font-weight:300;font-size:20px;margin:0">★ As minhas partilhas</h2>
           <div style="font-size:11px;color:var(--sub);margin-top:2px">${items.length} indicações · ${(motorista?.creditos||0).toFixed(2)}€ em créditos</div>
         </div>
-        <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
+        <button onclick="fecharOverlay(this)" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer">✕</button>
       </div>
       <div style="padding:14px 18px;overflow-y:auto;flex:1">
         ${items.length === 0 ? `
@@ -2223,7 +2233,7 @@ function mostrarModalPartilha(c, link, msg) {
         </a>
       </div>
       <button onclick="navigator.clipboard.writeText('${link}').then(()=>{this.innerHTML='✓ COPIADO';this.style.color='#27c93f'})" style="width:100%;padding:13px;background:transparent;color:var(--gold);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:8px">📋 Copiar link</button>
-      <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="width:100%;padding:11px;background:none;color:var(--sub);border:none;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:1px">Fechar</button>
+      <button onclick="fecharOverlay(this)" style="width:100%;padding:11px;background:none;color:var(--sub);border:none;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:1px">Fechar</button>
       <div style="margin-top:14px;font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px">${c.bonus_indicador?`★ Quando o teu amigo usar, ganhas ${c.bonus_indicador}${c.bonus_indicador_tipo==='percentagem'?'%':'€'} em créditos`:''}</div>
     </div>
   `;
@@ -2261,7 +2271,7 @@ function mostrarMeuCupao(token, cupaoId) {
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
     <div style="background:var(--ink);border:2px solid var(--gold);border-radius:12px;max-width:400px;width:100%;text-align:center;padding:32px 24px;position:relative">
-      <button onclick="this.closest('[style*=\\'position:fixed\\']').remove()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--sub);font-size:20px;cursor:pointer">✕</button>
+      <button onclick="fecharOverlay(this)" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--sub);font-size:20px;cursor:pointer">✕</button>
       <div style="font-size:42px;margin-bottom:8px">${icon}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:2px;margin-bottom:6px">CUPÃO RESERVADO</div>
       <h2 style="font-family:var(--serif);font-weight:300;font-size:22px;margin:0 0 4px;color:var(--paper)">${c.titulo}</h2>
