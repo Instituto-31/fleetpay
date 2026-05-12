@@ -318,14 +318,24 @@ serve(async (req) => {
         if (phone) payload.telefone = phone;
 
         if (existing) {
-          await supabase.from('motoristas').update(payload).eq('id', existing.id);
-          summary.drivers_updated++;
+          const { error: upErr } = await supabase.from('motoristas').update(payload).eq('id', existing.id);
+          if (upErr) {
+            summary.errors.push(`driver ${boltId} update falhou: ${upErr.message}`);
+            summary.drivers_skipped++;
+          } else {
+            summary.drivers_updated++;
+          }
         } else {
           payload.empresa_id = empresaId;
           payload.nome = nome;
           payload.ativo = true;
-          await supabase.from('motoristas').insert(payload);
-          summary.drivers_created++;
+          const { error: insErr } = await supabase.from('motoristas').insert(payload);
+          if (insErr) {
+            summary.errors.push(`driver ${boltId} insert falhou: ${insErr.message} | payload: ${JSON.stringify(payload).slice(0, 300)}`);
+            summary.drivers_skipped++;
+          } else {
+            summary.drivers_created++;
+          }
         }
       } catch (e) {
         summary.errors.push(`driver ${bd.id || '?'}: ${(e as Error).message}`);
@@ -373,13 +383,23 @@ serve(async (req) => {
         if (ano) payload.ano = ano;
 
         if (existing) {
-          await supabase.from('veiculos').update(payload).eq('id', existing.id);
-          summary.vehicles_updated++;
+          const { error: upErr } = await supabase.from('veiculos').update(payload).eq('id', existing.id);
+          if (upErr) {
+            summary.errors.push(`vehicle ${boltId} update falhou: ${upErr.message}`);
+            summary.vehicles_skipped++;
+          } else {
+            summary.vehicles_updated++;
+          }
         } else {
           payload.empresa_id = empresaId;
           payload.estado = 'ativo';
-          await supabase.from('veiculos').insert(payload);
-          summary.vehicles_created++;
+          const { error: insErr } = await supabase.from('veiculos').insert(payload);
+          if (insErr) {
+            summary.errors.push(`vehicle ${boltId} insert falhou: ${insErr.message} | payload: ${JSON.stringify(payload).slice(0, 300)}`);
+            summary.vehicles_skipped++;
+          } else {
+            summary.vehicles_created++;
+          }
         }
       } catch (e) {
         summary.errors.push(`vehicle ${bv.id || '?'}: ${(e as Error).message}`);
