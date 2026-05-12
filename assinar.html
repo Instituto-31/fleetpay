@@ -653,10 +653,13 @@ async function confirmarAssinatura() {
     const dataAss = new Date();
     const dataAssStr = dataAss.toLocaleString('pt-PT');
 
-    // Container temporário — visível mas com opacity 0 e por trás de tudo
-    // (left:-9999px causava problemas de layout no docx-preview em alguns browsers)
+    // Container temporário — posicionado FORA da viewport por baixo.
+    // Não usar opacity:0 (html2canvas captura a opacidade resultando em
+    // canvas vazio/branco). Não usar visibility:hidden pelo mesmo motivo.
+    // left:-9999px causa por vezes problemas de layout — usamos top:100vh
+    // (fica imediatamente abaixo da viewport, mas com layout normal).
     const tmpWrap = document.createElement('div');
-    tmpWrap.style.cssText = 'position:fixed;left:0;top:0;width:794px;background:#fff;opacity:0;pointer-events:none;z-index:-1';
+    tmpWrap.style.cssText = 'position:absolute;left:0;top:100vh;width:794px;background:#fff;pointer-events:none;z-index:-1';
     tmpWrap.id = 'pdf-target';
 
     // Cabeçalho
