@@ -802,17 +802,20 @@ const fmt = v => new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}
 const fmtD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '—';
 const fmtDshort = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT',{day:'2-digit',month:'short'}) : '—';
 
+function _ymd(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
 function getSegundaFeira(d) {
   const dt = new Date(d);
   const day = dt.getDay();
   const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
   dt.setDate(diff);
-  return dt.toISOString().split('T')[0];
+  return _ymd(dt);
 }
 function getDomingo(segunda) {
   const dt = new Date(segunda+'T00:00:00');
   dt.setDate(dt.getDate() + 6);
-  return dt.toISOString().split('T')[0];
+  return _ymd(dt);
 }
 function semanaLabel(s) {
   return `${fmtDshort(s)} — ${fmtDshort(getDomingo(s))}`;
@@ -2051,7 +2054,7 @@ function renderPagamentos() {
 function mudarSemana(dir) {
   const dt = new Date(semanaAtual+'T00:00:00');
   dt.setDate(dt.getDate() + dir * 7);
-  semanaAtual = dt.toISOString().split('T')[0];
+  semanaAtual = _ymd(dt);
   document.getElementById('semana-label-top').textContent = semanaLabel(semanaAtual);
   renderTabelaPagamentos();
 }
