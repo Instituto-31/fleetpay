@@ -105,7 +105,7 @@ serve(async (req) => {
 
     const { data: emp, error: errEmp } = await supabase
       .from('empresas')
-      .select('id, nome, bolt_client_id, bolt_client_secret, bolt_company_id, iva_uber_pct')
+      .select('id, nome, bolt_client_id, bolt_client_secret, bolt_company_id, iva_uber_pct, bolt_iva_pct')
       .eq('id', empresaId).single();
     if (errEmp || !emp) throw new Error('Empresa não encontrada');
     if (!emp.bolt_client_id || !emp.bolt_client_secret) {
@@ -276,6 +276,8 @@ serve(async (req) => {
       const bolt_bruto = round2(b.agg.bruto);
       const bolt_liquido = round2(b.agg.liquido);
       const bolt_taxa = round2(b.agg.taxa);
+      const boltIvaPct = Number(emp.bolt_iva_pct ?? 6);
+      const bolt_iva = round2(bolt_bruto * boltIvaPct / (100 + boltIvaPct));
 
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
@@ -298,12 +300,12 @@ serve(async (req) => {
       const total_despesas = round2(slot + aluguer + prio + viaverde + outros);
       const uberLiq = Number(existing?.uber_liquido || 0);
       const uberIvaVal = Number(existing?.uber_iva_valor || 0);
-      const iva_cobrar = round2(uberIvaVal /* + bolt_iva quando soubermos calcular */);
+      const iva_cobrar = round2(uberIvaVal + bolt_iva);
       const rendimento_liquido = round2(uberLiq + bolt_liquido + iva_cobrar);
       const valor_final = round2(rendimento_liquido - total_despesas);
 
       const payload: any = {
-        bolt_bruto, bolt_liquido, bolt_taxa,
+        bolt_bruto, bolt_liquido, bolt_taxa, bolt_iva,
         rendimento_liquido, total_despesas, valor_final,
         origem: 'api',
       };
