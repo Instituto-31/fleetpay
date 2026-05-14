@@ -277,7 +277,8 @@ serve(async (req) => {
       const bolt_liquido = round2(b.agg.liquido);
       const bolt_taxa = round2(b.agg.taxa);
       const boltIvaPct = Number(emp.bolt_iva_pct ?? 6);
-      const bolt_iva = round2(bolt_bruto * boltIvaPct / (100 + boltIvaPct));
+      // 6% sobre o bruto, descontado (motorista entrega ao Estado, nao recebe)
+      const bolt_iva = round2(bolt_bruto * boltIvaPct / 100);
 
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
@@ -301,7 +302,8 @@ serve(async (req) => {
       const uberLiq = Number(existing?.uber_liquido || 0);
       const uberIvaVal = Number(existing?.uber_iva_valor || 0);
       const iva_cobrar = round2(uberIvaVal + bolt_iva);
-      const rendimento_liquido = round2(uberLiq + bolt_liquido + iva_cobrar);
+      // IVA é descontado ao valor a pagar — motorista entrega-o ao Estado
+      const rendimento_liquido = round2(uberLiq + bolt_liquido - iva_cobrar);
       const valor_final = round2(rendimento_liquido - total_despesas);
 
       const payload: any = {

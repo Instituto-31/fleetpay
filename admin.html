@@ -2419,8 +2419,9 @@ function mostrarPreviewCSV() {
     const ivaCobrar = uberIva + (b.iva||0);
     const slot = mot?.slot_semanal || 0;
     const aluguer = mot?.aluguer_semanal || 0;
-    const valorFinal = uberLiq + b.liquido + ivaCobrar - slot - aluguer;
-    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:uberLiq+b.liquido+ivaCobrar, valor_final:valorFinal };
+    // IVA é descontado (motorista entrega-o ao Estado, nao recebe)
+    const valorFinal = uberLiq + b.liquido - ivaCobrar - slot - aluguer;
+    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:uberLiq+b.liquido-ivaCobrar, valor_final:valorFinal };
   });
 
   document.getElementById('csv-preview-sub').textContent = `${csvDados.length} motoristas · semana ${semanaLabel(semanaAtual)}`;
