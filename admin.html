@@ -2340,13 +2340,29 @@ function renderCSV() {
 
 let csvDados = [];
 
+// Parser CSV robusto que respeita aspas (campos com virgulas internas).
+function parseCSVRow(line) {
+  const out = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (c === ',' && !inQuotes) {
+      out.push(cur); cur = '';
+    } else { cur += c; }
+  }
+  out.push(cur);
+  return out.map(v => v.trim());
+}
 function parseCSV(text) {
-  const lines = text.split('\n').filter(l=>l.trim());
-  const headers = lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase());
+  const lines = text.replace(/\r/g, '').split('\n').filter(l=>l.trim());
+  const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase());
   return lines.slice(1).map(line => {
-    const vals = line.split(',').map(v=>v.trim().replace(/"/g,''));
+    const vals = parseCSVRow(line);
     const obj = {};
-    headers.forEach((h,i) => obj[h] = vals[i]||'');
+    headers.forEach((h,i) => obj[h] = vals[i] || '');
     return obj;
   });
 }
@@ -2364,13 +2380,22 @@ function processUber(file) {
   const reader = new FileReader();
   reader.onload = e => {
     const rows = parseCSV(e.target.result);
-    // Agrupar por motorista
+    // Agrupar por motorista. Aceita formatos antigos (driver name / fare amount)
+    // e o relatorio PT-PT "Pagamentos de motorista" (nome proprio + apelido / pago a si).
     const grouped = {};
     rows.forEach(r => {
-      const nome = r['driver name'] || r['nome'] || r['motorista'] || '';
+      const nomeProprio = r['nome próprio do motorista'] || r['nome proprio do motorista'] || r['first name'] || '';
+      const apelido = r['apelido do motorista'] || r['last name'] || '';
+      const nomeComposto = `${nomeProprio} ${apelido}`.trim();
+      const nome = nomeComposto || r['driver name'] || r['nome'] || r['motorista'] || '';
       if (!nome) return;
+      // Excluir linhas de pagamento à empresa (nao motorista)
+      const nomeLower = nome.toLowerCase();
+      if (nomeLower.includes('lda') || nomeLower.includes('unipessoal') || nomeLower.includes('formacao') || nomeLower.includes('instituto')) return;
+      const bruto = parseFloat(r['pago a si'] || r['fare amount'] || r['valor'] || r['amount'] || 0);
+      if (isNaN(bruto)) return;
       if (!grouped[nome]) grouped[nome] = {nome, bruto:0};
-      grouped[nome].bruto += parseFloat(r['fare amount'] || r['valor'] || r['amount'] || 0);
+      grouped[nome].bruto += bruto;
     });
     uberData = Object.values(grouped);
     document.getElementById('uber-preview').innerHTML = `
