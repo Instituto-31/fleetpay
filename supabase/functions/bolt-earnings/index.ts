@@ -306,7 +306,7 @@ serve(async (req) => {
 
       const payload: any = {
         bolt_bruto, bolt_liquido, bolt_taxa, bolt_iva,
-        rendimento_liquido, total_despesas, valor_final,
+        iva_cobrar, rendimento_liquido, total_despesas, valor_final,
         origem: 'api',
       };
 
