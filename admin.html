@@ -2449,7 +2449,9 @@ function mostrarPreviewCSV() {
     return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:uberLiq+b.liquido-ivaCobrar, valor_final:valorFinal };
   });
 
-  document.getElementById('csv-preview-sub').textContent = `${csvDados.length} motoristas · semana ${semanaLabel(semanaAtual)}`;
+  document.getElementById('csv-preview-sub').innerHTML = `${csvDados.length} motoristas · semana
+    <input id="csv-semana-input" type="date" value="${semanaAtual}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;font:inherit;background:var(--paper-2);color:var(--paper)" />
+    <small style="color:var(--sub2);margin-left:8px">(escolhe a segunda da semana)</small>`;
   document.getElementById('csv-preview-body').innerHTML = `
     <table>
       <thead><tr><th>Motorista</th><th>Associado</th><th>Uber bruto</th><th>Uber líq.</th><th>Bolt líq.</th><th>IVA cobrar</th><th>Slot</th><th>A receber</th></tr></thead>
@@ -2473,22 +2475,60 @@ function mostrarPreviewCSV() {
 
 async function confirmarCSV() {
   const eid = empresa?.id;
-  const domingo = getDomingo(semanaAtual);
+  // Permite escolher a semana — default: segunda atual
+  const semanaCSV = document.getElementById('csv-semana-input')?.value || semanaAtual;
+  const segunda = getSegundaFeira(new Date(semanaCSV+'T00:00:00'));
+  const domingo = getDomingo(segunda);
+  const temUber = uberData.length > 0;
+  const temBolt = boltData.length > 0;
   let ok = 0, erros = 0;
 
   for (const d of csvDados) {
     if (!d.motorista) { erros++; continue; }
+
+    // Antes do upsert, ler o registo existente para preservar campos
+    // que NAO vieram neste CSV (ex: Bolt API ja gravou bolt_* nesta semana).
+    const { data: existing } = await db
+      .from('pagamentos')
+      .select('uber_bruto, uber_iva_pct, uber_iva_valor, uber_liquido, bolt_bruto, bolt_liquido, bolt_iva, bolt_taxa, slot_valor, aluguer_valor, prio_valor, viaverde_valor, outros_descontos')
+      .eq('empresa_id', eid)
+      .eq('motorista_id', d.motorista.id)
+      .eq('semana_inicio', segunda)
+      .maybeSingle();
+
+    // Decide qual valor usa por campo: CSV se foi feito upload, senao o que ja existe
+    const uberBruto    = temUber ? d.uber_bruto    : Number(existing?.uber_bruto || 0);
+    const uberIvaPct   = temUber ? d.uber_iva_pct  : Number(existing?.uber_iva_pct || empresa?.iva_uber_pct || 23);
+    const uberIvaVal   = temUber ? d.uber_iva_valor : Number(existing?.uber_iva_valor || 0);
+    const uberLiq     = temUber ? d.uber_liquido  : Number(existing?.uber_liquido || 0);
+    const boltBruto    = temBolt ? (d.bolt_liquido + (d.bolt_taxa||0)) : Number(existing?.bolt_bruto || 0);
+    const boltLiq     = temBolt ? d.bolt_liquido  : Number(existing?.bolt_liquido || 0);
+    const boltIva     = temBolt ? d.bolt_iva      : Number(existing?.bolt_iva || 0);
+    const boltTaxa    = temBolt ? d.bolt_taxa     : Number(existing?.bolt_taxa || 0);
+    const slot        = Number(existing?.slot_valor || d.slot_valor || 0);
+    const aluguer     = Number(existing?.aluguer_valor || d.aluguer_valor || 0);
+    const prio        = Number(existing?.prio_valor || 0);
+    const viaverde    = Number(existing?.viaverde_valor || 0);
+    const outros      = Number(existing?.outros_descontos || 0);
+    const ivaCobrar   = uberIvaVal + boltIva;
+    const totalDesp   = slot + aluguer + prio + viaverde + outros;
+    const rendLiq     = uberLiq + boltLiq - ivaCobrar;
+    const valorFinal  = rendLiq - totalDesp;
+
     const payload = {
       empresa_id: eid, motorista_id: d.motorista.id,
-      semana_inicio: semanaAtual, semana_fim: domingo,
+      semana_inicio: segunda, semana_fim: domingo,
       origem: 'csv',
-      uber_bruto:d.uber_bruto, uber_iva_pct:d.uber_iva_pct, uber_iva_valor:d.uber_iva_valor, uber_liquido:d.uber_liquido,
-      bolt_liquido:d.bolt_liquido, bolt_iva:d.bolt_iva, bolt_taxa:d.bolt_taxa,
-      iva_cobrar:d.iva_cobrar, rendimento_liquido:d.rendimento_liquido,
-      slot_valor:d.slot_valor, aluguer_valor:d.aluguer_valor,
-      prio_valor:0, viaverde_valor:0,
-      total_despesas:d.total_despesas, valor_final:d.valor_final, estado:'pendente'
+      uber_bruto:uberBruto, uber_iva_pct:uberIvaPct, uber_iva_valor:uberIvaVal, uber_liquido:uberLiq,
+      bolt_bruto:boltBruto, bolt_liquido:boltLiq, bolt_iva:boltIva, bolt_taxa:boltTaxa,
+      iva_cobrar:ivaCobrar, rendimento_liquido:rendLiq,
+      slot_valor:slot, aluguer_valor:aluguer,
+      prio_valor:prio, viaverde_valor:viaverde,
+      total_despesas:totalDesp, valor_final:valorFinal,
+      estado: existing ? undefined : 'pendente'  // nao reset estado se ja existe
     };
+    // Limpar undefined (Supabase nao aceita)
+    Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
     const { error } = await db.from('pagamentos').upsert(payload, {onConflict:'empresa_id,motorista_id,semana_inicio'});
     if (error) erros++; else ok++;
   }
