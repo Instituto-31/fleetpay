@@ -2513,7 +2513,8 @@ function mostrarPreviewCSV() {
     if (!mot && u.bruto > 0) mot = findMotorista(nome, { platform:'uber' });
     if (!mot && b.liquido > 0) mot = findMotorista(nome, { platform:'bolt' });
     if (!mot) mot = findMotorista(nome);
-    const uberIva = u.bruto * (ivaPct/100);
+    // IVA incluido no bruto: extrai como bruto * pct / (100+pct)
+    const uberIva = u.bruto * ivaPct / (100 + ivaPct);
     const uberLiq = u.bruto - uberIva;
     const ivaCobrar = uberIva + (b.iva||0);
     const slot = mot?.slot_semanal || 0;

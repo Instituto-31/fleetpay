@@ -277,8 +277,8 @@ serve(async (req) => {
       const bolt_liquido = round2(b.agg.liquido);
       const bolt_taxa = round2(b.agg.taxa);
       const boltIvaPct = Number(emp.bolt_iva_pct ?? 6);
-      // 6% sobre o bruto, descontado (motorista entrega ao Estado, nao recebe)
-      const bolt_iva = round2(bolt_bruto * boltIvaPct / 100);
+      // IVA incluido no bruto: extrai como bruto * pct / (100+pct)
+      const bolt_iva = round2(bolt_bruto * boltIvaPct / (100 + boltIvaPct));
 
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
