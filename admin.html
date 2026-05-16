@@ -2518,9 +2518,11 @@ function mostrarPreviewCSV() {
     const ivaCobrar = uberIva + (b.iva||0);
     const slot = mot?.slot_semanal || 0;
     const aluguer = mot?.aluguer_semanal || 0;
-    // IVA é descontado (motorista entrega-o ao Estado, nao recebe)
-    const valorFinal = uberLiq + b.liquido - ivaCobrar - slot - aluguer;
-    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:uberLiq+b.liquido-ivaCobrar, valor_final:valorFinal };
+    // IVA Uber ja descontado em uberLiq. IVA Bolt desconta-se aqui ao b.liquido.
+    const boltLiqMotorista = b.liquido - (b.iva||0);
+    const rendLiq = uberLiq + boltLiqMotorista;
+    const valorFinal = rendLiq - slot - aluguer;
+    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:rendLiq, valor_final:valorFinal };
   });
 
   document.getElementById('csv-preview-sub').innerHTML = `${csvDados.length} motoristas · semana
@@ -2599,7 +2601,8 @@ async function confirmarCSV() {
     const outros      = Number(existing?.outros_descontos || 0);
     const ivaCobrar   = uberIvaVal + boltIva;
     const totalDesp   = slot + aluguer + prio + viaverde + outros;
-    const rendLiq     = uberLiq + boltLiq - ivaCobrar;
+    // uberLiq ja vem com IVA descontado; aqui so descontamos o IVA Bolt
+    const rendLiq     = uberLiq + (boltLiq - boltIva);
     const valorFinal  = rendLiq - totalDesp;
 
     const payload = {

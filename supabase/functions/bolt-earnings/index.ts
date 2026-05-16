@@ -302,8 +302,8 @@ serve(async (req) => {
       const uberLiq = Number(existing?.uber_liquido || 0);
       const uberIvaVal = Number(existing?.uber_iva_valor || 0);
       const iva_cobrar = round2(uberIvaVal + bolt_iva);
-      // IVA é descontado ao valor a pagar — motorista entrega-o ao Estado
-      const rendimento_liquido = round2(uberLiq + bolt_liquido - iva_cobrar);
+      // uberLiq ja vem da BD com IVA descontado. Aqui so descontamos IVA Bolt ao bolt_liquido.
+      const rendimento_liquido = round2(uberLiq + (bolt_liquido - bolt_iva));
       const valor_final = round2(rendimento_liquido - total_despesas);
 
       const payload: any = {
