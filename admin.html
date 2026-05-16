@@ -2367,9 +2367,19 @@ function parseCSV(text) {
   });
 }
 
+// Normaliza string: lowercase, sem acentos, espacos colapsados.
+function _norm(s) {
+  return (s || '').toString()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Match em camadas:
 // 1) uber_driver_id ou bolt_driver_id (se passado)
-// 2) uber_nome / bolt_nome exacto (case-insensitive)
+// 2) uber_nome / bolt_nome exacto (case-insensitive, sem acentos)
 // 3) Algoritmo por tokens (primeiro + ultimo nome). Devolve null se ambiguo.
 function findMotorista(nome, opts) {
   if (!nome && !opts) return null;
@@ -2390,15 +2400,15 @@ function findMotorista(nome, opts) {
   }
 
   if (!nome) return null;
-  const n = nome.toLowerCase().trim();
+  const n = _norm(nome);
 
   // 2) Match por uber_nome / bolt_nome exacto
   if (platform === 'uber') {
-    const m = motoristas.find(m => m.uber_nome && m.uber_nome.toLowerCase().trim() === n);
+    const m = motoristas.find(m => m.uber_nome && _norm(m.uber_nome) === n);
     if (m) return m;
   }
   if (platform === 'bolt') {
-    const m = motoristas.find(m => m.bolt_nome && m.bolt_nome.toLowerCase().trim() === n);
+    const m = motoristas.find(m => m.bolt_nome && _norm(m.bolt_nome) === n);
     if (m) return m;
   }
 
@@ -2409,7 +2419,7 @@ function findMotorista(nome, opts) {
   if (!primeiro) return null;
 
   const candidatos = motoristas.filter(m => {
-    const mn = m.nome.toLowerCase();
+    const mn = _norm(m.nome);
     return mn.includes(primeiro) && (tokens.length === 1 || mn.includes(ultimo));
   });
   if (candidatos.length === 1) return candidatos[0];
@@ -2417,7 +2427,7 @@ function findMotorista(nome, opts) {
 
   // Ambiguidade: tenta desempate pelo numero de tokens em comum
   const scored = candidatos.map(m => {
-    const mTokens = m.nome.toLowerCase().split(/\s+/);
+    const mTokens = _norm(m.nome).split(/\s+/);
     const score = tokens.filter(t => mTokens.includes(t)).length;
     return { m, score };
   });
