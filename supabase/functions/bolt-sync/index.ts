@@ -313,6 +313,7 @@ serve(async (req) => {
           bolt_driver_id: boltId,
           bolt_synced_at: now,
           bolt_status: status,
+          bolt_nome: nome,  // nome exacto como aparece na Bolt — para matching futuro
         };
         if (email) payload.email = email;
         if (phone) payload.telefone = phone;

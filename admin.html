@@ -2367,10 +2367,65 @@ function parseCSV(text) {
   });
 }
 
-function findMotorista(nome) {
+// Match em camadas:
+// 1) uber_driver_id ou bolt_driver_id (se passado)
+// 2) uber_nome / bolt_nome exacto (case-insensitive)
+// 3) Algoritmo por tokens (primeiro + ultimo nome). Devolve null se ambiguo.
+function findMotorista(nome, opts) {
+  if (!nome && !opts) return null;
+  opts = opts || {};
+  const platform = opts.platform; // 'uber' | 'bolt'
+  const driverId = opts.driverId;
+
+  // 1) Match por driver_id da plataforma
+  if (driverId) {
+    if (platform === 'uber') {
+      const m = motoristas.find(m => m.uber_driver_id === driverId);
+      if (m) return m;
+    }
+    if (platform === 'bolt') {
+      const m = motoristas.find(m => m.bolt_driver_id === driverId);
+      if (m) return m;
+    }
+  }
+
   if (!nome) return null;
   const n = nome.toLowerCase().trim();
-  return motoristas.find(m => m.nome.toLowerCase().includes(n) || n.includes(m.nome.toLowerCase().split(' ')[0].toLowerCase()));
+
+  // 2) Match por uber_nome / bolt_nome exacto
+  if (platform === 'uber') {
+    const m = motoristas.find(m => m.uber_nome && m.uber_nome.toLowerCase().trim() === n);
+    if (m) return m;
+  }
+  if (platform === 'bolt') {
+    const m = motoristas.find(m => m.bolt_nome && m.bolt_nome.toLowerCase().trim() === n);
+    if (m) return m;
+  }
+
+  // 3) Algoritmo: tokens primeiro+ultimo, com score. So devolve se for unico.
+  const tokens = n.split(/\s+/).filter(Boolean);
+  const primeiro = tokens[0];
+  const ultimo = tokens[tokens.length - 1];
+  if (!primeiro) return null;
+
+  const candidatos = motoristas.filter(m => {
+    const mn = m.nome.toLowerCase();
+    return mn.includes(primeiro) && (tokens.length === 1 || mn.includes(ultimo));
+  });
+  if (candidatos.length === 1) return candidatos[0];
+  if (candidatos.length === 0) return null;
+
+  // Ambiguidade: tenta desempate pelo numero de tokens em comum
+  const scored = candidatos.map(m => {
+    const mTokens = m.nome.toLowerCase().split(/\s+/);
+    const score = tokens.filter(t => mTokens.includes(t)).length;
+    return { m, score };
+  });
+  const maxScore = Math.max(...scored.map(s => s.score));
+  const top = scored.filter(s => s.score === maxScore);
+  if (top.length === 1) return top[0].m;
+
+  return null; // ambiguo sem desempate
 }
 
 let uberData = [], boltData = [];
@@ -2394,8 +2449,11 @@ function processUber(file) {
       if (nomeLower.includes('lda') || nomeLower.includes('unipessoal') || nomeLower.includes('formacao') || nomeLower.includes('instituto')) return;
       const bruto = parseFloat(r['pago a si'] || r['fare amount'] || r['valor'] || r['amount'] || 0);
       if (isNaN(bruto)) return;
-      if (!grouped[nome]) grouped[nome] = {nome, bruto:0};
+      // UUID do motorista Uber — para matching estavel
+      const uuid = r['uuid do motorista'] || r['uuid'] || r['driver uuid'] || '';
+      if (!grouped[nome]) grouped[nome] = {nome, bruto:0, uber_driver_id: uuid};
       grouped[nome].bruto += bruto;
+      if (uuid && !grouped[nome].uber_driver_id) grouped[nome].uber_driver_id = uuid;
     });
     uberData = Object.values(grouped);
     document.getElementById('uber-preview').innerHTML = `
@@ -2438,7 +2496,13 @@ function mostrarPreviewCSV() {
   csvDados = todos.map(nome => {
     const u = uberData.find(x=>x.nome===nome) || {bruto:0};
     const b = boltData.find(x=>x.nome===nome) || {liquido:0, iva:0, taxa:0};
-    const mot = findMotorista(nome);
+    // Tenta primeiro Uber UUID, depois Bolt UUID, depois nome
+    let mot = null;
+    if (u.uber_driver_id) mot = findMotorista(nome, { platform:'uber', driverId: u.uber_driver_id });
+    if (!mot && b.bolt_driver_id) mot = findMotorista(nome, { platform:'bolt', driverId: b.bolt_driver_id });
+    if (!mot && u.bruto > 0) mot = findMotorista(nome, { platform:'uber' });
+    if (!mot && b.liquido > 0) mot = findMotorista(nome, { platform:'bolt' });
+    if (!mot) mot = findMotorista(nome);
     const uberIva = u.bruto * (ivaPct/100);
     const uberLiq = u.bruto - uberIva;
     const ivaCobrar = uberIva + (b.iva||0);
@@ -2485,6 +2549,19 @@ async function confirmarCSV() {
 
   for (const d of csvDados) {
     if (!d.motorista) { erros++; continue; }
+
+    // Auto-gravar uber_nome / uber_driver_id no motorista (so se ainda nao tinha)
+    // para que proximas syncs facam match perfeito sem ambiguidade.
+    const u = uberData.find(x => x.nome === d.nome);
+    if (u && (u.bruto > 0)) {
+      const patch = {};
+      if (!d.motorista.uber_nome) patch.uber_nome = d.nome;
+      if (u.uber_driver_id && !d.motorista.uber_driver_id) patch.uber_driver_id = u.uber_driver_id;
+      if (Object.keys(patch).length > 0) {
+        await db.from('motoristas').update(patch).eq('id', d.motorista.id);
+        Object.assign(d.motorista, patch); // refresh local
+      }
+    }
 
     // Antes do upsert, ler o registo existente para preservar campos
     // que NAO vieram neste CSV (ex: Bolt API ja gravou bolt_* nesta semana).
@@ -2664,6 +2741,15 @@ function modalMotorista(id=null) {
     </div>
     <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
 
+    <div style="margin-top:18px;padding:12px;background:rgba(200,146,42,0.05);border:1px solid var(--line);border-radius:4px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">🔗 Identificação nas plataformas (matching automático)</div>
+      <div class="field-row">
+        <div class="field"><label>Nome na Uber</label><input id="m-uber-nome" value="${m.uber_nome||''}" placeholder="ex: DANIEL SILVA (como aparece no CSV)"></div>
+        <div class="field"><label>Nome na Bolt</label><input id="m-bolt-nome" value="${m.bolt_nome||''}" placeholder="preenchido pela sync"></div>
+      </div>
+      <p style="font-size:11px;color:var(--sub2);margin:6px 0 0">Estes nomes resolvem ambiguidades quando há motoristas com primeiro nome igual. Preenche manualmente apenas se o matching automático falhar.</p>
+    </div>
+
     ${id ? `
       <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -2748,6 +2834,8 @@ async function guardarMotorista(id) {
     cartao_cidadao_validade: document.getElementById('m-cc').value||null,
     registo_criminal_validade: document.getElementById('m-rc').value||null,
     notas: document.getElementById('m-notas').value,
+    uber_nome: document.getElementById('m-uber-nome')?.value || null,
+    bolt_nome: document.getElementById('m-bolt-nome')?.value || null,
   };
   if (!payload.nome) { toast('Nome obrigatório','error'); return; }
 
