@@ -9,3 +9,4 @@ node_modules/
 .env.local
 _tvde_v18_ref.html
 _templates_extracted/
+_templates_v2/

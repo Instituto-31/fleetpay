@@ -4322,7 +4322,38 @@ async function processarUploadTemplate(file) {
     // 4. Atualizar path no registo
     await db.from('contratos_templates').update({ ficheiro_path: path }).eq('id', tpl.id);
 
-    toast(`✅ Template "${nome}" carregado com ${placeholders.length} placeholders`);
+    // 5. Auto-replicar nas outras empresas (superadmin com multi-empresa)
+    let replicadas = 0, falhas = 0;
+    const outras = (perfil?.role === 'superadmin')
+      ? empresasDisponiveis.filter(e => e.id !== empresa.id)
+      : [];
+    for (const outra of outras) {
+      try {
+        const { data: novo, error: insE } = await db.from('contratos_templates').insert({
+          empresa_id: outra.id, tipo, nome, placeholders, ficheiro_path: 'pending'
+        }).select().single();
+        if (insE) throw insE;
+        const novoPath = `${outra.id}/${novo.id}.docx`;
+        const { error: upE } = await db.storage.from('contratos-templates').upload(novoPath, file, {
+          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          upsert: true
+        });
+        if (upE) {
+          await db.from('contratos_templates').delete().eq('id', novo.id);
+          throw upE;
+        }
+        await db.from('contratos_templates').update({ ficheiro_path: novoPath }).eq('id', novo.id);
+        replicadas++;
+      } catch (eRep) {
+        console.error('Auto-replicar para empresa '+outra.id, eRep);
+        falhas++;
+      }
+    }
+
+    const msgRep = replicadas > 0
+      ? ` · replicado em ${replicadas} empresa(s)${falhas?' (falhas: '+falhas+')':''}`
+      : (falhas ? ` · ⚠️ falha em ${falhas} empresa(s)` : '');
+    toast(`✅ Template "${nome}" carregado com ${placeholders.length} placeholders${msgRep}`);
     await carregarTemplates();
     renderContratosTab();
   } catch (e) {
