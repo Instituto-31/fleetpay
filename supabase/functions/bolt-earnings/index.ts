@@ -200,12 +200,12 @@ serve(async (req) => {
       console.log('[bolt-earnings] ORDER #0:', JSON.stringify(allOrders[0]).slice(0, 1500));
     }
 
-    // Buscar motoristas da empresa (uma vez) para mapear bolt_driver_id -> motorista_id
+    // Buscar motoristas da empresa (uma vez) para mapear bolt_driver_id -> motorista
     const { data: mots } = await supabase
-      .from('motoristas').select('id, bolt_driver_id, nome')
+      .from('motoristas').select('id, bolt_driver_id, nome, comissao_pct')
       .eq('empresa_id', empresaId);
-    const motByBolt = new Map<string, { id: string; nome: string }>();
-    (mots || []).forEach(m => { if (m.bolt_driver_id) motByBolt.set(String(m.bolt_driver_id), { id: m.id, nome: m.nome }); });
+    const motByBolt = new Map<string, { id: string; nome: string; comissao_pct: number | null }>();
+    (mots || []).forEach(m => { if (m.bolt_driver_id) motByBolt.set(String(m.bolt_driver_id), { id: m.id, nome: m.nome, comissao_pct: m.comissao_pct }); });
 
     // Agregar orders finalizadas por motorista + semana
     type Agg = { bruto: number; liquido: number; taxa: number; orders: number };
@@ -276,9 +276,10 @@ serve(async (req) => {
       const bolt_bruto = round2(b.agg.bruto);
       const bolt_liquido = round2(b.agg.liquido);
       const bolt_taxa = round2(b.agg.taxa);
-      const boltIvaPct = Number(emp.bolt_iva_pct ?? 6);
-      // IVA incluido no bruto: extrai como bruto * pct / (100+pct)
-      const bolt_iva = round2(bolt_bruto * boltIvaPct / (100 + boltIvaPct));
+      // Comissao por motorista (override) ou default da empresa, fallback 6
+      const comissaoPct = Number(m.comissao_pct ?? emp.bolt_iva_pct ?? 6);
+      // Comissao da empresa, descontada do bruto (IVA incluido: bruto * pct / (100+pct))
+      const bolt_iva = round2(bolt_bruto * comissaoPct / (100 + comissaoPct));
 
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
