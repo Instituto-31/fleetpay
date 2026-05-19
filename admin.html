@@ -2665,6 +2665,7 @@ async function aplicarPrioViaVerde() {
 function renderMotoristas() {
   document.getElementById('topbar-actions').innerHTML = `
     <input class="search-bar" placeholder="🔍 Pesquisar motorista..." oninput="filtrarMotoristas(this.value)">
+    <button class="btn btn-ghost btn-sm" onclick="modalConvidarMotorista()">📧 Convidar</button>
     <button class="btn btn-gold btn-sm" onclick="modalMotorista()">+ Motorista</button>
   `;
 
@@ -2866,6 +2867,55 @@ async function guardarMotorista(id) {
   closeModal();
   await carregarDados();
   renderMotoristas();
+}
+
+function modalConvidarMotorista() {
+  openModal('📧 Convidar motorista', `
+    <p style="color:var(--sub);margin-bottom:18px;font-size:13px">Cria perfil de auth, motorista na BD, e envia magic link ao motorista para que entre.</p>
+    <div class="field"><label>Nome completo *</label><input id="cv-nome" placeholder="ex: João Silva"></div>
+    <div class="field"><label>Email *</label><input type="email" id="cv-email" placeholder="motorista@exemplo.com"></div>
+    <div class="field-row">
+      <div class="field"><label>Telefone</label><input id="cv-tel" placeholder="912345678"></div>
+      <div class="field"><label>NIF</label><input id="cv-nif" placeholder="123456789"></div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="enviarConvite()">📧 Enviar convite</button>
+  `);
+}
+
+async function enviarConvite() {
+  const email = document.getElementById('cv-email').value.trim().toLowerCase();
+  const nome = document.getElementById('cv-nome').value.trim();
+  if (!email || !nome) { toast('Nome e email obrigatórios','error'); return; }
+  const payload = {
+    nome,
+    email,
+    telefone: document.getElementById('cv-tel').value.trim() || null,
+    nif: document.getElementById('cv-nif').value.trim() || null,
+    empresa_id: empresa.id,
+  };
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/convidar-motorista`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('Erro: ' + (data.error || 'desconhecido'), 'error'); console.error(data); return; }
+    toast('✅ ' + (data.message || 'Motorista convidado!'));
+    closeModal();
+    await carregarDados();
+    renderMotoristas();
+  } catch (e) {
+    console.error('[convidar-motorista]', e);
+    toast('Erro inesperado: ' + e.message, 'error');
+  }
 }
 
 async function convidarMotorista(id) {
