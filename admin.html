@@ -2778,14 +2778,57 @@ function modalMotorista(id=null) {
           A carregar contratos...
         </div>
       </div>
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px">📜 Termos &amp; Condições aceites</div>
+        <div id="motorista-termos-list" style="font-size:12px;color:var(--sub2);text-align:center;padding:14px;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:4px">
+          A carregar...
+        </div>
+      </div>
     ` : ''}
   `, `
     <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
     <button class="btn btn-gold" onclick="guardarMotorista(${id?`'${id}'`:null})">Guardar</button>
   `);
 
-  // Carregar contratos do motorista (apenas em edit)
-  if (id) carregarContratosMotoristaModal(id);
+  // Carregar contratos + termos aceites do motorista (apenas em edit)
+  if (id) {
+    carregarContratosMotoristaModal(id);
+    carregarTermosAceitesMotoristaModal(id);
+  }
+}
+
+async function carregarTermosAceitesMotoristaModal(motoristaId) {
+  const { data } = await db.from('termos_aceitacoes')
+    .select('id, aceite_em, ip, user_agent, termos_versoes(versao, titulo)')
+    .eq('motorista_id', motoristaId)
+    .order('aceite_em', { ascending: false });
+
+  const wrap = document.getElementById('motorista-termos-list');
+  if (!wrap) return;
+
+  if (!data || !data.length) {
+    wrap.innerHTML = `<div style="padding:8px">⚠️ Ainda não aceitou os termos.</div>`;
+    return;
+  }
+
+  wrap.style.padding = '0';
+  wrap.style.background = 'transparent';
+  wrap.style.border = 'none';
+  wrap.innerHTML = data.map(a => {
+    const dt = new Date(a.aceite_em).toLocaleString('pt-PT');
+    const versao = a.termos_versoes?.versao || '?';
+    const titulo = a.termos_versoes?.titulo || 'Termos & Condições';
+    const dispositivo = (a.user_agent || '').match(/Android|iPhone|Windows|Mac|Linux/)?.[0] || '—';
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
+        <span style="font-size:18px">📜</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--paper);font-weight:500">${titulo} <span style="font-family:var(--mono);font-size:10px;color:var(--gold);margin-left:6px">v${versao}</span></div>
+          <div style="font-size:10px;color:var(--green);font-family:var(--mono);margin-top:2px">✓ Aceite · ${dt}${a.ip?` · IP ${a.ip}`:''} · ${dispositivo}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function carregarContratosMotoristaModal(motoristaId) {
