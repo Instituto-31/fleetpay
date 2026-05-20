@@ -2799,7 +2799,7 @@ function modalMotorista(id=null) {
 
 async function carregarTermosAceitesMotoristaModal(motoristaId) {
   const { data } = await db.from('termos_aceitacoes')
-    .select('id, aceite_em, ip, user_agent, termos_versoes(versao, titulo)')
+    .select('id, aceite_em, ip, user_agent, validado_por, validado_em, validado_user_agent, termos_versoes(versao, titulo), validador:validado_por(nome, email)')
     .eq('motorista_id', motoristaId)
     .order('aceite_em', { ascending: false });
 
@@ -2819,16 +2819,41 @@ async function carregarTermosAceitesMotoristaModal(motoristaId) {
     const versao = a.termos_versoes?.versao || '?';
     const titulo = a.termos_versoes?.titulo || 'Termos & Condições';
     const dispositivo = (a.user_agent || '').match(/Android|iPhone|Windows|Mac|Linux/)?.[0] || '—';
+    const validado = !!a.validado_em;
+    const validadorNome = a.validador?.nome || a.validador?.email || '—';
+    const validadoDt = a.validado_em ? new Date(a.validado_em).toLocaleString('pt-PT') : '';
     return `
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
-        <span style="font-size:18px">📜</span>
-        <div style="flex:1">
-          <div style="font-size:13px;color:var(--paper);font-weight:500">${titulo} <span style="font-family:var(--mono);font-size:10px;color:var(--gold);margin-left:6px">v${versao}</span></div>
-          <div style="font-size:10px;color:var(--green);font-family:var(--mono);margin-top:2px">✓ Aceite · ${dt}${a.ip?` · IP ${a.ip}`:''} · ${dispositivo}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">📜</span>
+          <div style="flex:1">
+            <div style="font-size:13px;color:var(--paper);font-weight:500">${titulo} <span style="font-family:var(--mono);font-size:10px;color:var(--gold);margin-left:6px">v${versao}</span></div>
+            <div style="font-size:10px;color:var(--green);font-family:var(--mono);margin-top:2px">✓ Aceite pelo motorista · ${dt}${a.ip?` · IP ${a.ip}`:''} · ${dispositivo}</div>
+          </div>
+        </div>
+        <div style="padding:8px 10px;background:${validado?'rgba(39,201,63,0.06)':'rgba(232,148,58,0.06)'};border-left:2px solid ${validado?'var(--green)':'var(--orange)'};border-radius:3px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="font-size:10px;font-family:var(--mono);color:${validado?'var(--green)':'var(--orange)'}">
+            ${validado
+              ? `✓ Validado pelo operador <strong style="color:var(--paper)">${validadorNome}</strong> · ${validadoDt}`
+              : `⏳ A aguardar validação do operador`}
+          </div>
+          ${validado ? '' : `<button type="button" class="btn btn-gold btn-sm" onclick="validarAceitacaoTermos('${a.id}','${motoristaId}')">✓ Validar</button>`}
         </div>
       </div>
     `;
   }).join('');
+}
+
+async function validarAceitacaoTermos(aceitacaoId, motoristaId) {
+  if (!confirm('Confirmar que reviste e validas esta aceitação? A acção fica registada permanentemente com o teu nome.')) return;
+  const { error } = await db.from('termos_aceitacoes').update({
+    validado_por: currentUser?.id,
+    validado_em: new Date().toISOString(),
+    validado_user_agent: navigator.userAgent
+  }).eq('id', aceitacaoId);
+  if (error) { toast('Erro a validar: '+error.message,'error'); console.error(error); return; }
+  toast('✅ Aceitação validada');
+  carregarTermosAceitesMotoristaModal(motoristaId);
 }
 
 async function carregarContratosMotoristaModal(motoristaId) {
