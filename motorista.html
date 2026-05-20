@@ -600,9 +600,9 @@ async function verificarCompliance() {
     .select('*').eq('empresa_id', motorista.empresa_id).eq('ativo', true).maybeSingle();
 
   if (ativa) {
-    const { data: aceite } = await db.from('termos_aceitacoes')
-      .select('id').eq('motorista_id', motorista.id).eq('termos_versao_id', ativa.id).maybeSingle();
-    if (!aceite) {
+    const { data: aceites } = await db.from('termos_aceitacoes')
+      .select('id').eq('motorista_id', motorista.id).eq('termos_versao_id', ativa.id).limit(1);
+    if (!aceites || !aceites.length) {
       mostrarModalTermos(ativa);
       return; // bloqueia checklist até aceitar
     }
