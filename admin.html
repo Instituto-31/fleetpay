@@ -2209,12 +2209,15 @@ async function guardarPagamento(id) {
   const prio = parseFloat(document.getElementById('e-prio').value)||0;
   const vv = parseFloat(document.getElementById('e-vv').value)||0;
 
+  // Comissão Uber: extraída do bruto (mesma fórmula que CSV preview, linhas ~2519)
   const uberIva = uberBruto * (ivaPct/100);
   const uberLiq = uberBruto - uberIva;
   const ivaCobrar = uberIva + boltIva;
-  const rendLiq = uberLiq + boltLiq + ivaCobrar;
+  // Rendimento líquido do motorista: uber líquido + (bolt líquido SEM o IVA Bolt)
+  // NÃO somar `ivaCobrar` aqui (esse é a comissão a cobrar à plataforma, não rendimento)
+  const rendLiq = uberLiq + (boltLiq - boltIva);
   const totalDesp = slot + aluguer + prio + vv;
-  const valorFinal = rendLiq - slot - aluguer - prio - vv;
+  const valorFinal = rendLiq - totalDesp;
 
   const { error } = await db.from('pagamentos').update({
     uber_bruto:uberBruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq,
