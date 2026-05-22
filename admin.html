@@ -4045,6 +4045,10 @@ function atualizarFormPlaceholders() {
       doc_id: '',
       doc_validade: '',
       email: empresa.email || '',
+      telefone: empresa.telefone || '',
+      licenca_tvde: empresa.licenca_tvde || '',
+      cmtvde: '',
+      iban: '',
       _tipo: 'Empresa'
     };
   } else {
@@ -4058,6 +4062,10 @@ function atualizarFormPlaceholders() {
         doc_id: motProp.doc_id || '',
         doc_validade: motProp.doc_validade ? new Date(motProp.doc_validade+'T00:00:00').toLocaleDateString('pt-PT') : '',
         email: motProp.email || '',
+        telefone: motProp.telefone || motProp.whatsapp || '',
+        licenca_tvde: motProp.licenca_tvde || '',
+        cmtvde: motProp.cmtvde || '',
+        iban: motProp.iban || '',
         _tipo: 'Motorista',
         _ref: motProp
       };
@@ -4070,51 +4078,122 @@ function atualizarFormPlaceholders() {
   // Buscar veículo do motorista (assume primeiro veículo ativo)
   const veiculo = veiculos.find(v => v.motorista_id === mot.id && v.estado !== 'inativo') || {};
 
-  // Mapear placeholders → valores conhecidos
+  // Helpers
+  const fmtDate = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '';
+  const fmtEurStr = (v) => (v && Number(v)>0) ? Number(v).toFixed(2) + ' €' : '';
+  // Extrair cidade e CP de uma morada tipo "Rua X, nº Y, 4800-045 Cidade"
+  const extrairCP = (m) => { if(!m) return ''; const r = m.match(/\b\d{4}[-‐]\d{3}\b/); return r ? r[0] : ''; };
+  const extrairCidade = (m) => {
+    if(!m) return '';
+    const partes = m.split(',').map(s => s.trim());
+    const ult = partes[partes.length-1] || '';
+    return ult.replace(/^\d{4}[-‐]\d{3}\s*/, '').trim();
+  };
   const hoje = new Date().toLocaleDateString('pt-PT');
+  const localContrato = extrairCidade(empresa.morada) || 'Guimarães';
+
+  // ── Mapear TODOS os placeholders conhecidos ─────────────────────────────
   const auto = {
+    // MOTORISTA — comodatário / segundo outorgante / titular
     'MOTORISTA_NOME': mot.nome || '',
     'MOTORISTA_NIF': mot.nif || '',
     'MOTORISTA_MORADA': mot.morada || '',
+    'MOTORISTA_CP': extrairCP(mot.morada),
     'MOTORISTA_EMAIL': mot.email || '',
+    'MOTORISTA_TELEFONE': mot.telefone || mot.whatsapp || '',
+    'MOTORISTA_WHATSAPP': mot.whatsapp || mot.telefone || '',
     'MOTORISTA_DOC_ID': mot.doc_id || '',
-    'MOTORISTA_DOC_VALIDADE': mot.doc_validade ? new Date(mot.doc_validade+'T00:00:00').toLocaleDateString('pt-PT') : '',
+    'MOTORISTA_DOC_VALIDADE': fmtDate(mot.doc_validade),
     'MOTORISTA_LICENCA_TVDE': mot.licenca_tvde || '',
+    'MOTORISTA_LICENCA_TVDE_VALIDADE': fmtDate(mot.licenca_tvde_validade),
+    'MOTORISTA_CARTA_CONDUCAO_VALIDADE': fmtDate(mot.carta_conducao_validade),
+    'MOTORISTA_CARTAO_CIDADAO_VALIDADE': fmtDate(mot.cartao_cidadao_validade),
+    'MOTORISTA_REGISTO_CRIMINAL_VALIDADE': fmtDate(mot.registo_criminal_validade),
     'MOTORISTA_IBAN': mot.iban || '',
     'MOTORISTA_CMTVDE': mot.cmtvde || '',
+
+    // VEÍCULO
     'VEICULO_MATRICULA': veiculo.matricula || '',
     'VEICULO_MARCA': veiculo.marca || '',
     'VEICULO_MODELO': veiculo.modelo || '',
     'VEICULO_ANO': veiculo.ano || '',
+    'VEICULO_COR': veiculo.cor || '',
     'VEICULO_COMBUSTIVEL': veiculo.combustivel || veiculo.tipo || '',
-    'VEICULO_DATA_MATRICULA': veiculo.data_matricula ? new Date(veiculo.data_matricula+'T00:00:00').toLocaleDateString('pt-PT') : '',
+    'VEICULO_TIPO': veiculo.tipo || veiculo.combustivel || '',
+    'VEICULO_DATA_MATRICULA': fmtDate(veiculo.data_matricula),
+    'VEICULO_NUMERO_QUADRO': veiculo.numero_quadro || veiculo.vin || '',
+    'VEICULO_LIVRETE': veiculo.livrete || '',
+
+    // OPERADOR / EMPRESA
     'OPERADOR_NOME': empresa.nome || '',
     'OPERADOR_NIPC': empresa.nipc || '',
     'OPERADOR_MORADA': empresa.morada || '',
-    'OPERADOR_CP': empresa.codigo_postal || '',
+    'OPERADOR_CP': empresa.codigo_postal || extrairCP(empresa.morada),
     'OPERADOR_LICENCA': empresa.licenca_tvde || '',
+    'OPERADOR_EMAIL': empresa.email || '',
+    'OPERADOR_TELEFONE': empresa.telefone || '',
+    // Alias: EMPRESA_*
+    'EMPRESA_NOME': empresa.nome || '',
+    'EMPRESA_NIPC': empresa.nipc || '',
+    'EMPRESA_MORADA': empresa.morada || '',
+    'EMPRESA_CP': empresa.codigo_postal || extrairCP(empresa.morada),
+    'EMPRESA_LICENCA': empresa.licenca_tvde || '',
+    'EMPRESA_EMAIL': empresa.email || '',
+    'EMPRESA_TELEFONE': empresa.telefone || '',
+
+    // COMODANTE (= empresa por defeito)
     'COMODANTE_NOME': empresa.nome || '',
     'COMODANTE_NIPC': empresa.nipc || '',
     'COMODANTE_MORADA': empresa.morada || '',
-    'COMODANTE_CP': empresa.codigo_postal || '',
+    'COMODANTE_CP': empresa.codigo_postal || extrairCP(empresa.morada),
+    'COMODANTE_EMAIL': empresa.email || '',
+    'COMODANTE_TELEFONE': empresa.telefone || '',
+    'COMODANTE_LICENCA': empresa.licenca_tvde || '',
+
+    // COMODATÁRIO (= motorista por defeito)
     'COMODATARIO_NOME': mot.nome || '',
     'COMODATARIO_NIPC': mot.nif || '',
+    'COMODATARIO_NIF': mot.nif || '',
     'COMODATARIO_MORADA': mot.morada || '',
-    'COMODATARIO_CP': '',
-    // Proprietário (configurável: empresa OU outro motorista)
+    'COMODATARIO_CP': extrairCP(mot.morada),
+    'COMODATARIO_EMAIL': mot.email || '',
+    'COMODATARIO_TELEFONE': mot.telefone || mot.whatsapp || '',
+    'COMODATARIO_DOC_ID': mot.doc_id || '',
+    'COMODATARIO_DOC_VALIDADE': fmtDate(mot.doc_validade),
+    'COMODATARIO_LICENCA_TVDE': mot.licenca_tvde || '',
+    'COMODATARIO_CMTVDE': mot.cmtvde || '',
+    'COMODATARIO_IBAN': mot.iban || '',
+
+    // PROPRIETÁRIO (configurável: empresa OU outro motorista)
     'PROPRIETARIO_NOME': propData.nome,
     'PROPRIETARIO_NIF': propData.nif,
+    'PROPRIETARIO_NIPC': propData.nif,
     'PROPRIETARIO_MORADA': propData.morada,
-    'PROPRIETARIO_CP': propData.cp,
+    'PROPRIETARIO_CP': propData.cp || extrairCP(propData.morada),
     'PROPRIETARIO_DOC_ID': propData.doc_id,
     'PROPRIETARIO_DOC_VALIDADE': propData.doc_validade,
     'PROPRIETARIO_EMAIL': propData.email,
+    'PROPRIETARIO_TELEFONE': propData.telefone,
+    'PROPRIETARIO_LICENCA_TVDE': propData.licenca_tvde,
+    'PROPRIETARIO_CMTVDE': propData.cmtvde,
+    'PROPRIETARIO_IBAN': propData.iban,
+
+    // CONTRATO / DECLARAÇÃO — datas e local
     'CONTRATO_DATA': hoje,
     'CONTRATO_DATA_ASSINATURA': hoje,
+    'CONTRATO_LOCAL': localContrato,
     'DECLARACAO_DATA': hoje,
-    'CONTRATO_LOCAL': empresa.morada ? empresa.morada.split(',').slice(-1)[0].trim() : 'Porto',
-    'SLOT_VALOR_SEMANAL': mot.slot_semanal ? mot.slot_semanal.toFixed(2) + ' €' : '',
-    'VALOR_ALUGUER_SEMANAL': mot.aluguer_semanal ? mot.aluguer_semanal.toFixed(2) + ' €' : '',
+    'DECLARACAO_LOCAL': localContrato,
+    'DATA': hoje,
+    'DATA_ASSINATURA': hoje,
+    'LOCAL': localContrato,
+
+    // VALORES
+    'SLOT_VALOR_SEMANAL': fmtEurStr(mot.slot_semanal),
+    'VALOR_SLOT_SEMANAL': fmtEurStr(mot.slot_semanal),
+    'VALOR_ALUGUER_SEMANAL': fmtEurStr(mot.aluguer_semanal),
+    'ALUGUER_VALOR_SEMANAL': fmtEurStr(mot.aluguer_semanal),
+    'COMISSAO_PCT': (mot.comissao_pct != null ? mot.comissao_pct : 6) + '%',
     'VALOR_CAUCAO': '',
     'VALOR_CAUCAO_CARTAO': '',
     'VALOR_KM_ADICIONAL': '',
