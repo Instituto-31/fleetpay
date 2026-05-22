@@ -1068,11 +1068,10 @@ async function gerarReciboPDF(idx) {
   const fmtEur = (v) => (v == null || v === '') ? '—' : new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(Number(v));
   const fmtD = (s) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
 
-  // Linhas brutas
+  // Linhas brutas (faturação por plataforma)
   const linhasBruto = [
-    { lbl:'Uber Bruto', val:p.uber_bruto },
-    { lbl:'Uber Líquido', val:p.uber_liquido },
-    { lbl:'Bolt Líquido', val:p.bolt_liquido }
+    { lbl:'Faturação Uber', val:p.uber_bruto },
+    { lbl:'Faturação Bolt', val:p.bolt_liquido }
   ].filter(l => l.val != null && l.val !== '' && Number(l.val) !== 0);
 
   // Linhas deduções
@@ -1153,8 +1152,8 @@ async function gerarReciboPDF(idx) {
       ${(p.iva_cobrar != null && Number(p.iva_cobrar) !== 0) ? `
       <table style="width:100%;font-size:10pt;border-collapse:collapse;margin-top:14pt">
         <tr style="background:rgba(200,146,42,0.08)">
-          <td style="padding:8pt 12pt;border:1px solid #c8922a">IVA a cobrar</td>
-          <td style="padding:8pt 12pt;border:1px solid #c8922a;text-align:right;font-family:monospace;color:#c8922a;font-weight:bold">${fmtEur(p.iva_cobrar)}</td>
+          <td style="padding:8pt 12pt;border:1px solid #c8922a">Comissão empresa</td>
+          <td style="padding:8pt 12pt;border:1px solid #c8922a;text-align:right;font-family:monospace;color:#c8922a;font-weight:bold">-${fmtEur(p.iva_cobrar)}</td>
         </tr>
       </table>` : ''}
 
@@ -1612,30 +1611,22 @@ function renderCard(p, i) {
       <div class="pagamento-card-body">
         <div class="detail-grid">
           <div class="detail-item">
-            <div class="detail-label">Uber Bruto</div>
+            <div class="detail-label">Uber</div>
             <div class="detail-val">${fmt(p.uber_bruto)}</div>
           </div>
           <div class="detail-item">
-            <div class="detail-label">Uber Líquido</div>
-            <div class="detail-val">${fmt(p.uber_liquido)}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Bolt Líquido</div>
+            <div class="detail-label">Bolt</div>
             <div class="detail-val">${fmt(p.bolt_liquido)}</div>
           </div>
-          <div class="detail-item">
-            <div class="detail-label">IVA a cobrar</div>
-            <div class="detail-val gold">${fmt(p.iva_cobrar)}</div>
-          </div>
         </div>
-        ${(p.slot_valor||p.aluguer_valor||p.prio_valor||p.viaverde_valor) ? `
         <div class="detalhe-sep"></div>
         <div class="detail-grid">
+          ${p.iva_cobrar ? `<div class="detail-item"><div class="detail-label">Comissão empresa</div><div class="detail-val neg">-${fmt(p.iva_cobrar)}</div></div>` : ''}
           ${p.slot_valor ? `<div class="detail-item"><div class="detail-label">Slot</div><div class="detail-val neg">-${fmt(p.slot_valor)}</div></div>` : ''}
           ${p.aluguer_valor ? `<div class="detail-item"><div class="detail-label">Aluguer</div><div class="detail-val neg">-${fmt(p.aluguer_valor)}</div></div>` : ''}
           ${p.prio_valor ? `<div class="detail-item"><div class="detail-label">PRIO</div><div class="detail-val neg">-${fmt(p.prio_valor)}</div></div>` : ''}
           ${p.viaverde_valor ? `<div class="detail-item"><div class="detail-label">Via Verde</div><div class="detail-val neg">-${fmt(p.viaverde_valor)}</div></div>` : ''}
-        </div>` : ''}
+        </div>
         <div class="detalhe-sep"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
           <span style="font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1px;text-transform:uppercase">Total a receber</span>

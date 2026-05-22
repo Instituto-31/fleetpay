@@ -2093,9 +2093,9 @@ function renderTabelaPagamentos() {
       <table>
         <thead><tr>
           <th>Motorista</th>
-          <th>Uber bruto</th><th>Uber líq.</th>
-          <th>Bolt líq.</th>
-          <th>Comissão</th>
+          <th>Uber</th>
+          <th>Bolt</th>
+          <th title="Comissão da empresa (6% sobre faturação)">Comissão</th>
           <th>Slot</th><th>Aluguer</th><th>PRIO</th><th>Via Verde</th>
           <th>A receber</th>
           <th>Estado</th>
@@ -2108,9 +2108,8 @@ function renderTabelaPagamentos() {
           <tr style="background:rgba(200,146,42,0.04)">
             <td style="color:var(--sub);font-family:var(--mono);font-size:10px">TOTAIS</td>
             <td class="gold">${fmt(semPags.reduce((s,p)=>s+(p.uber_bruto||0),0))}</td>
-            <td>${fmt(semPags.reduce((s,p)=>s+(p.uber_liquido||0),0))}</td>
             <td>${fmt(semPags.reduce((s,p)=>s+(p.bolt_liquido||0),0))}</td>
-            <td class="gold">${fmt(semPags.reduce((s,p)=>s+(p.iva_cobrar||0),0))}</td>
+            <td style="color:var(--red)">${fmt(semPags.reduce((s,p)=>s+(p.iva_cobrar||0),0))}</td>
             <td>${fmt(semPags.reduce((s,p)=>s+(p.slot_valor||0),0))}</td>
             <td>${fmt(semPags.reduce((s,p)=>s+(p.aluguer_valor||0),0))}</td>
             <td>${fmt(semPags.reduce((s,p)=>s+(p.prio_valor||0),0))}</td>
@@ -2129,9 +2128,8 @@ function renderLinhaPagamento(p) {
     <tr id="row-${p.id}">
       <td>${p.motoristas?.nome || '—'}</td>
       <td>${fmt(p.uber_bruto)}</td>
-      <td>${fmt(p.uber_liquido)}</td>
       <td>${fmt(p.bolt_liquido)}</td>
-      <td class="gold">${fmt(p.iva_cobrar)}</td>
+      <td style="color:var(--red)">${fmt(p.iva_cobrar)}</td>
       <td>${fmt(p.slot_valor)}</td>
       <td>${fmt(p.aluguer_valor)}</td>
       <td>${fmt(p.prio_valor)}</td>
@@ -2209,15 +2207,16 @@ async function guardarPagamento(id) {
   const prio = parseFloat(document.getElementById('e-prio').value)||0;
   const vv = parseFloat(document.getElementById('e-vv').value)||0;
 
-  // Comissão Uber: extraída do bruto (mesma fórmula que CSV preview, linhas ~2519)
-  const uberIva = uberBruto * (ivaPct/100);
-  const uberLiq = uberBruto - uberIva;
-  const ivaCobrar = uberIva + boltIva;
-  // Rendimento líquido do motorista: uber líquido + (bolt líquido SEM o IVA Bolt)
-  // NÃO somar `ivaCobrar` aqui (esse é a comissão a cobrar à plataforma, não rendimento)
-  const rendLiq = uberLiq + (boltLiq - boltIva);
-  const totalDesp = slot + aluguer + prio + vv;
+  // Modelo: CSV Uber/Bolt da' a FATURACAO LIQUIDA. Comissao = faturacao * pct/(100+pct)
+  // ivaPct neste contexto e' a % de comissao (default 6 para TVDE)
+  const comissaoUber = uberBruto * ivaPct / (100 + ivaPct);
+  const uberLiq = uberBruto;                              // Sem desconto adicional
+  const ivaCobrar = comissaoUber + boltIva;               // Total de comissoes
+  const rendLiq = uberBruto + boltLiq;                    // Ganhos do motorista
+  const totalDesp = ivaCobrar + slot + aluguer + prio + vv;
   const valorFinal = rendLiq - totalDesp;
+  // Reaproveitamos uber_iva_valor para armazenar a comissao Uber (campo da BD)
+  const uberIva = comissaoUber;
 
   const { error } = await db.from('pagamentos').update({
     uber_bruto:uberBruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq,
@@ -2516,19 +2515,36 @@ function mostrarPreviewCSV() {
     if (!mot && u.bruto > 0) mot = findMotorista(nome, { platform:'uber' });
     if (!mot && b.liquido > 0) mot = findMotorista(nome, { platform:'bolt' });
     if (!mot) mot = findMotorista(nome);
-    // Comissao: override do motorista ou default da empresa
-    const comissaoPct = mot?.comissao_pct ?? ivaPct;
-    // Comissao incluida no bruto: extrai como bruto * pct / (100+pct)
-    const uberIva = u.bruto * comissaoPct / (100 + comissaoPct);
-    const uberLiq = u.bruto - uberIva;
-    const ivaCobrar = uberIva + (b.iva||0);
+    // O CSV da Uber e Bolt ja vem com a FATURACAO LIQUIDA (o que a plataforma paga ao operador).
+    // A "Comissao" e' o que a EMPRESA cobra ao motorista (default 6% TVDE, override por motorista).
+    // Formula: comissao = faturacao * pct / (100 + pct) — equivale a 6% do valor liquido motorista.
+    const comissaoPct = mot?.comissao_pct ?? 6;
+    const uberFat = u.bruto;                              // Uber CSV = faturacao liquida
+    const boltFat = b.liquido;                            // Bolt CSV = faturacao liquida
+    const comissaoUber = uberFat * comissaoPct / (100 + comissaoPct);
+    const comissaoBolt = boltFat * comissaoPct / (100 + comissaoPct);
+    const comissaoTotal = comissaoUber + comissaoBolt;
     const slot = mot?.slot_semanal || 0;
     const aluguer = mot?.aluguer_semanal || 0;
-    // IVA Uber ja descontado em uberLiq. IVA Bolt desconta-se aqui ao b.liquido.
-    const boltLiqMotorista = b.liquido - (b.iva||0);
-    const rendLiq = uberLiq + boltLiqMotorista;
-    const valorFinal = rendLiq - slot - aluguer;
-    return { nome, motorista: mot, uber_bruto:u.bruto, uber_iva_pct:ivaPct, uber_iva_valor:uberIva, uber_liquido:uberLiq, bolt_liquido:b.liquido, bolt_iva:b.iva||0, bolt_taxa:b.taxa||0, iva_cobrar:ivaCobrar, slot_valor:slot, aluguer_valor:aluguer, prio_valor:0, viaverde_valor:0, total_despesas:slot+aluguer, rendimento_liquido:rendLiq, valor_final:valorFinal };
+    const totalDespesas = comissaoTotal + slot + aluguer;
+    const rendLiq = uberFat + boltFat;                    // Ganhos brutos do motorista
+    const valorFinal = rendLiq - totalDespesas;           // A receber = Ganhos - Comissao - Despesas
+    return {
+      nome, motorista: mot,
+      uber_bruto: uberFat,                                // Mantemos nome BD: e' a faturacao liquida
+      uber_iva_pct: comissaoPct,                          // Reaproveitamos: agora e' a % de comissao
+      uber_iva_valor: comissaoUber,                       // Reaproveitamos: comissao Uber
+      uber_liquido: uberFat,                              // = faturacao (sem desconto adicional)
+      bolt_liquido: boltFat,
+      bolt_iva: comissaoBolt,                             // Comissao Bolt
+      bolt_taxa: b.taxa || 0,
+      iva_cobrar: comissaoTotal,                          // Total comissao para mostrar
+      slot_valor: slot, aluguer_valor: aluguer,
+      prio_valor: 0, viaverde_valor: 0,
+      total_despesas: totalDespesas,                      // Inclui ja a comissao
+      rendimento_liquido: rendLiq,
+      valor_final: valorFinal
+    };
   });
 
   document.getElementById('csv-preview-sub').innerHTML = `${csvDados.length} motoristas · semana
@@ -2605,10 +2621,11 @@ async function confirmarCSV() {
     const prio        = Number(existing?.prio_valor || 0);
     const viaverde    = Number(existing?.viaverde_valor || 0);
     const outros      = Number(existing?.outros_descontos || 0);
+    // Modelo: uberLiq e boltLiq sao a faturacao liquida das plataformas (=Ganhos)
+    // Comissao da empresa ja vem em uberIvaVal (Uber) + boltIva (Bolt)
     const ivaCobrar   = uberIvaVal + boltIva;
-    const totalDesp   = slot + aluguer + prio + viaverde + outros;
-    // uberLiq ja vem com IVA descontado; aqui so descontamos o IVA Bolt
-    const rendLiq     = uberLiq + (boltLiq - boltIva);
+    const rendLiq     = uberLiq + boltLiq;                              // Ganhos brutos
+    const totalDesp   = ivaCobrar + slot + aluguer + prio + viaverde + outros;
     const valorFinal  = rendLiq - totalDesp;
 
     const payload = {
@@ -2653,8 +2670,10 @@ async function aplicarPrioViaVerde() {
     const prio = prioData.filter(x=>x.motorista_id===p.motorista_id).reduce((s,x)=>s+(x.valor||0),0);
     const vv = vvData.filter(x=>x.motorista_id===p.motorista_id).reduce((s,x)=>s+(x.valor||0),0);
     if (prio === p.prio_valor && vv === p.viaverde_valor) continue;
-    const totalDesp = (p.slot_valor||0) + (p.aluguer_valor||0) + prio + vv;
-    const valorFinal = (p.rendimento_liquido||0) - (p.slot_valor||0) - (p.aluguer_valor||0) - prio - vv;
+    // Comissao ja faz parte do total_despesas no modelo novo
+    const comissao = p.iva_cobrar || 0;
+    const totalDesp = comissao + (p.slot_valor||0) + (p.aluguer_valor||0) + prio + vv;
+    const valorFinal = (p.rendimento_liquido||0) - totalDesp;
     await db.from('pagamentos').update({prio_valor:prio, viaverde_valor:vv, total_despesas:totalDesp, valor_final:valorFinal}).eq('id',p.id);
     atualizados++;
   }
