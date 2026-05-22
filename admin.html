@@ -4010,8 +4010,13 @@ function renderGerarContrato() {
 }
 
 function preencherDadosMotorista() {
+  // Reset do proprietário ao trocar de motorista (volta a default "empresa")
+  contProprietarioRef = 'empresa';
   atualizarFormPlaceholders();
 }
+
+// Estado do seletor de proprietário: 'empresa' (default) ou ID de um motorista
+let contProprietarioRef = 'empresa';
 
 function atualizarFormPlaceholders() {
   const tplId = document.getElementById('cont-template').value;
@@ -4022,6 +4027,45 @@ function atualizarFormPlaceholders() {
   const tpl = contratosTemplates.find(t => t.id === tplId);
   const mot = motoristas.find(m => m.id === motId);
   if (!tpl || !mot) return;
+
+  // Detectar placeholders do template (UPPERCASE_UNDERSCORE)
+  const placeholders = (tpl.placeholders||[])
+    .map(p => p.replace(/^«|»$/g, ''))
+    .filter(p => /^[A-Z_]+$/.test(p));
+  const temProprietario = placeholders.some(p => p.startsWith('PROPRIETARIO_'));
+
+  // Resolver dados do proprietário consoante a escolha
+  let propData;
+  if (contProprietarioRef === 'empresa' || !temProprietario) {
+    propData = {
+      nome: empresa.nome || '',
+      nif: empresa.nipc || '',
+      morada: empresa.morada || '',
+      cp: empresa.codigo_postal || '',
+      doc_id: '',
+      doc_validade: '',
+      email: empresa.email || '',
+      _tipo: 'Empresa'
+    };
+  } else {
+    const motProp = motoristas.find(m => m.id === contProprietarioRef);
+    if (motProp) {
+      propData = {
+        nome: motProp.nome || '',
+        nif: motProp.nif || '',
+        morada: motProp.morada || '',
+        cp: '',
+        doc_id: motProp.doc_id || '',
+        doc_validade: motProp.doc_validade ? new Date(motProp.doc_validade+'T00:00:00').toLocaleDateString('pt-PT') : '',
+        email: motProp.email || '',
+        _tipo: 'Motorista',
+        _ref: motProp
+      };
+    } else {
+      contProprietarioRef = 'empresa';
+      return atualizarFormPlaceholders();
+    }
+  }
 
   // Buscar veículo do motorista (assume primeiro veículo ativo)
   const veiculo = veiculos.find(v => v.motorista_id === mot.id && v.estado !== 'inativo') || {};
@@ -4057,13 +4101,14 @@ function atualizarFormPlaceholders() {
     'COMODATARIO_NIPC': mot.nif || '',
     'COMODATARIO_MORADA': mot.morada || '',
     'COMODATARIO_CP': '',
-    'PROPRIETARIO_NOME': empresa.nome || '',
-    'PROPRIETARIO_NIF': empresa.nipc || '',
-    'PROPRIETARIO_MORADA': empresa.morada || '',
-    'PROPRIETARIO_CP': empresa.codigo_postal || '',
-    'PROPRIETARIO_DOC_ID': '',
-    'PROPRIETARIO_DOC_VALIDADE': '',
-    'PROPRIETARIO_EMAIL': empresa.email || '',
+    // Proprietário (configurável: empresa OU outro motorista)
+    'PROPRIETARIO_NOME': propData.nome,
+    'PROPRIETARIO_NIF': propData.nif,
+    'PROPRIETARIO_MORADA': propData.morada,
+    'PROPRIETARIO_CP': propData.cp,
+    'PROPRIETARIO_DOC_ID': propData.doc_id,
+    'PROPRIETARIO_DOC_VALIDADE': propData.doc_validade,
+    'PROPRIETARIO_EMAIL': propData.email,
     'CONTRATO_DATA': hoje,
     'CONTRATO_DATA_ASSINATURA': hoje,
     'DECLARACAO_DATA': hoje,
@@ -4076,10 +4121,30 @@ function atualizarFormPlaceholders() {
     'LIMITE_KM_SEMANAL': '',
   };
 
-  // Filtrar só placeholders REAIS (UPPERCASE_UNDERSCORE) do template
-  const placeholders = (tpl.placeholders||[])
-    .map(p => p.replace(/^«|»$/g, ''))
-    .filter(p => /^[A-Z_]+$/.test(p));
+  // Bloco do Proprietário (dropdown + breakdown) — só aparece se template tiver PROPRIETARIO_*
+  const blocoProprietario = !temProprietario ? '' : `
+    <div style="margin-bottom:18px;padding:14px;background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:4px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase">🏢 Proprietário do veículo</span>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <select id="cont-proprietario-ref" onchange="onProprietarioChange()">
+          <option value="empresa" ${contProprietarioRef==='empresa'?'selected':''}>Empresa — ${empresa.nome||'—'}</option>
+          <optgroup label="Motoristas da BD">
+            ${motoristas.map(m => `<option value="${m.id}" ${contProprietarioRef===m.id?'selected':''}>${m.nome}${m.nif?' · NIF '+m.nif:''}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+      <div style="padding:10px 12px;background:rgba(0,0,0,0.15);border-radius:3px;font-size:11px;font-family:var(--mono);color:var(--sub2);line-height:1.8">
+        <div><span style="color:var(--gold)">Tipo:</span> ${propData._tipo}</div>
+        <div><span style="color:var(--gold)">Nome:</span> <span style="color:var(--paper)">${propData.nome || '—'}</span></div>
+        <div><span style="color:var(--gold)">${contProprietarioRef==='empresa'?'NIPC':'NIF'}:</span> <span style="color:var(--paper)">${propData.nif || '—'}</span></div>
+        <div><span style="color:var(--gold)">Morada:</span> <span style="color:var(--paper)">${propData.morada || '—'}${propData.cp?' · '+propData.cp:''}</span></div>
+        ${propData.doc_id ? `<div><span style="color:var(--gold)">Doc. ID:</span> <span style="color:var(--paper)">${propData.doc_id}${propData.doc_validade?' · val. '+propData.doc_validade:''}</span></div>` : ''}
+        <div><span style="color:var(--gold)">E-mail:</span> <span style="color:var(--paper)">${propData.email || '—'}</span></div>
+      </div>
+    </div>
+  `;
 
   const fields = placeholders.map(p => {
     const val = auto[p] || '';
@@ -4092,8 +4157,15 @@ function atualizarFormPlaceholders() {
     `;
   }).join('') || '<p style="color:var(--sub2);font-size:12px">Este template não tem placeholders detectados.</p>';
 
-  document.getElementById('cont-form-fields').innerHTML = fields;
+  document.getElementById('cont-form-fields').innerHTML = blocoProprietario + fields;
   wrap.style.display = 'block';
+}
+
+function onProprietarioChange() {
+  const sel = document.getElementById('cont-proprietario-ref');
+  if (!sel) return;
+  contProprietarioRef = sel.value;
+  atualizarFormPlaceholders();
 }
 
 async function enviarParaAssinatura() {
