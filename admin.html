@@ -787,6 +787,7 @@ body.theme-default-dark { /* já é o root, sem override */ }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script src="fleetpay-config.js"></script>
 <script>
 
@@ -4715,6 +4716,44 @@ function renderConfig() {
         </div>
       </div>
 
+      <!-- ─── ASSINATURA DIGITAL DA EMPRESA ──────────────────────────── -->
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header">
+          <div>
+            <div class="table-title">🖋️ A minha assinatura digital</div>
+            <div class="table-sub">Será inserida automaticamente em todos os contratos gerados a partir de agora</div>
+          </div>
+        </div>
+        <div style="padding:24px">
+          ${empresa?.assinatura_png ? `
+            <div style="padding:16px;background:rgba(39,201,63,0.06);border:1px solid var(--green);border-radius:4px;margin-bottom:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+                <div>
+                  <div style="font-size:11px;color:var(--green);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">✓ Assinatura configurada</div>
+                  <img src="${empresa.assinatura_png}" style="max-width:300px;max-height:80px;background:#fff;padding:8px;border-radius:3px">
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="apagarAssinaturaEmpresa()">🗑️ Remover</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:14px">Desenha a tua assinatura abaixo. Será gravada e usada como assinatura do operador em todos os contratos.</p>
+
+          <div style="background:#fff;border:2px dashed var(--line);border-radius:4px;padding:8px">
+            <canvas id="ass-canvas" width="600" height="180" style="display:block;width:100%;height:180px;cursor:crosshair;background:#fff;border-radius:3px"></canvas>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="limparAssinaturaEmpresa()">🗑️ Limpar</button>
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+              📤 Carregar imagem
+              <input type="file" accept="image/*" style="display:none" onchange="carregarAssinaturaEmpresa(this)">
+            </label>
+            <button class="btn btn-gold btn-sm" onclick="guardarAssinaturaEmpresa()">💾 Guardar assinatura</button>
+          </div>
+        </div>
+      </div>
+
       <div class="table-wrap" style="margin-bottom:24px">
         <div class="table-header"><div class="table-title">⚙️ Configurações globais</div></div>
         <div style="padding:24px">
@@ -4778,6 +4817,9 @@ function renderConfig() {
       </div>
     </div>
   `;
+
+  // Inicializar canvas da assinatura (depois do DOM estar montado)
+  setTimeout(() => inicializarCanvasAssinatura(), 50);
 }
 
 // ═══════════════════════════════════════════
@@ -5418,6 +5460,87 @@ async function guardarDadosEmpresa() {
   if (error) { toast('Erro ao guardar: ' + error.message,'error'); console.error(error); return; }
   toast('✅ Dados da empresa guardados!');
   await carregarDados();
+}
+
+// ─── Assinatura digital do operador ──────────────────────────────────────
+let assSignaturePad = null;
+
+function inicializarCanvasAssinatura() {
+  const canvas = document.getElementById('ass-canvas');
+  if (!canvas || typeof SignaturePad === 'undefined') return;
+  // Ajustar resolução para HiDPI
+  const ratio = Math.max(window.devicePixelRatio || 1, 1);
+  canvas.width = canvas.offsetWidth * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  canvas.getContext('2d').scale(ratio, ratio);
+  assSignaturePad = new SignaturePad(canvas, {
+    backgroundColor: 'rgb(255, 255, 255)',
+    penColor: 'rgb(0, 0, 0)',
+    minWidth: 0.8,
+    maxWidth: 2.5,
+  });
+}
+
+function limparAssinaturaEmpresa() {
+  if (assSignaturePad) assSignaturePad.clear();
+}
+
+function carregarAssinaturaEmpresa(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.getElementById('ass-canvas');
+      if (!canvas || !assSignaturePad) return;
+      assSignaturePad.clear();
+      const ctx = canvas.getContext('2d');
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const cw = canvas.width / ratio, ch = canvas.height / ratio;
+      const scale = Math.min(cw / img.width, ch / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function guardarAssinaturaEmpresa() {
+  const canvas = document.getElementById('ass-canvas');
+  if (!canvas) return;
+  // Verificar se há tinta no canvas (signaturePad ou imagem carregada)
+  const isEmpty = assSignaturePad && assSignaturePad.isEmpty();
+  // Se SignaturePad diz vazio mas foi carregada imagem via canvas drawImage, verificamos pixels
+  if (isEmpty) {
+    // Verificar pixels (caso tenha sido carregada imagem)
+    const ctx = canvas.getContext('2d');
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let temConteudo = false;
+    for (let i = 0; i < data.length; i += 16) { // sample de 4 em 4 pixels
+      // Não branco?
+      if (data[i] < 250 || data[i+1] < 250 || data[i+2] < 250) {
+        temConteudo = true; break;
+      }
+    }
+    if (!temConteudo) { toast('Desenha ou carrega a assinatura primeiro','error'); return; }
+  }
+  const pngDataUrl = canvas.toDataURL('image/png');
+  const { error } = await db.from('empresas').update({ assinatura_png: pngDataUrl }).eq('id', empresa.id);
+  if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
+  toast('✅ Assinatura guardada!');
+  await carregarDados();
+  renderConfig();
+}
+
+async function apagarAssinaturaEmpresa() {
+  if (!confirm('Apagar a tua assinatura digital? Os contratos novos vão deixar de a incluir até guardares uma nova.')) return;
+  const { error } = await db.from('empresas').update({ assinatura_png: null }).eq('id', empresa.id);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  toast('✅ Assinatura removida');
+  await carregarDados();
+  renderConfig();
 }
 
 async function reabrirOnboarding() {
