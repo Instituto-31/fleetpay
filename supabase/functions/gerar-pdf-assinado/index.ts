@@ -232,8 +232,10 @@ async function anexarPaginaAssinatura(
   page.drawRectangle({ x: 40, y: y - 130, width: width - 80, height: 140, color: rgb(0.98, 0.97, 0.94) });
   page.drawRectangle({ x: 40, y: y - 130, width: 3, height: 140, color: colGold });
 
-  page.drawText('🔒 SELO DE VALIDAÇÃO DIGITAL', {
-    x: 56, y: y - 16, size: 10, font: fontBold, color: colInk,
+  // Pequeno "selo" desenhado com primitivas (pdf-lib StandardFonts nao suporta emojis)
+  page.drawRectangle({ x: 56, y: y - 22, width: 14, height: 14, borderColor: colGold, borderWidth: 1, color: rgb(1,1,1) });
+  page.drawText('SELO DE VALIDAÇÃO DIGITAL', {
+    x: 78, y: y - 16, size: 10, font: fontBold, color: colInk,
   });
 
   const seloLines = [
