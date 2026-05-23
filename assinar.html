@@ -676,14 +676,15 @@ async function confirmarAssinatura() {
     const result = await res.json();
     if (!result?.ok) throw new Error(result?.error || 'Resposta inesperada do servidor');
 
-    // Sucesso — buscar dados frescos para o ecrã final
-    const { data: cFinal } = await db.from('contratos_assinados')
-      .select('*, motoristas(nome, email), empresas(nome, nipc, licenca_tvde)')
-      .eq('link_token', TOKEN).single();
-    contrato = cFinal || contrato;
+    // Sucesso — atualizar apenas o ficheiro_path e estado (sem JOINs, anon
+    // pode não ter permissão para ler motoristas/empresas via re-fetch).
+    // O `contrato` ja' tem motoristas/empresas do fetch inicial em init().
+    contrato.ficheiro_path = result.ficheiro_path || contrato.ficheiro_path;
+    contrato.estado = 'assinado';
+    contrato.assinado_em = new Date().toISOString();
 
     const fname = `${(contrato.template_nome||'contrato').replace(/[^a-zA-Z0-9_-]/g,'_')}_${((contrato.motoristas?.nome)||'motorista').split(' ')[0]}_assinado.pdf`;
-    const dataAssStr = new Date(contrato.assinado_em || Date.now()).toLocaleString('pt-PT');
+    const dataAssStr = new Date(contrato.assinado_em).toLocaleString('pt-PT');
     mostrarSucesso(fname, dataAssStr);
     return;
   } catch (e) {
