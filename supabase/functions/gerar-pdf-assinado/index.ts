@@ -84,31 +84,27 @@ async function convertDocxToPdf(docxBytes: Uint8Array): Promise<Uint8Array> {
 // ─── Substituir placeholders «KEY» no document.xml do DOCX ─────────────────
 // Preserva formatação (substituição text-only dentro de <w:t>). Para
 // runs partidos, faz uma pré-passagem que junta runs adjacentes do mesmo
-// estilo. NÃO usa docxtemplater porque a dependência é pesada e o nosso
-// caso é simples (text replace + smart quotes).
-function substituirPlaceholdersDocx(
-  docxBytes: Uint8Array,
+// estilo.
+function substituirPlaceholdersDocxText(
+  zip: PizZip,
   dados: Record<string, string>,
-): Uint8Array {
-  const zip = new PizZip(docxBytes);
+): void {
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('Ficheiro DOCX inválido: sem word/document.xml');
   let xml = file.asText();
 
-  // Passagem 1: substituições directas (runs únicos)
   for (const [key, valRaw] of Object.entries(dados)) {
     const val = String(valRaw ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-    const variants = ['«' + key + '»', '&#xAB;' + key + '&#xBB;', '«' + key + '»'];
+    const variants = ['«' + key + '»', '&#xAB;' + key + '&#xBB;'];
     for (const v of variants) {
       xml = xml.split(v).join(val);
     }
   }
 
-  // Passagem 2 (heurística): se ainda houver «KEY» partidos em runs,
-  // achatar runs adjacentes e tentar de novo.
+  // Passagem 2: runs partidos → achatar
   const stillHas = /«[A-Z_]+»/g.test(xml);
   if (stillHas) {
     let achatado = xml.replace(/<\/w:t><\/w:r><w:r[^>]*><w:t[^>]*>/g, '');
@@ -117,7 +113,7 @@ function substituirPlaceholdersDocx(
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      const variants = ['«' + key + '»', '&#xAB;' + key + '&#xBB;', '«' + key + '»'];
+      const variants = ['«' + key + '»', '&#xAB;' + key + '&#xBB;'];
       for (const v of variants) {
         achatado = achatado.split(v).join(val);
       }
@@ -126,7 +122,121 @@ function substituirPlaceholdersDocx(
   }
 
   zip.file('word/document.xml', xml);
-  return zip.generate({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+// ─── Inserir imagem PNG no DOCX no lugar de placeholder «KEY» ──────────────
+// Substitui o run que contém o placeholder por um <w:drawing> com a imagem.
+// Necessário porque a imagem precisa de:
+//  - Entry em word/media/
+//  - Relationship em word/_rels/document.xml.rels
+//  - Content type em [Content_Types].xml (default png/jpeg)
+function inserirImagemDocxPlaceholder(
+  zip: PizZip,
+  placeholder: string,           // ex: '«ASS_MOT»'
+  pngBytes: Uint8Array,
+  widthEMU = 2000000,             // ~5.5cm
+  heightEMU = 700000,              // ~2cm
+): number {
+  const docFile = zip.file('word/document.xml');
+  const relsFile = zip.file('word/_rels/document.xml.rels');
+  const ctFile = zip.file('[Content_Types].xml');
+  if (!docFile || !relsFile || !ctFile) {
+    throw new Error('DOCX inválido (faltam document.xml/rels/Content_Types)');
+  }
+
+  let xml = docFile.asText();
+  let rels = relsFile.asText();
+  let ct = ctFile.asText();
+
+  // Verificar quantas vezes o placeholder aparece
+  const placeholderCount = (xml.match(new RegExp(escapeRegex(placeholder), 'g')) || []).length;
+  if (placeholderCount === 0) return 0;
+
+  // 1. Garantir content type para image/png
+  if (!/Extension="png"/i.test(ct)) {
+    ct = ct.replace(
+      /<Types([^>]*)>/,
+      '<Types$1><Default Extension="png" ContentType="image/png"/>',
+    );
+  }
+
+  // 2. Adicionar imagem ao media folder (1 vez só — reutilizamos para todas as ocorrências)
+  const imgName = `assinatura_${placeholder.replace(/[^A-Z_]/g, '')}.png`;
+  zip.file(`word/media/${imgName}`, pngBytes);
+
+  // 3. Adicionar relationship (1 rId que será reutilizado em todas as ocorrências)
+  // Encontrar rId disponível
+  const existingIds = [...rels.matchAll(/Id="(rId\d+)"/g)].map((m) => parseInt(m[1].slice(3)));
+  const maxId = existingIds.length ? Math.max(...existingIds) : 0;
+  const rId = `rId${maxId + 100}`;
+  rels = rels.replace(
+    /<\/Relationships>/,
+    `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${imgName}"/></Relationships>`,
+  );
+
+  // 4. Substituir cada run que contém o placeholder por <w:drawing>
+  // Pattern: <w:r ...>...<w:t...>«ASS_X»</w:t></w:r>
+  // Generamos drawingId único para cada ocorrência
+  let drawingCounter = 0;
+  const runPattern = new RegExp(
+    `<w:r\\b[^>]*>(?:(?!</w:r>).)*?<w:t[^>]*>${escapeRegex(placeholder)}</w:t></w:r>`,
+    'gs',
+  );
+  const xmlNew = xml.replace(runPattern, () => {
+    drawingCounter++;
+    const drawingId = maxId + 100 + drawingCounter;
+    return drawingRun(rId, drawingId, widthEMU, heightEMU);
+  });
+
+  zip.file('word/document.xml', xmlNew);
+  zip.file('word/_rels/document.xml.rels', rels);
+  zip.file('[Content_Types].xml', ct);
+
+  return drawingCounter;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function drawingRun(rId: string, drawingId: number, cx: number, cy: number): string {
+  // Constrói um <w:r> contendo um <w:drawing> inline com a imagem
+  return (
+    `<w:r>` +
+    `<w:drawing>` +
+    `<wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">` +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:effectExtent l="0" t="0" r="0" b="0"/>` +
+    `<wp:docPr id="${drawingId}" name="Assinatura${drawingId}"/>` +
+    `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
+    `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:nvPicPr>` +
+    `<pic:cNvPr id="${drawingId}" name="Assinatura${drawingId}"/>` +
+    `<pic:cNvPicPr/>` +
+    `</pic:nvPicPr>` +
+    `<pic:blipFill>` +
+    `<a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rId}"/>` +
+    `<a:stretch><a:fillRect/></a:stretch>` +
+    `</pic:blipFill>` +
+    `<pic:spPr>` +
+    `<a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+    `</pic:spPr>` +
+    `</pic:pic>` +
+    `</a:graphicData>` +
+    `</a:graphic>` +
+    `</wp:inline>` +
+    `</w:drawing>` +
+    `</w:r>`
+  );
+}
+
+// Helper: decode data URL ou base64 → Uint8Array
+function pngFromDataUrl(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 // ─── Anexar página de assinatura ao PDF gerado ─────────────────────────────
@@ -143,6 +253,7 @@ async function anexarPaginaAssinatura(
     contratoIdCurto: string;
     dataAssStr: string;
     signaturePngBytes: Uint8Array;
+    operadorPngBytes: Uint8Array | null;
     signatureMode: string;
     plataforma: string;
   },
@@ -216,6 +327,19 @@ async function anexarPaginaAssinatura(
   page.drawText('PELO OPERADOR', {
     x: xRight, y, size: 9, font: fontBold, color: colSub,
   });
+  // Inserir imagem da assinatura do operador (se existir)
+  if (ctx.operadorPngBytes) {
+    try {
+      const opSigImg = await pdfDoc.embedPng(ctx.operadorPngBytes);
+      const opDims = opSigImg.scale(1);
+      const opScale = Math.min(sigMaxW / opDims.width, sigMaxH / opDims.height);
+      page.drawImage(opSigImg, {
+        x: xRight, y: y - 100, width: opDims.width * opScale, height: opDims.height * opScale,
+      });
+    } catch (e) {
+      console.warn('[gerar-pdf] Erro embed assinatura operador:', e);
+    }
+  }
   page.drawLine({
     start: { x: xRight, y: y - 110 }, end: { x: xRight + colW - 20, y: y - 110 },
     thickness: 0.8, color: colInk,
@@ -226,6 +350,20 @@ async function anexarPaginaAssinatura(
   page.drawText('NIPC ' + ctx.empresaNipc + (ctx.empresaLicenca ? ' · Licença TVDE ' + ctx.empresaLicenca : ''), {
     x: xRight, y: y - 138, size: 8, font: fontReg, color: colSub,
   });
+
+  // ─── Cláusula de equivalência (entre assinaturas e selo) ─────────────
+  const yClausula = y - 180;
+  page.drawText('CLÁUSULA DE EQUIVALÊNCIA', {
+    x: 40, y: yClausula, size: 9, font: fontBold, color: colGold,
+  });
+  const clausula = 'As assinaturas digitais acima representam a manifestação inequívoca de vontade';
+  const clausula2 = 'das partes e têm valor para todos os blocos e cláusulas de assinatura presentes';
+  const clausula3 = 'neste documento, em todas as suas páginas, com efeito jurídico equivalente à';
+  const clausula4 = 'assinatura manuscrita (DL 12/2021 · Reg. UE 910/2014 eIDAS).';
+  page.drawText(clausula,  { x: 40, y: yClausula - 14, size: 9, font: fontReg, color: colInk });
+  page.drawText(clausula2, { x: 40, y: yClausula - 26, size: 9, font: fontReg, color: colInk });
+  page.drawText(clausula3, { x: 40, y: yClausula - 38, size: 9, font: fontReg, color: colInk });
+  page.drawText(clausula4, { x: 40, y: yClausula - 50, size: 9, font: fontReg, color: colInk });
 
   // ─── Selo de validação digital (rodapé) ──────────────────────────────
   y = 180;
@@ -283,10 +421,10 @@ serve(async (req) => {
       return json({ error: 'signature_png inválido (esperado data:image/...)' }, 400);
     }
 
-    // 1. Buscar contrato pelo token
+    // 1. Buscar contrato pelo token (com assinatura_png da empresa)
     const { data: contrato, error: errC } = await supabase
       .from('contratos_assinados')
-      .select('*, motoristas(nome, email), empresas(nome, nipc, morada, codigo_postal, licenca_tvde, telefone, email, logo_path)')
+      .select('*, motoristas(nome, email), empresas(nome, nipc, morada, codigo_postal, licenca_tvde, telefone, email, logo_path, assinatura_png)')
       .eq('link_token', token)
       .single();
     if (errC || !contrato) return json({ error: 'Contrato não encontrado' }, 404);
@@ -309,9 +447,27 @@ serve(async (req) => {
     if (errDl || !tplFile) return json({ error: 'Download do template falhou: ' + (errDl?.message || '') }, 500);
     const tplBytes = new Uint8Array(await tplFile.arrayBuffer());
 
-    // 3. Substituir placeholders
+    // 3. Substituir placeholders text + inserir imagens de assinatura no DOCX
+    const zip = new PizZip(tplBytes);
     const dados = contrato.dados_substituidos || {};
-    const docxBytes = substituirPlaceholdersDocx(tplBytes, dados);
+    substituirPlaceholdersDocxText(zip, dados);
+
+    // Inserir assinaturas no DOCX (templates v3 que tenham «ASS_MOT» / «ASS_OP»)
+    const motorPng = Uint8Array.from(
+      atob(String(body.signature_png || '').replace(/^data:image\/\w+;base64,/, '')),
+      (c) => c.charCodeAt(0),
+    );
+    const motSubs = inserirImagemDocxPlaceholder(zip, '«ASS_MOT»', motorPng);
+
+    let opSubs = 0;
+    const opAssDataUrl = contrato.empresas?.assinatura_png;
+    if (opAssDataUrl && opAssDataUrl.startsWith('data:image/')) {
+      const opPng = pngFromDataUrl(opAssDataUrl);
+      opSubs = inserirImagemDocxPlaceholder(zip, '«ASS_OP»', opPng);
+    }
+    console.log('[gerar-pdf] assinaturas inseridas no DOCX: motorista=' + motSubs + ', operador=' + opSubs);
+
+    const docxBytes = zip.generate({ type: 'uint8array', compression: 'DEFLATE' });
 
     // 4. Converter DOCX → PDF via Aspose
     const pdfBytes = await convertDocxToPdf(docxBytes);
@@ -323,6 +479,10 @@ serve(async (req) => {
     );
     const dataAss = new Date();
     const dataAssStr = dataAss.toLocaleString('pt-PT');
+    let operadorPngBytes: Uint8Array | null = null;
+    if (opAssDataUrl && opAssDataUrl.startsWith('data:image/')) {
+      try { operadorPngBytes = pngFromDataUrl(opAssDataUrl); } catch (_) {}
+    }
     const finalPdf = await anexarPaginaAssinatura(pdfBytes, {
       token,
       motoristaNome: contrato.motoristas?.nome || '—',
@@ -334,6 +494,7 @@ serve(async (req) => {
       contratoIdCurto: String(contrato.id).substring(0, 8).toUpperCase(),
       dataAssStr,
       signaturePngBytes: sigPngBytes,
+      operadorPngBytes,
       signatureMode,
       plataforma,
     });
