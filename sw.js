@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v12-2026-05-22-pagamentos-comissao';
+const CACHE_VERSION = 'fleetpay-v13-2026-05-23-server-pdf';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
