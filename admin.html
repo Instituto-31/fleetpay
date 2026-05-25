@@ -3324,6 +3324,46 @@ async function renderPrio() {
 }
 
 // Upload simples PRIO (formato fixo conhecido)
+// Helper: faz parse de várias formatos de data para YYYY-MM-DD
+// Aceita:
+//   - ISO datetime: 2026-05-23 01:01:08 ou 2026-05-23T01:01:08
+//   - DD/MM/YYYY: 23/05/2026
+//   - M/D/YYYY: 5/24/2026 10:32:57 AM (formato US PRIO E-Charge)
+//   - YYYY-MM-DD
+//   - Date object string
+function parseDataFlexivel(dataRaw) {
+  if (!dataRaw) return new Date().toISOString().split('T')[0];
+  const s = String(dataRaw).trim();
+  // ISO: 2026-05-23 (com ou sem hora)
+  const isoMatch = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2,'0')}-${isoMatch[3].padStart(2,'0')}`;
+  }
+  // US: 5/24/2026 10:32:57 AM ou 5/24/2026
+  const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (usMatch) {
+    // Detecta se é US (M/D/Y) vs PT (D/M/Y) — heurística: se primeiro > 12, é DD/MM; se segundo > 12, é MM/DD
+    const a = parseInt(usMatch[1]), b = parseInt(usMatch[2]);
+    if (a > 12) {
+      // DD/MM/YYYY
+      return `${usMatch[3]}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
+    } else if (b > 12) {
+      // MM/DD/YYYY
+      return `${usMatch[3]}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
+    } else {
+      // Ambíguo (<=12): assume PT DD/MM/YYYY (mais comum em PT)
+      return `${usMatch[3]}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
+    }
+  }
+  // DD-MM-YYYY
+  const ptMatch = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (ptMatch) return `${ptMatch[3]}-${ptMatch[2].padStart(2,'0')}-${ptMatch[1].padStart(2,'0')}`;
+  // Fallback: tenta Date() nativo
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  return new Date().toISOString().split('T')[0];
+}
+
 async function processarUploadPRIO(file) {
   if (!file) return;
   const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -3367,11 +3407,15 @@ async function processarUploadPRIO(file) {
   console.log('[PRIO] header detectado:', header);
   console.log('[PRIO] ' + linhas.length + ' linhas de dados');
 
-  // Encontrar índices (mais tolerante que antes)
-  const idxMatricula = header.findIndex(c => /matr|viatura|ve[ií]culo|placa/i.test(c));
-  const idxData = header.findIndex(c => /^data$|^date$|^dia$|transac|opera|^dt/i.test(c));
-  const idxValor = header.findIndex(c => /(valor|total|montante|pre[çc]o|euro|amount)/i.test(c) && !/iva|imposto|desc/i.test(c));
-  const idxLitros = header.findIndex(c => /litro|quant|qtd/i.test(c) && !/preço|valor/i.test(c));
+  // Encontrar índices (suporta PRIO Combustível + PRIO E-Charge + outros cartões)
+  const idxMatricula = header.findIndex(c => /matr|viatura|ve[ií]culo|placa|mobilecard|mobileregistration|license\s*plate|licenseplate/i.test(c));
+  const idxData = header.findIndex(c => /^data$|^date$|^dia$|transac|opera|^dt|startdate|start\s*date|entrydate|entry\s*date/i.test(c));
+  // Preferir TotalValueWithTaxes (com IVA, valor real a pagar) sobre outras opções
+  const idxValorComIVA = header.findIndex(c => /totalvaluewithtaxes|total\s*value\s*with\s*taxes/i.test(c));
+  const idxValorTotal = header.findIndex(c => /^total$|^valor$|^montante$|chargingtotalvalue|charging\s*total/i.test(c));
+  const idxValorOutros = header.findIndex(c => /(valor|montante|pre[çc]o|euro|amount)/i.test(c) && !/iva|imposto|desc|duration|energy|energia|price/i.test(c));
+  const idxValor = idxValorComIVA >= 0 ? idxValorComIVA : (idxValorTotal >= 0 ? idxValorTotal : idxValorOutros);
+  const idxLitros = header.findIndex(c => /(^litros?$|quant|qtd|^energy$|^energia$)/i.test(c) && !/preço|valor|pre[çc]o/i.test(c));
 
   if (idxMatricula < 0 || idxValor < 0) {
     toast(`Não encontrei coluna Matrícula ou Valor. Header detectado: ${header.join(' | ')}`, 'error');
@@ -3385,17 +3429,7 @@ async function processarUploadPRIO(file) {
     const valor = parseFloat((cols[idxValor]||'').replace(/[€\s]/g,'').replace(',','.').replace(/[^\d.-]/g,''));
     if (!matricula || !valor || valor <= 0) return;
 
-    // Data: DD/MM/YYYY ou YYYY-MM-DD ou Date object
-    let data = '';
-    if (dataRaw) {
-      const partes = dataRaw.split(/[\/\-\s]/).filter(Boolean);
-      if (partes.length >= 3) {
-        if (partes[0].length === 4) data = `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].substring(0,2).padStart(2,'0')}`;
-        else data = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
-      }
-    }
-    if (!data) data = new Date().toISOString().split('T')[0];
-
+    const data = parseDataFlexivel(dataRaw);
     const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
     const litros = idxLitros >= 0 ? parseFloat((cols[idxLitros]||'').replace(',','.')) || null : null;
 
@@ -3872,14 +3906,17 @@ async function processViaVerde(file) {
   const portagens = [];
   const ignoradas = [];
   rows.forEach((r, idx) => {
-    // Procurar matrícula em várias chaves possíveis (Via Verde usa "matrícula", "viatura", etc.)
-    const chavesMatr = Object.keys(r).filter(k => /matr|placa|viatura/i.test(k));
-    const chavesValor = Object.keys(r).filter(k => /valor|amount|montante|total|preço|preco|euro/i.test(k));
-    const chavesData = Object.keys(r).filter(k => /^data$|date|^dia$|movimento/i.test(k));
-    const chavesLocal = Object.keys(r).filter(k => /local|descri|portagem|estação|estacao/i.test(k));
+    // Procurar matrícula em várias chaves possíveis (Via Verde PT/EN: matrícula, viatura, License Plate)
+    const chavesMatr = Object.keys(r).filter(k => /matr|placa|viatura|license\s*plate|licenseplate/i.test(k));
+    // Valor: preferir "liquid value" (líquido após desconto) sobre "value" (bruto). Ambos servem.
+    const chavesValor = Object.keys(r).filter(k => /liquid\s*value|liquidvalue/i.test(k));
+    const chavesValorBruto = Object.keys(r).filter(k => /^value$|valor|amount|montante|^total$|preço|preco|euro/i.test(k) && !/iva|imposto|desc|liquid/i.test(k));
+    const chavesData = Object.keys(r).filter(k => /^data$|entry\s*date|entrydate|^date$|^dia$|movimento|startdate|start\s*date/i.test(k));
+    const chavesLocal = Object.keys(r).filter(k => /local|descri|portagem|estação|estacao|entry\s*point|entrypoint|service/i.test(k));
 
     const matricula = (chavesMatr.length ? r[chavesMatr[0]] : '').toString().trim();
-    const valorRaw = (chavesValor.length ? r[chavesValor[0]] : '0').toString();
+    // Prefere Liquid Value (com descontos VV) se existir, senão Value bruto
+    const valorRaw = (chavesValor.length ? r[chavesValor[0]] : (chavesValorBruto.length ? r[chavesValorBruto[0]] : '0')).toString();
     const valor = parseFloat(valorRaw.replace(/[€\s]/g,'').replace(',','.').replace(/[^\d.-]/g,'')) || 0;
     let dataRaw = (chavesData.length ? r[chavesData[0]] : '').toString().trim();
 
@@ -3890,16 +3927,7 @@ async function processViaVerde(file) {
 
     // Normalizar matrícula
     const matNorm = matricula.replace(/[\s-]/g,'').toUpperCase();
-    // Data: aceita DD/MM/YYYY, YYYY-MM-DD, ou Date object string
-    let dataISO = '';
-    if (dataRaw) {
-      const partes = dataRaw.split(/[\/\-\s]/).filter(Boolean);
-      if (partes.length >= 3) {
-        if (partes[0].length === 4) dataISO = `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].substring(0,2).padStart(2,'0')}`;
-        else dataISO = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
-      }
-    }
-    if (!dataISO) dataISO = new Date().toISOString().split('T')[0];
+    const dataISO = parseDataFlexivel(dataRaw);
 
     const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matNorm);
     portagens.push({
