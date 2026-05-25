@@ -788,6 +788,7 @@ body.theme-default-dark { /* já é o root, sem override */ }
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="fleetpay-config.js"></script>
 <script>
 
@@ -3787,27 +3788,106 @@ async function carregarResumoVV() {
   wrap.innerHTML = `<div class="table-header"><div class="table-title">Resumo Via Verde — ${semanaLabel(semanaAtual)}</div></div><div style="padding:16px">${Object.values(byMot).map(x=>`<div class="matricula-card"><div><div class="matricula-label">${x.nome}</div><div class="matricula-motorista">${x.count} portagens</div></div><div class="matricula-valor">${fmt(x.total)}</div></div>`).join('')}</div>`;
 }
 
-function processViaVerde(file) {
+async function processViaVerde(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async e => {
-    const rows = parseCSV(e.target.result);
-    const portagens = [];
-    rows.forEach(r => {
-      const matricula = r['matrícula'] || r['matricula'] || r['plate'] || r['viatura'] || '';
-      const valor = parseFloat((r['valor'] || r['amount'] || r['montante'] || '0').replace(',','.'));
-      const data = r['data'] || r['date'] || '';
-      if (!matricula || !valor) return;
-      const veiculo = veiculos.find(v=>v.matricula.replace('-','').toUpperCase()===matricula.replace('-','').toUpperCase());
-      portagens.push({ empresa_id:empresa.id, motorista_id:veiculo?.motorista_id||null, matricula, data:data||new Date().toISOString().split('T')[0], valor, descricao:r['descricao']||r['local']||'', semana_inicio:semanaAtual });
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  let rows = [];
+  try {
+    if (ext === 'xlsx' || ext === 'xls') {
+      // Excel binário — usa SheetJS
+      if (typeof XLSX === 'undefined') { toast('SheetJS não carregou — recarrega a página','error'); return; }
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // Tenta primeiro com headers (objects) — se ficheiro tiver linhas extra no topo, depois rebuscamos
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      rows = raw.map(r => {
+        const out = {};
+        Object.keys(r).forEach(k => { out[String(k).trim().toLowerCase()] = String(r[k] ?? '').trim(); });
+        return out;
+      });
+      // Se não tem chaves típicas, tenta saltar linhas (Via Verde costuma ter cabeçalho preâmbulo)
+      const temColunaConhecida = rows.length && Object.keys(rows[0]).some(k => /matr|placa|viatura|valor|data/i.test(k));
+      if (!temColunaConhecida) {
+        // Procurar linha com header e ler como array
+        const all = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+        const headerIdx = all.findIndex(linha => linha.some(c => /matr|placa|viatura/i.test(String(c))));
+        if (headerIdx >= 0) {
+          const headers = all[headerIdx].map(h => String(h).trim().toLowerCase());
+          rows = all.slice(headerIdx + 1).map(linha => {
+            const o = {};
+            headers.forEach((h, i) => { o[h] = String(linha[i] ?? '').trim(); });
+            return o;
+          });
+        }
+      }
+    } else {
+      // CSV — read as text
+      const text = await file.text();
+      rows = parseCSV(text);
+    }
+  } catch (e) {
+    console.error('Via Verde parse:', e);
+    toast('Erro a ler ficheiro: ' + (e.message || 'desconhecido'),'error');
+    return;
+  }
+
+  console.log('[ViaVerde] ' + rows.length + ' linhas, primeiras chaves:', rows[0] ? Object.keys(rows[0]) : []);
+
+  const portagens = [];
+  const ignoradas = [];
+  rows.forEach((r, idx) => {
+    // Procurar matrícula em várias chaves possíveis (Via Verde usa "matrícula", "viatura", etc.)
+    const chavesMatr = Object.keys(r).filter(k => /matr|placa|viatura/i.test(k));
+    const chavesValor = Object.keys(r).filter(k => /valor|amount|montante|total|preço|preco|euro/i.test(k));
+    const chavesData = Object.keys(r).filter(k => /^data$|date|^dia$|movimento/i.test(k));
+    const chavesLocal = Object.keys(r).filter(k => /local|descri|portagem|estação|estacao/i.test(k));
+
+    const matricula = (chavesMatr.length ? r[chavesMatr[0]] : '').toString().trim();
+    const valorRaw = (chavesValor.length ? r[chavesValor[0]] : '0').toString();
+    const valor = parseFloat(valorRaw.replace(/[€\s]/g,'').replace(',','.').replace(/[^\d.-]/g,'')) || 0;
+    let dataRaw = (chavesData.length ? r[chavesData[0]] : '').toString().trim();
+
+    if (!matricula || !valor) {
+      if (idx < 3) ignoradas.push({ idx, chaves: Object.keys(r), matricula, valorRaw });
+      return;
+    }
+
+    // Normalizar matrícula
+    const matNorm = matricula.replace(/[\s-]/g,'').toUpperCase();
+    // Data: aceita DD/MM/YYYY, YYYY-MM-DD, ou Date object string
+    let dataISO = '';
+    if (dataRaw) {
+      const partes = dataRaw.split(/[\/\-\s]/).filter(Boolean);
+      if (partes.length >= 3) {
+        if (partes[0].length === 4) dataISO = `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].substring(0,2).padStart(2,'0')}`;
+        else dataISO = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+      }
+    }
+    if (!dataISO) dataISO = new Date().toISOString().split('T')[0];
+
+    const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matNorm);
+    portagens.push({
+      empresa_id: empresa.id,
+      motorista_id: veiculo?.motorista_id || null,
+      matricula: matNorm,
+      data: dataISO,
+      valor,
+      descricao: chavesLocal.length ? r[chavesLocal[0]] : '',
+      semana_inicio: semanaAtual
     });
-    if (!portagens.length) { toast('Nenhuma portagem encontrada','error'); return; }
-    const { error } = await db.from('viaverde_portagens').insert(portagens);
-    if (error) { toast('Erro ao guardar Via Verde','error'); return; }
-    toast(`🛣️ ${portagens.length} portagens importadas!`);
-    carregarResumoVV();
-  };
-  reader.readAsText(file, 'latin1');
+  });
+
+  if (!portagens.length) {
+    console.warn('[ViaVerde] Ignoradas (sample):', ignoradas);
+    const dica = rows[0] ? '\n\nColunas detectadas: ' + Object.keys(rows[0]).join(', ') : '';
+    toast('Nenhuma portagem encontrada — verifica colunas Matrícula+Valor' + dica.substring(0, 200),'error');
+    return;
+  }
+  const { error } = await db.from('viaverde_portagens').insert(portagens);
+  if (error) { toast('Erro ao guardar Via Verde: ' + error.message,'error'); console.error(error); return; }
+  toast(`🛣️ ${portagens.length} portagens importadas!`);
+  carregarResumoVV();
 }
 
 // ── ALERTAS ──
