@@ -974,7 +974,8 @@ async function carregarDados() {
   if (!eid) return;
 
   const [mRes, vRes, pRes] = await Promise.all([
-    db.from('motoristas').select('*').eq('empresa_id', eid).eq('ativo', true).order('nome'),
+    // Carregar TODOS os motoristas (activos + inativos) para podermos filtrar na UI
+    db.from('motoristas').select('*').eq('empresa_id', eid).order('nome'),
     db.from('veiculos').select('*').eq('empresa_id', eid).order('matricula'),
     db.from('pagamentos').select('*, motoristas(nome,email,whatsapp,iban)').eq('empresa_id', eid).order('semana_inicio', {ascending:false}).limit(200)
   ]);
@@ -2727,28 +2728,68 @@ async function aplicarPrioViaVerde() {
 }
 
 // ── MOTORISTAS ──
+let motoristasFiltro = { estado: 'ativos', q: '' };
+
 function renderMotoristas() {
   document.getElementById('topbar-actions').innerHTML = `
-    <input class="search-bar" placeholder="🔍 Pesquisar motorista..." oninput="filtrarMotoristas(this.value)">
+    <input class="search-bar" placeholder="🔍 Pesquisar motorista..." oninput="motoristasFiltro.q=this.value;atualizarTabelaMotoristas()">
     <button class="btn btn-ghost btn-sm" onclick="modalConvidarMotorista()">📧 Convidar</button>
     <button class="btn btn-gold btn-sm" onclick="modalMotorista()">+ Motorista</button>
   `;
 
+  const nAtivos = motoristas.filter(m => m.ativo !== false).length;
+  const nInativos = motoristas.filter(m => m.ativo === false).length;
+
   document.getElementById('content').innerHTML = `
     <div class="table-wrap">
-      <div class="table-header">
-        <div class="table-title">Motoristas (${motoristas.length})</div>
+      <div class="table-header" style="flex-wrap:wrap;gap:12px">
+        <div class="table-title" id="mot-titulo">Motoristas</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm ${motoristasFiltro.estado==='ativos'?'btn-gold':'btn-ghost'}" onclick="motoristasFiltro.estado='ativos';atualizarTabelaMotoristas()">✓ Activos (${nAtivos})</button>
+          <button class="btn btn-sm ${motoristasFiltro.estado==='inativos'?'btn-gold':'btn-ghost'}" onclick="motoristasFiltro.estado='inativos';atualizarTabelaMotoristas()">⊘ Inactivos (${nInativos})</button>
+          <button class="btn btn-sm ${motoristasFiltro.estado==='todos'?'btn-gold':'btn-ghost'}" onclick="motoristasFiltro.estado='todos';atualizarTabelaMotoristas()">Todos (${motoristas.length})</button>
+        </div>
       </div>
-      <table id="tabela-motoristas">
-        <thead><tr>
-          <th>Nome</th><th>Email</th><th>Telefone</th><th>NIF</th>
-          <th>Slot/sem</th><th>Estado docs</th><th>Ações</th>
-        </tr></thead>
-        <tbody>
-          ${motoristas.map(m => renderLinhaMotorista(m)).join('')}
-        </tbody>
-      </table>
+      <div id="motoristas-tabela-wrap"></div>
     </div>
+  `;
+  atualizarTabelaMotoristas();
+}
+
+function atualizarTabelaMotoristas() {
+  const q = (motoristasFiltro.q || '').toLowerCase().trim();
+  const lista = motoristas
+    .filter(m => {
+      if (motoristasFiltro.estado === 'ativos' && m.ativo === false) return false;
+      if (motoristasFiltro.estado === 'inativos' && m.ativo !== false) return false;
+      if (!q) return true;
+      return (m.nome||'').toLowerCase().includes(q)
+          || (m.email||'').toLowerCase().includes(q)
+          || (m.telefone||'').includes(q)
+          || (m.nif||'').includes(q);
+    });
+
+  const tit = document.getElementById('mot-titulo');
+  if (tit) tit.textContent = `Motoristas (${lista.length})`;
+
+  const wrap = document.getElementById('motoristas-tabela-wrap');
+  if (!wrap) return;
+
+  if (!lista.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-text">Nenhum motorista encontrado</div><div class="empty-state-sub">Tenta outro filtro ou pesquisa</div></div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table id="tabela-motoristas">
+      <thead><tr>
+        <th>Nome</th><th>Email</th><th>Telefone</th><th>NIF</th>
+        <th>Slot/sem</th><th>Estado docs</th><th>Estado</th><th style="text-align:right">Ações</th>
+      </tr></thead>
+      <tbody>
+        ${lista.map(m => renderLinhaMotorista(m)).join('')}
+      </tbody>
+    </table>
   `;
 }
 
@@ -2762,27 +2803,73 @@ function renderLinhaMotorista(m) {
     aviso>0 ? `<span class="badge badge-orange"><span class="badge-dot"></span>${aviso} a expirar</span>` :
     `<span class="badge badge-green"><span class="badge-dot"></span>OK</span>`;
 
+  const ativo = m.ativo !== false;
+  const estadoBadge = ativo
+    ? '<span class="badge badge-green"><span class="badge-dot"></span>Activo</span>'
+    : '<span class="badge badge-orange" style="opacity:.7"><span class="badge-dot"></span>Inactivo</span>';
+
+  const trStyle = ativo ? '' : ' style="opacity:.55"';
   return `
-    <tr>
+    <tr${trStyle}>
       <td>${m.nome}</td>
       <td style="color:var(--sub2)">${m.email||'—'}</td>
       <td style="color:var(--sub2)">${m.telefone||'—'}</td>
       <td style="color:var(--sub2);font-family:var(--mono);font-size:11px">${m.nif||'—'}</td>
       <td class="gold">${fmt(m.slot_semanal)}</td>
       <td>${estadoDoc}</td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="modalMotorista('${m.id}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="convidarMotorista('${m.id}')">📧 Convidar</button>
+      <td>${estadoBadge}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <div style="display:inline-flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" title="Editar" onclick="modalMotorista('${m.id}')">✏️</button>
+          ${ativo
+            ? `<button class="btn btn-ghost btn-sm" title="Convidar" onclick="convidarMotorista('${m.id}')">📧</button>
+               <button class="btn btn-ghost btn-sm" title="Desactivar (mantém histórico)" onclick="toggleAtivoMotorista('${m.id}', false)">⊘</button>`
+            : `<button class="btn btn-ghost btn-sm" title="Reactivar" onclick="toggleAtivoMotorista('${m.id}', true)">↺ Reactivar</button>
+               <button class="btn btn-danger btn-sm" title="Eliminar permanentemente" onclick="eliminarMotoristaPermanente('${m.id}')">🗑️</button>`
+          }
         </div>
       </td>
     </tr>
   `;
 }
 
-function filtrarMotoristas(q) {
-  const rows = document.querySelectorAll('#tabela-motoristas tbody tr');
-  rows.forEach(r => r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none');
+async function toggleAtivoMotorista(id, novoEstado) {
+  const mot = motoristas.find(m => m.id === id);
+  if (!mot) return;
+  const acao = novoEstado ? 'reactivar' : 'desactivar';
+  if (!confirm(`${acao.charAt(0).toUpperCase()+acao.slice(1)} o motorista "${mot.nome}"?\n\n${novoEstado ? 'Volta a aparecer na lista activa.' : 'O motorista deixa de aparecer na lista activa mas o histórico fica intacto (pagamentos, contratos, etc.).'}`)) return;
+  const { error } = await db.from('motoristas').update({ ativo: novoEstado }).eq('id', id);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  toast(`✅ Motorista ${novoEstado ? 'reactivado' : 'desactivado'}`);
+  await carregarDados();
+  renderMotoristas();
+}
+
+async function eliminarMotoristaPermanente(id) {
+  const mot = motoristas.find(m => m.id === id);
+  if (!mot) return;
+
+  // Verificar quantos registos dependentes existem
+  const [pagsRes, contRes] = await Promise.all([
+    db.from('pagamentos').select('id', { count: 'exact', head: true }).eq('motorista_id', id),
+    db.from('contratos_assinados').select('id', { count: 'exact', head: true }).eq('motorista_id', id),
+  ]);
+  const nPags = pagsRes.count || 0;
+  const nCont = contRes.count || 0;
+
+  if (nPags > 0 || nCont > 0) {
+    alert(`Não dá para eliminar "${mot.nome}" — tem histórico:\n\n• ${nPags} pagamento(s)\n• ${nCont} contrato(s) assinado(s)\n\nUsa "Desactivar" em vez disso (mantém o histórico mas tira da lista activa). Se quiseres mesmo apagar, primeiro tens de remover esses registos.`);
+    return;
+  }
+
+  if (!confirm(`Eliminar PERMANENTEMENTE "${mot.nome}"?\n\nNão dá para desfazer. O motorista vai desaparecer da BD.\n\nSe houver dúvidas, usa "Desactivar" em vez.`)) return;
+  if (!confirm(`Confirma de novo: ELIMINAR ${mot.nome}? Esta acção é IRREVERSÍVEL.`)) return;
+
+  const { error } = await db.from('motoristas').delete().eq('id', id);
+  if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
+  toast(`🗑️ ${mot.nome} eliminado`);
+  await carregarDados();
+  renderMotoristas();
 }
 
 function modalMotorista(id=null) {
