@@ -2124,6 +2124,23 @@ function renderTabelaPagamentos() {
   `;
 }
 
+function renderEstadoPagamento(p) {
+  // 4 estados visuais: pendente / pago a aguardar / pago confirmado / contestado
+  if (p.estado !== 'pago') {
+    return '<span class="badge badge-orange"><span class="badge-dot"></span>Pendente</span>';
+  }
+  if (p.contestado_motorista_em) {
+    const motivo = (p.contestado_motorista_motivo || '').replace(/'/g, '&apos;').slice(0, 200);
+    const dt = new Date(p.contestado_motorista_em).toLocaleString('pt-PT');
+    return `<span class="badge badge-red" title="Contestado em ${dt}${motivo ? ' — ' + motivo : ''}"><span class="badge-dot"></span>⚠️ Contestado</span>`;
+  }
+  if (p.confirmado_motorista_em) {
+    const dt = new Date(p.confirmado_motorista_em).toLocaleString('pt-PT');
+    return `<span class="badge badge-green" title="Motorista confirmou em ${dt}"><span class="badge-dot"></span>✓✓ Recebido</span>`;
+  }
+  return '<span class="badge badge-green" title="Pago — motorista ainda não confirmou"><span class="badge-dot"></span>Pago (a confirmar)</span>';
+}
+
 function renderLinhaPagamento(p) {
   return `
     <tr id="row-${p.id}">
@@ -2136,7 +2153,7 @@ function renderLinhaPagamento(p) {
       <td>${fmt(p.prio_valor)}</td>
       <td>${fmt(p.viaverde_valor)}</td>
       <td class="gold">${fmt(p.valor_final)}</td>
-      <td><span class="badge ${p.estado==='pago'?'badge-green':'badge-orange'}"><span class="badge-dot"></span>${p.estado==='pago'?'Pago':'Pendente'}</span></td>
+      <td>${renderEstadoPagamento(p)}</td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn btn-ghost btn-sm" onclick='editarPagamento(${JSON.stringify(p.id)})'>✏️</button>

@@ -1595,8 +1595,13 @@ function renderSemanaAtual(p) {
 }
 
 function renderCard(p, i) {
-  const estadoClass = p.estado === 'pago' ? 'estado-pago' : 'estado-pendente';
-  const estadoLabel = p.estado === 'pago' ? '✓ Pago' : '⏳ Pendente';
+  const confirmado = !!p.confirmado_motorista_em;
+  const contestado = !!p.contestado_motorista_em;
+  let estadoClass, estadoLabel;
+  if (p.estado === 'pago' && confirmado) { estadoClass = 'estado-pago'; estadoLabel = '✓ Recebido'; }
+  else if (p.estado === 'pago' && contestado) { estadoClass = 'estado-pendente'; estadoLabel = '⚠️ Contestado'; }
+  else if (p.estado === 'pago') { estadoClass = 'estado-pago'; estadoLabel = '✓ Pago (confirmar)'; }
+  else { estadoClass = 'estado-pendente'; estadoLabel = '⏳ Pendente'; }
   return `
     <div class="pagamento-card" style="animation-delay:${i*0.05}s" onclick="toggleCard(this)">
       <div class="pagamento-card-header">
@@ -1639,9 +1644,80 @@ function renderCard(p, i) {
         <a class="btn-recibo" href="${p.recibo_pdf_url}" target="_blank" onclick="event.stopPropagation()" style="margin-top:8px">
           📎 Ver recibo personalizado
         </a>` : ''}
+        ${renderValidacaoMotorista(p)}
       </div>
     </div>
   `;
+}
+
+function renderValidacaoMotorista(p) {
+  // Só aparece se o pagamento foi marcado como pago pelo operador
+  if (p.estado !== 'pago') return '';
+
+  if (p.confirmado_motorista_em) {
+    const dt = new Date(p.confirmado_motorista_em).toLocaleString('pt-PT');
+    return `
+      <div style="margin-top:14px;padding:12px;background:rgba(39,201,63,0.08);border:1px solid rgba(39,201,63,0.25);border-radius:6px;font-size:12px">
+        <div style="font-weight:600;color:var(--green);margin-bottom:4px">✓ Recebimento confirmado</div>
+        <div style="color:var(--sub2);font-family:var(--mono);font-size:10px">Confirmado em ${dt}</div>
+      </div>
+    `;
+  }
+  if (p.contestado_motorista_em) {
+    const dt = new Date(p.contestado_motorista_em).toLocaleString('pt-PT');
+    const motivo = (p.contestado_motorista_motivo || '').replace(/</g,'&lt;');
+    return `
+      <div style="margin-top:14px;padding:12px;background:rgba(232,90,90,0.06);border:1px solid rgba(232,90,90,0.3);border-radius:6px;font-size:12px">
+        <div style="font-weight:600;color:#e85a5a;margin-bottom:4px">⚠️ Recebimento contestado</div>
+        <div style="color:var(--sub2);margin-bottom:6px">Reportaste em ${dt}</div>
+        ${motivo ? `<div style="font-style:italic;color:var(--paper);background:rgba(0,0,0,0.1);padding:6px 8px;border-radius:3px">"${motivo}"</div>` : ''}
+        <div style="margin-top:8px;font-size:11px;color:var(--sub2)">A operadora foi alertada e vai analisar.</div>
+      </div>
+    `;
+  }
+  // Ainda não validou — botões
+  return `
+    <div style="margin-top:14px;padding:12px;background:rgba(200,146,42,0.06);border:1px solid rgba(200,146,42,0.25);border-radius:6px">
+      <div style="font-size:12px;color:var(--paper);margin-bottom:10px;font-weight:600">💳 Já recebeste este valor na conta?</div>
+      <div style="font-size:11px;color:var(--sub2);margin-bottom:12px">Confirma para a operadora saber que o pagamento chegou. Se houver problema, podes contestar.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="event.stopPropagation();confirmarRecebimento('${p.id}')" style="flex:1;min-width:120px;padding:10px 14px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer">✓ Confirmo recebimento</button>
+        <button onclick="event.stopPropagation();contestarRecebimento('${p.id}')" style="flex:1;min-width:120px;padding:10px 14px;background:transparent;color:#e85a5a;border:1px solid #e85a5a;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer">⚠️ Não recebi</button>
+      </div>
+    </div>
+  `;
+}
+
+async function confirmarRecebimento(id) {
+  if (!confirm('Confirmas que recebeste o valor na tua conta bancária?\n\nFica registado o teu nome, data e dispositivo. Não dá para desfazer.')) return;
+  const { error } = await db.from('pagamentos').update({
+    confirmado_motorista_em: new Date().toISOString(),
+    confirmado_motorista_ua: navigator.userAgent,
+    // ip: não temos no client, fica null (admin pode resolver via IP do request)
+  }).eq('id', id);
+  if (error) { alert('Erro: ' + error.message); console.error(error); return; }
+  // Refresh visual
+  if (typeof carregarPagamentos === 'function') {
+    await carregarPagamentos();
+  } else {
+    location.reload();
+  }
+}
+
+async function contestarRecebimento(id) {
+  const motivo = prompt('Conta o que se passou (ex: "valor diferente", "nada chegou", "errado no IBAN"):');
+  if (motivo === null) return;
+  const { error } = await db.from('pagamentos').update({
+    contestado_motorista_em: new Date().toISOString(),
+    contestado_motorista_motivo: motivo || '(sem detalhes)',
+  }).eq('id', id);
+  if (error) { alert('Erro: ' + error.message); console.error(error); return; }
+  alert('Reportaste o problema. A operadora vai analisar e contactar-te.');
+  if (typeof carregarPagamentos === 'function') {
+    await carregarPagamentos();
+  } else {
+    location.reload();
+  }
 }
 
 function renderEmpty() {
