@@ -2125,20 +2125,20 @@ function renderTabelaPagamentos() {
 }
 
 function renderEstadoPagamento(p) {
-  // 4 estados visuais: pendente / pago a aguardar / pago confirmado / contestado
-  if (p.estado !== 'pago') {
-    return '<span class="badge badge-orange"><span class="badge-dot"></span>Pendente</span>';
+  // Fluxo: pendente -> motorista valida -> confirmado (transferir) ou contestado -> pago
+  if (p.estado === 'pago') {
+    return '<span class="badge badge-green" title="Transferência efectuada"><span class="badge-dot"></span>✓ Pago</span>';
   }
   if (p.contestado_motorista_em) {
-    const motivo = (p.contestado_motorista_motivo || '').replace(/'/g, '&apos;').slice(0, 200);
+    const motivo = (p.contestado_motorista_motivo || '').replace(/"/g, '&quot;').slice(0, 200);
     const dt = new Date(p.contestado_motorista_em).toLocaleString('pt-PT');
-    return `<span class="badge badge-red" title="Contestado em ${dt}${motivo ? ' — ' + motivo : ''}"><span class="badge-dot"></span>⚠️ Contestado</span>`;
+    return `<span class="badge badge-red" title="Contestado em ${dt}${motivo ? ' — &quot;' + motivo + '&quot;' : ''}"><span class="badge-dot"></span>⚠️ Contestado</span>`;
   }
   if (p.confirmado_motorista_em) {
     const dt = new Date(p.confirmado_motorista_em).toLocaleString('pt-PT');
-    return `<span class="badge badge-green" title="Motorista confirmou em ${dt}"><span class="badge-dot"></span>✓✓ Recebido</span>`;
+    return `<span class="badge badge-green" title="Motorista confirmou valor em ${dt} — pronto para transferir"><span class="badge-dot"></span>✓ Pronto p/ transferir</span>`;
   }
-  return '<span class="badge badge-green" title="Pago — motorista ainda não confirmou"><span class="badge-dot"></span>Pago (a confirmar)</span>';
+  return '<span class="badge badge-orange" title="A aguardar validação do motorista"><span class="badge-dot"></span>🔔 A validar</span>';
 }
 
 function renderLinhaPagamento(p) {
@@ -2167,6 +2167,14 @@ function renderLinhaPagamento(p) {
 }
 
 async function marcarPago(id) {
+  const p = pagamentos.find(x => x.id === id);
+  // Avisar se ainda não foi validado pelo motorista
+  if (p && !p.confirmado_motorista_em && !p.contestado_motorista_em) {
+    if (!confirm('⚠️ O motorista ainda não validou este valor. Marcar como pago mesmo assim?')) return;
+  }
+  if (p && p.contestado_motorista_em) {
+    if (!confirm('⚠️ Este pagamento foi CONTESTADO pelo motorista:\n\n"' + (p.contestado_motorista_motivo || '(sem motivo)') + '"\n\nMarcar como pago mesmo assim?')) return;
+  }
   const ref = prompt('Referência da transferência (opcional):') || '';
   const { error } = await db.from('pagamentos').update({
     estado:'pago', data_pagamento: new Date().toISOString(), referencia_transferencia: ref
@@ -2180,11 +2188,28 @@ async function marcarPago(id) {
 async function marcarTodosPagos() {
   const semPags = pagamentos.filter(p => p.semana_inicio === semanaAtual && p.estado !== 'pago');
   if (!semPags.length) { toast('Todos já estão pagos!'); return; }
-  if (!confirm(`Marcar ${semPags.length} motoristas como pagos?`)) return;
-  const ids = semPags.map(p=>p.id);
+  // Por defeito só marca os CONFIRMADOS pelo motorista (modo seguro)
+  const confirmados = semPags.filter(p => p.confirmado_motorista_em && !p.contestado_motorista_em);
+  const naoValidados = semPags.filter(p => !p.confirmado_motorista_em && !p.contestado_motorista_em);
+  const contestados = semPags.filter(p => p.contestado_motorista_em);
+
+  let alvo = confirmados;
+  let msg = `Marcar ${confirmados.length} pagamentos CONFIRMADOS pelo motorista como pagos?`;
+  if (naoValidados.length || contestados.length) {
+    msg += `\n\n${naoValidados.length} ainda por validar · ${contestados.length} contestados ficam de fora.`;
+    if (confirmados.length === 0) {
+      // Nenhum confirmado — perguntar se quer forçar todos
+      if (!confirm(`Nenhum motorista confirmou ainda. Marcar TODOS os ${semPags.length} pagamentos como pagos mesmo assim?`)) return;
+      alvo = semPags;
+    } else {
+      if (!confirm(msg)) return;
+    }
+  } else if (!confirm(msg)) return;
+
+  const ids = alvo.map(p=>p.id);
   const { error } = await db.from('pagamentos').update({estado:'pago',data_pagamento:new Date().toISOString()}).in('id',ids);
   if (error) { toast('Erro', 'error'); return; }
-  toast(`✅ ${semPags.length} pagamentos marcados!`);
+  toast(`✅ ${alvo.length} pagamentos marcados!`);
   await carregarDados();
   renderTabelaPagamentos();
 }
