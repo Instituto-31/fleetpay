@@ -2486,9 +2486,32 @@ function findMotorista(nome, opts) {
 }
 
 let uberData = [], boltData = [];
+let semanaCsvDetectada = null;  // semana extraída automaticamente do nome do ficheiro
+
+function extrairSemanaDoNomeFicheiro(nome) {
+  // Uber: '20260518-20260525-payments_driver-...csv' -> '2026-05-18'
+  // Bolt: 'driver_earnings_20260518_20260524.csv' ou similar -> '2026-05-18'
+  if (!nome) return null;
+  // Procurar primeiro YYYYMMDD no nome
+  const m = nome.match(/(\d{4})(\d{2})(\d{2})/);
+  if (!m) return null;
+  const candidato = `${m[1]}-${m[2]}-${m[3]}`;
+  // Validar que é uma data sensata (não 19990101 etc)
+  const dt = new Date(candidato + 'T00:00:00');
+  if (isNaN(dt.getTime())) return null;
+  const ano = dt.getFullYear();
+  if (ano < 2024 || ano > 2030) return null;
+  return getSegundaFeira(dt); // normalizar para segunda da semana
+}
 
 function processUber(file) {
   if (!file) return;
+  // Extrair semana do nome do ficheiro (Uber inclui período no filename)
+  const semanaFile = extrairSemanaDoNomeFicheiro(file.name);
+  if (semanaFile) {
+    semanaCsvDetectada = semanaFile;
+    console.log('[Uber CSV] semana detectada do nome:', semanaFile, '(file:', file.name + ')');
+  }
   const reader = new FileReader();
   reader.onload = e => {
     const rows = parseCSV(e.target.result);
@@ -2523,6 +2546,11 @@ function processUber(file) {
 
 function processBolt(file) {
   if (!file) return;
+  const semanaFile = extrairSemanaDoNomeFicheiro(file.name);
+  if (semanaFile) {
+    semanaCsvDetectada = semanaFile;
+    console.log('[Bolt CSV] semana detectada do nome:', semanaFile, '(file:', file.name + ')');
+  }
   const reader = new FileReader();
   reader.onload = e => {
     const rows = parseCSV(e.target.result);
@@ -2592,9 +2620,14 @@ function mostrarPreviewCSV() {
     };
   });
 
+  // Usar semana detectada do nome do ficheiro (Uber/Bolt) se houver; senão semana actual
+  const semanaPreview = semanaCsvDetectada || semanaAtual;
+  const indicador = semanaCsvDetectada
+    ? `<span style="color:var(--green);font-size:11px;margin-left:8px">🤖 detectada do nome do ficheiro</span>`
+    : `<small style="color:var(--sub2);margin-left:8px">(escolhe a segunda da semana)</small>`;
   document.getElementById('csv-preview-sub').innerHTML = `${csvDados.length} motoristas · semana
-    <input id="csv-semana-input" type="date" value="${semanaAtual}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;font:inherit;background:var(--paper-2);color:var(--paper)" />
-    <small style="color:var(--sub2);margin-left:8px">(escolhe a segunda da semana)</small>`;
+    <input id="csv-semana-input" type="date" value="${semanaPreview}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;font:inherit;background:var(--paper-2);color:var(--paper)" />
+    ${indicador}`;
   document.getElementById('csv-preview-body').innerHTML = `
     <table>
       <thead><tr><th>Motorista</th><th>Associado</th><th>Uber bruto</th><th>Uber líq.</th><th>Bolt líq.</th><th>Comissão</th><th>Slot</th><th>A receber</th></tr></thead>
@@ -2703,7 +2736,7 @@ async function confirmarCSV() {
   }
 
   toast(`✅ ${ok} pagamentos guardados${erros>0?` · ${erros} erros`:''}`);
-  uberData = []; boltData = []; csvDados = [];
+  uberData = []; boltData = []; csvDados = []; semanaCsvDetectada = null;
   await carregarDados();
   showPage('pagamentos');
 }
