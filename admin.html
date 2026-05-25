@@ -2819,13 +2819,13 @@ function renderLinhaMotorista(m) {
       <td>${estadoDoc}</td>
       <td>${estadoBadge}</td>
       <td style="text-align:right;white-space:nowrap">
-        <div style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" title="Editar" onclick="modalMotorista('${m.id}')">✏️ Editar</button>
+        <div style="display:inline-flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" title="Editar motorista" onclick="modalMotorista('${m.id}')" style="padding:6px 10px">✏️</button>
           ${ativo
-            ? `<button class="btn btn-ghost btn-sm" title="Convidar via magic link" onclick="convidarMotorista('${m.id}')">📧 Convidar</button>
-               <button class="btn btn-ghost btn-sm" title="Desactivar (mantém histórico)" onclick="toggleAtivoMotorista('${m.id}', false)" style="color:var(--orange)">⏸️ Desactivar</button>`
-            : `<button class="btn btn-ghost btn-sm" title="Reactivar" onclick="toggleAtivoMotorista('${m.id}', true)" style="color:var(--green)">↻ Reactivar</button>
-               <button class="btn btn-danger btn-sm" title="Eliminar permanentemente" onclick="eliminarMotoristaPermanente('${m.id}')">🗑️ Eliminar</button>`
+            ? `<button class="btn btn-ghost btn-sm" title="Convidar (enviar magic link)" onclick="convidarMotorista('${m.id}')" style="padding:6px 10px">📧</button>
+               <button class="btn btn-ghost btn-sm" title="Desactivar — mantém histórico, deixa de aparecer nos activos" onclick="toggleAtivoMotorista('${m.id}', false)" style="padding:6px 10px;color:var(--orange)">⏸️</button>`
+            : `<button class="btn btn-ghost btn-sm" title="Reactivar motorista" onclick="toggleAtivoMotorista('${m.id}', true)" style="padding:6px 10px;color:var(--green)">↻</button>
+               <button class="btn btn-danger btn-sm" title="Eliminar PERMANENTEMENTE (só se sem histórico)" onclick="eliminarMotoristaPermanente('${m.id}')" style="padding:6px 10px">🗑️</button>`
           }
         </div>
       </td>
