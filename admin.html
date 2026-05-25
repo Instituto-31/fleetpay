@@ -3326,62 +3326,97 @@ async function renderPrio() {
 // Upload simples PRIO (formato fixo conhecido)
 async function processarUploadPRIO(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async e => {
-    const text = e.target.result;
-    const sep = (text.split('\n')[0]||'').includes(';') ? ';' : ',';
-    const linhas = text.split(/\r?\n/).filter(l => l.trim());
-    if (linhas.length < 2) { toast('Ficheiro vazio ou sem dados','error'); return; }
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
 
-    // Parser PRIO: header com nomes em PT
-    const header = linhas[0].split(sep).map(c => c.trim().replace(/^"|"$/g,'').toLowerCase());
-    const idxMatricula = header.findIndex(c => c.includes('matr') || c.includes('plate'));
-    const idxData = header.findIndex(c => c.includes('data') || c.includes('date'));
-    const idxValor = header.findIndex(c => c.includes('total') || c.includes('valor') || c.includes('montante'));
-    const idxLitros = header.findIndex(c => c.includes('litro') || c.includes('quant'));
+  let linhas = [];
+  let header = [];
+  try {
+    if (ext === 'xlsx' || ext === 'xls') {
+      // Suporte XLSX (caso PRIO mude para Excel um dia)
+      if (typeof XLSX === 'undefined') { toast('SheetJS não carregou','error'); return; }
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type:'array', cellDates:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const all = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false });
+      // Procurar linha header (com "matr" / "viatura" / "veiculo")
+      const headerIdx = all.findIndex(linha => linha.some(c => /matr|viatura|ve[ií]culo|placa/i.test(String(c))));
+      if (headerIdx < 0) { toast('Não encontrei linha de cabeçalho no Excel — verifica ficheiro','error'); return; }
+      header = all[headerIdx].map(c => String(c).trim().toLowerCase());
+      linhas = all.slice(headerIdx + 1).map(l => l.map(c => String(c ?? '').trim()));
+    } else {
+      // CSV — tentar latin1 primeiro (PRIO costuma exportar assim), fallback utf-8
+      let text = await file.text();
+      // Detectar separador
+      const primLinha = text.split('\n')[0] || '';
+      const sep = primLinha.includes(';') ? ';' : (primLinha.includes('\t') ? '\t' : ',');
+      const todasLinhas = text.split(/\r?\n/).filter(l => l.trim());
+      if (todasLinhas.length < 2) { toast('Ficheiro vazio ou sem dados','error'); return; }
 
-    if (idxMatricula < 0 || idxData < 0 || idxValor < 0) {
-      toast('CSV não tem colunas Matrícula/Data/Valor — verifica formato PRIO','error');
-      return;
+      // Procurar linha que parece header (PRIO mete preâmbulo nas 1as linhas às vezes)
+      let headerIdx = todasLinhas.findIndex(l => /matr|viatura|ve[ií]culo|placa/i.test(l));
+      if (headerIdx < 0) headerIdx = 0;
+      header = todasLinhas[headerIdx].split(sep).map(c => c.trim().replace(/^"|"$/g,'').toLowerCase());
+      linhas = todasLinhas.slice(headerIdx + 1).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g,'')));
     }
+  } catch (e) {
+    console.error('PRIO parse:', e);
+    toast('Erro a ler ficheiro: ' + (e.message || 'desconhecido'),'error');
+    return;
+  }
 
-    const carregamentos = [];
-    linhas.slice(1).forEach(linha => {
-      const cols = linha.split(sep).map(c => c.trim().replace(/^"|"$/g,''));
-      const matricula = (cols[idxMatricula]||'').replace(/[\s-]/g,'').toUpperCase();
-      const dataRaw = cols[idxData]||'';
-      const valor = parseFloat((cols[idxValor]||'').replace(',','.').replace(/[^\d.-]/g,''));
-      if (!matricula || !valor || valor <= 0) return;
+  console.log('[PRIO] header detectado:', header);
+  console.log('[PRIO] ' + linhas.length + ' linhas de dados');
 
-      // Data PT: DD/MM/YYYY
-      let data = '';
-      const partes = dataRaw.split(/[\/\- ]/);
+  // Encontrar índices (mais tolerante que antes)
+  const idxMatricula = header.findIndex(c => /matr|viatura|ve[ií]culo|placa/i.test(c));
+  const idxData = header.findIndex(c => /^data$|^date$|^dia$|transac|opera|^dt/i.test(c));
+  const idxValor = header.findIndex(c => /(valor|total|montante|pre[çc]o|euro|amount)/i.test(c) && !/iva|imposto|desc/i.test(c));
+  const idxLitros = header.findIndex(c => /litro|quant|qtd/i.test(c) && !/preço|valor/i.test(c));
+
+  if (idxMatricula < 0 || idxValor < 0) {
+    toast(`Não encontrei coluna Matrícula ou Valor. Header detectado: ${header.join(' | ')}`, 'error');
+    return;
+  }
+
+  const carregamentos = [];
+  linhas.forEach(cols => {
+    const matricula = (cols[idxMatricula]||'').replace(/[\s-]/g,'').toUpperCase();
+    const dataRaw = idxData >= 0 ? (cols[idxData]||'') : '';
+    const valor = parseFloat((cols[idxValor]||'').replace(/[€\s]/g,'').replace(',','.').replace(/[^\d.-]/g,''));
+    if (!matricula || !valor || valor <= 0) return;
+
+    // Data: DD/MM/YYYY ou YYYY-MM-DD ou Date object
+    let data = '';
+    if (dataRaw) {
+      const partes = dataRaw.split(/[\/\-\s]/).filter(Boolean);
       if (partes.length >= 3) {
         if (partes[0].length === 4) data = `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].substring(0,2).padStart(2,'0')}`;
         else data = `${partes[2].substring(0,4)}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
       }
-      if (!data) data = new Date().toISOString().split('T')[0];
+    }
+    if (!data) data = new Date().toISOString().split('T')[0];
 
-      const veiculo = veiculos.find(v => v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
-      const litros = idxLitros >= 0 ? parseFloat((cols[idxLitros]||'').replace(',','.')) || null : null;
+    const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
+    const litros = idxLitros >= 0 ? parseFloat((cols[idxLitros]||'').replace(',','.')) || null : null;
 
-      carregamentos.push({
-        empresa_id: empresa.id,
-        motorista_id: veiculo?.motorista_id || null,
-        matricula, data, valor,
-        litros, semana_inicio: semanaAtual,
-        fornecedor: 'prio'
-      });
+    carregamentos.push({
+      empresa_id: empresa.id,
+      motorista_id: veiculo?.motorista_id || null,
+      matricula, data, valor,
+      litros, semana_inicio: semanaAtual,
+      fornecedor: 'prio'
     });
+  });
 
-    if (!carregamentos.length) { toast('Nenhum carregamento válido encontrado','error'); return; }
+  if (!carregamentos.length) {
+    toast(`Nenhum carregamento válido encontrado. Header: ${header.join(' | ')}`,'error');
+    return;
+  }
 
-    const { error } = await db.from('prio_carregamentos').insert(carregamentos);
-    if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
-    toast(`✅ ${carregamentos.length} carregamentos PRIO importados`);
-    await carregarResumoCombustivel();
-  };
-  reader.readAsText(file, 'utf-8');
+  const { error } = await db.from('prio_carregamentos').insert(carregamentos);
+  if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
+  toast(`✅ ${carregamentos.length} carregamentos PRIO importados`);
+  await carregarResumoCombustivel();
 }
 
 async function carregarMappingsCSV() {
