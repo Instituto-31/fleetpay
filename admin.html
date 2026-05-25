@@ -2622,12 +2622,28 @@ function mostrarPreviewCSV() {
 
   // Usar semana detectada do nome do ficheiro (Uber/Bolt) se houver; senão semana actual
   const semanaPreview = semanaCsvDetectada || semanaAtual;
-  const indicador = semanaCsvDetectada
-    ? `<span style="color:var(--green);font-size:11px;margin-left:8px">🤖 detectada do nome do ficheiro</span>`
-    : `<small style="color:var(--sub2);margin-left:8px">(escolhe a segunda da semana)</small>`;
-  document.getElementById('csv-preview-sub').innerHTML = `${csvDados.length} motoristas · semana
-    <input id="csv-semana-input" type="date" value="${semanaPreview}" style="margin-left:8px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;font:inherit;background:var(--paper-2);color:var(--paper)" />
-    ${indicador}`;
+  // Calcular labels úteis: semana anterior, actual e detectada
+  const semanaAnt = (() => {
+    const d = new Date(semanaAtual+'T00:00:00');
+    d.setDate(d.getDate() - 7);
+    return _ymd(d);
+  })();
+  const fmtSem = (s) => `${fmtDshort(s)} – ${fmtDshort(getDomingo(s))}`;
+  document.getElementById('csv-preview-sub').innerHTML = `
+    <div style="font-size:13px;margin-bottom:8px"><strong>${csvDados.length} motoristas</strong></div>
+    <div style="background:rgba(200,146,42,0.08);border:2px solid var(--gold);border-radius:6px;padding:14px;margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">🗓️ Semana destes pagamentos</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <button class="btn btn-sm ${semanaPreview===semanaAnt?'btn-gold':'btn-ghost'}" onclick="document.getElementById('csv-semana-input').value='${semanaAnt}';atualizarLabelSemana()">← Semana passada<br><small style="font-weight:400">${fmtSem(semanaAnt)}</small></button>
+        <button class="btn btn-sm ${semanaPreview===semanaAtual?'btn-gold':'btn-ghost'}" onclick="document.getElementById('csv-semana-input').value='${semanaAtual}';atualizarLabelSemana()">Semana actual<br><small style="font-weight:400">${fmtSem(semanaAtual)}</small></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <small style="color:var(--sub2)">Ou escolher data:</small>
+        <input id="csv-semana-input" type="date" value="${semanaPreview}" onchange="atualizarLabelSemana()" style="padding:6px 10px;border:1px solid var(--line);border-radius:4px;font:inherit;background:var(--paper-2);color:var(--paper)" />
+        <span id="csv-semana-label" style="font-weight:600;color:var(--gold)">${fmtSem(semanaPreview)}</span>
+      </div>
+      ${semanaCsvDetectada ? `<div style="color:var(--green);font-size:11px;margin-top:8px">🤖 detectada automaticamente do nome do ficheiro</div>` : ''}
+    </div>`;
   document.getElementById('csv-preview-body').innerHTML = `
     <table>
       <thead><tr><th>Motorista</th><th>Associado</th><th>Uber bruto</th><th>Uber líq.</th><th>Bolt líq.</th><th>Comissão</th><th>Slot</th><th>A receber</th></tr></thead>
@@ -2647,6 +2663,14 @@ function mostrarPreviewCSV() {
     </table>
   `;
   document.getElementById('csv-preview-wrap').style.display = '';
+}
+
+function atualizarLabelSemana() {
+  const input = document.getElementById('csv-semana-input');
+  const label = document.getElementById('csv-semana-label');
+  if (!input || !label) return;
+  const s = getSegundaFeira(new Date(input.value + 'T00:00:00'));
+  label.textContent = `${fmtDshort(s)} – ${fmtDshort(getDomingo(s))}`;
 }
 
 async function confirmarCSV() {
