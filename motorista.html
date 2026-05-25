@@ -660,29 +660,49 @@ function mostrarModalTermos(versao) {
 
 async function aceitarTermos(versaoId) {
   const btn = document.getElementById('btn-aceitar-termos');
-  const restaurar = () => { btn.disabled = false; btn.textContent = '✓ Aceitar e continuar'; btn.style.opacity = '1'; };
+  const restaurar = (msg) => {
+    btn.disabled = false;
+    btn.textContent = '✓ Aceitar e continuar';
+    btn.style.opacity = '1';
+    if (msg) {
+      let zone = document.getElementById('termos-erro');
+      if (!zone) {
+        zone = document.createElement('div');
+        zone.id = 'termos-erro';
+        zone.style.cssText = 'margin-top:10px;padding:10px 12px;background:rgba(232,90,90,0.12);border:1px solid #e85a5a;border-radius:4px;color:#fff;font-size:12px;line-height:1.5;white-space:pre-wrap';
+        btn.parentElement.appendChild(zone);
+      }
+      zone.textContent = msg;
+    }
+  };
   btn.disabled = true; btn.textContent = '⏳ A registar...';
 
-  console.log('[termos] motorista.id:', motorista?.id, 'versaoId:', versaoId);
+  console.log('[termos] motorista.id:', motorista?.id, 'versaoId:', versaoId, 'auth.uid esperado:', motorista?.perfil_id);
+
+  if (!motorista?.id) { restaurar('❌ Motorista não identificado. Volta a fazer login.'); return; }
+  if (!motorista?.perfil_id) { restaurar('❌ A tua conta não está ligada a uma frota. Contacta a operadora — diz o teu email.'); return; }
+  if (!versaoId) { restaurar('❌ Versão dos termos não disponível. Recarrega a página.'); return; }
 
   try {
-    // Timeout de 15s para evitar UI presa se a rede/RLS pendurar
+    // Timeout 8s + log detalhado
     const insert = db.from('termos_aceitacoes').insert({
       motorista_id: motorista.id,
       termos_versao_id: versaoId,
       user_agent: navigator.userAgent
     });
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout (15s)')), 15000));
-    const { error } = await Promise.race([insert, timeout]);
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_8S')), 8000));
+    const { data, error } = await Promise.race([insert, timeout]);
 
     if (error) {
-      console.error('[termos] erro insert:', error);
-      // Tratamento especial: já tinha aceite (UNIQUE constraint) → seguir em frente
+      console.error('[termos] erro insert:', JSON.stringify(error));
+      // Já tinha aceite (UNIQUE) → segue em frente
       if (error.code === '23505' || /duplicate|unique/i.test(error.message||'')) {
-        console.log('[termos] já tinha aceite — seguir');
+        console.log('[termos] ja tinha aceite — seguir');
+      } else if (error.code === '42501' || /row-level|policy/i.test(error.message||'')) {
+        restaurar('⚠️ Permissão negada (RLS).\n\nA tua conta não tem permissão para registar aceitação.\nDetalhes: ' + (error.message||'') + '\n\nContacta a operadora.');
+        return;
       } else {
-        alert('Não foi possível registar a aceitação:\n\n' + (error.message || JSON.stringify(error)) + '\n\nTenta de novo. Se continuar, faz print desta janela e envia ao operador.');
-        restaurar();
+        restaurar('❌ Erro: ' + (error.message || JSON.stringify(error)) + '\n\nFaz screenshot e envia à operadora.');
         return;
       }
     }
@@ -690,9 +710,12 @@ async function aceitarTermos(versaoId) {
     document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
     setTimeout(() => verificarCompliance(), 200);
   } catch (e) {
-    console.error('[termos] exceção:', e);
-    alert('Erro inesperado: ' + (e.message || e) + '\n\nVerifica a tua ligação e tenta de novo.');
-    restaurar();
+    console.error('[termos] excecao:', e);
+    if (e.message === 'TIMEOUT_8S') {
+      restaurar('⏱️ Servidor demorou demais (8s).\n\nIsto pode ser:\n• Conexão lenta — tenta novamente\n• Servidor a bloquear — contacta a operadora\n\nFaz screenshot.');
+    } else {
+      restaurar('❌ ' + (e.message || e) + '\n\nVerifica internet e tenta de novo.');
+    }
   }
 }
 
