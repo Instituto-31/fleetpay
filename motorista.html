@@ -452,10 +452,16 @@ async function init() {
 
   // Avisos + cupões (não-bloqueantes; falham silenciosamente se tabelas ainda não existirem)
   await carregarAvisosECupoes();
-  renderApp();
 
-  // ── COMPLIANCE: validar Termos aceites + check diário ──
-  await verificarCompliance();
+  // ── COMPLIANCE: BLOQUEAR app até motorista aceitar termos ──
+  // (corre ANTES de renderApp para que o motorista nao veja a app primeiro)
+  const podeContinuar = await verificarComplianceBloqueante();
+  if (!podeContinuar) {
+    // Modal de termos aparece e bloqueia. App nao renderiza ate aceitar.
+    return;
+  }
+
+  renderApp();
 
   // ── PASSWORD: oferecer definir password se nunca foi feito (só passa por aqui no 1º login) ──
   setTimeout(() => sugerirDefinirPassword(), 4000);
@@ -594,28 +600,70 @@ async function carregarAvisosECupoes() {
   } catch(e) { chatNaoLidas = 0; }
 }
 
-async function verificarCompliance() {
-  // 1) Termos: existe versão ativa que ainda não foi aceite?
-  const { data: ativa } = await db.from('termos_versoes')
+// Retorna true se motorista pode continuar (aceitou termos OU não há versão activa)
+// Retorna false se modal de termos foi mostrado e motorista tem de aceitar primeiro.
+async function verificarComplianceBloqueante() {
+  if (!motorista?.empresa_id) {
+    // Sem empresa definida → bloquear com mensagem
+    mostrarBloqueioErro('Conta não associada a frota', 'A tua conta não está ligada a nenhuma empresa. Contacta a operadora.');
+    return false;
+  }
+
+  // 1) Procurar versão activa de termos para a empresa do motorista
+  const { data: ativa, error: errAtiva } = await db.from('termos_versoes')
     .select('*').eq('empresa_id', motorista.empresa_id).eq('ativo', true).maybeSingle();
 
+  if (errAtiva) {
+    console.error('[compliance] erro a ler termos_versoes:', errAtiva);
+    mostrarBloqueioErro('Erro ao verificar termos', 'Não foi possível verificar as condições de utilização. Recarrega a página. Se persistir, contacta operadora.\n\n' + (errAtiva.message || ''));
+    return false;
+  }
+
   if (ativa) {
-    const { data: aceites } = await db.from('termos_aceitacoes')
+    const { data: aceites, error: errAc } = await db.from('termos_aceitacoes')
       .select('id').eq('motorista_id', motorista.id).eq('termos_versao_id', ativa.id).limit(1);
+    if (errAc) {
+      console.error('[compliance] erro a ler aceitacoes:', errAc);
+      mostrarBloqueioErro('Erro a verificar aceitação', errAc.message || 'Erro desconhecido. Contacta operadora.');
+      return false;
+    }
     if (!aceites || !aceites.length) {
+      // Motorista NÃO aceitou — bloquear com modal
       mostrarModalTermos(ativa);
-      return; // bloqueia checklist até aceitar
+      return false;
     }
   }
 
-  // 2) Checklist do dia já feito?
-  const hoje = new Date().toISOString().split('T')[0];
-  const { data: ckHoje } = await db.from('checklists_diarios')
-    .select('id').eq('motorista_id', motorista.id).eq('data', hoje).maybeSingle();
+  // OK pode continuar — agendar verificação de checklist diário (não bloqueante)
+  setTimeout(() => {
+    (async () => {
+      const hoje = new Date().toISOString().split('T')[0];
+      const { data: ckHoje } = await db.from('checklists_diarios')
+        .select('id').eq('motorista_id', motorista.id).eq('data', hoje).maybeSingle();
+      if (!ckHoje) mostrarBannerChecklist();
+    })();
+  }, 1500);
 
-  if (!ckHoje) {
-    mostrarBannerChecklist();
-  }
+  return true;
+}
+
+// Alias para compatibilidade com chamadas antigas
+async function verificarCompliance() {
+  const ok = await verificarComplianceBloqueante();
+  if (ok && typeof renderApp === 'function') renderApp();
+}
+
+function mostrarBloqueioErro(titulo, sub) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML = `
+    <div style="background:var(--ink);border:1px solid #e85a5a;border-radius:8px;max-width:480px;padding:28px;text-align:center">
+      <div style="font-size:42px;margin-bottom:14px">⚠️</div>
+      <h2 style="font-family:var(--serif);font-size:22px;color:#fff;margin-bottom:10px">${titulo}</h2>
+      <p style="font-size:13px;color:var(--paper);line-height:1.6;white-space:pre-line;margin-bottom:20px">${sub}</p>
+      <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')" style="padding:12px 24px;background:#e85a5a;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer">Sair</button>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 function mostrarModalTermos(versao) {
@@ -707,8 +755,10 @@ async function aceitarTermos(versaoId) {
       }
     }
 
+    // Aceitou! Remover modal e RENDERIZAR app (que estava bloqueada)
     document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
-    setTimeout(() => verificarCompliance(), 200);
+    if (typeof renderApp === 'function') renderApp();
+    setTimeout(() => verificarComplianceBloqueante(), 300);
   } catch (e) {
     console.error('[termos] excecao:', e);
     if (e.message === 'TIMEOUT_8S') {
