@@ -2819,13 +2819,13 @@ function renderLinhaMotorista(m) {
       <td>${estadoDoc}</td>
       <td>${estadoBadge}</td>
       <td style="text-align:right;white-space:nowrap">
-        <div style="display:inline-flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" title="Editar" onclick="modalMotorista('${m.id}')">✏️</button>
+        <div style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" title="Editar" onclick="modalMotorista('${m.id}')">✏️ Editar</button>
           ${ativo
-            ? `<button class="btn btn-ghost btn-sm" title="Convidar" onclick="convidarMotorista('${m.id}')">📧</button>
-               <button class="btn btn-ghost btn-sm" title="Desactivar (mantém histórico)" onclick="toggleAtivoMotorista('${m.id}', false)">⊘</button>`
-            : `<button class="btn btn-ghost btn-sm" title="Reactivar" onclick="toggleAtivoMotorista('${m.id}', true)">↺ Reactivar</button>
-               <button class="btn btn-danger btn-sm" title="Eliminar permanentemente" onclick="eliminarMotoristaPermanente('${m.id}')">🗑️</button>`
+            ? `<button class="btn btn-ghost btn-sm" title="Convidar via magic link" onclick="convidarMotorista('${m.id}')">📧 Convidar</button>
+               <button class="btn btn-ghost btn-sm" title="Desactivar (mantém histórico)" onclick="toggleAtivoMotorista('${m.id}', false)" style="color:var(--orange)">⏸️ Desactivar</button>`
+            : `<button class="btn btn-ghost btn-sm" title="Reactivar" onclick="toggleAtivoMotorista('${m.id}', true)" style="color:var(--green)">↻ Reactivar</button>
+               <button class="btn btn-danger btn-sm" title="Eliminar permanentemente" onclick="eliminarMotoristaPermanente('${m.id}')">🗑️ Eliminar</button>`
           }
         </div>
       </td>
