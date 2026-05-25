@@ -2624,6 +2624,17 @@ async function confirmarCSV() {
   const domingo = getDomingo(segunda);
   const temUber = uberData.length > 0;
   const temBolt = boltData.length > 0;
+
+  // Confirmação visual + log para diagnosticar bugs de semana
+  console.log('[confirmarCSV] semanaCSV input:', semanaCSV, '| calculada segunda:', segunda, '| domingo:', domingo, '| semanaAtual var:', semanaAtual);
+  const fontes = [temUber ? 'Uber' : '', temBolt ? 'Bolt' : ''].filter(Boolean).join(' + ');
+  const ok2 = confirm(
+    `Vais gravar ${csvDados.length} pagamentos (${fontes})\n\n` +
+    `Semana: ${segunda} a ${domingo}\n\n` +
+    `Confirmas?`
+  );
+  if (!ok2) return;
+
   let ok = 0, erros = 0;
 
   for (const d of csvDados) {
