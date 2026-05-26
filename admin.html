@@ -3019,10 +3019,23 @@ function modalMotorista(id=null) {
 }
 
 async function carregarTermosAceitesMotoristaModal(motoristaId) {
-  const { data } = await db.from('termos_aceitacoes')
-    .select('id, aceite_em, ip, user_agent, validado_por, validado_em, validado_user_agent, termos_versoes(versao, titulo), validador:validado_por(nome, email)')
+  // Query simplificada: sem JOIN com auth.users (que pode falhar por RLS)
+  const { data, error } = await db.from('termos_aceitacoes')
+    .select('id, aceite_em, ip, user_agent, validado_por, validado_em, validado_user_agent, termos_versoes(versao, titulo)')
     .eq('motorista_id', motoristaId)
     .order('aceite_em', { ascending: false });
+
+  if (error) {
+    console.error('[carregarTermosAceitesMotoristaModal] erro:', error);
+  }
+
+  // Buscar nomes dos validadores em query separada (RLS-safe)
+  const validadorIds = [...new Set((data || []).map(a => a.validado_por).filter(Boolean))];
+  let validadoresMap = {};
+  if (validadorIds.length) {
+    const { data: vs } = await db.from('perfis').select('id, nome, email').in('id', validadorIds);
+    (vs || []).forEach(v => { validadoresMap[v.id] = v; });
+  }
 
   const wrap = document.getElementById('motorista-termos-list');
   if (!wrap) return;
@@ -3041,7 +3054,8 @@ async function carregarTermosAceitesMotoristaModal(motoristaId) {
     const titulo = a.termos_versoes?.titulo || 'Termos & Condições';
     const dispositivo = (a.user_agent || '').match(/Android|iPhone|Windows|Mac|Linux/)?.[0] || '—';
     const validado = !!a.validado_em;
-    const validadorNome = a.validador?.nome || a.validador?.email || '—';
+    const v = validadoresMap[a.validado_por];
+    const validadorNome = v?.nome || v?.email || '—';
     const validadoDt = a.validado_em ? new Date(a.validado_em).toLocaleString('pt-PT') : '';
     return `
       <div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:4px;margin-bottom:6px">
