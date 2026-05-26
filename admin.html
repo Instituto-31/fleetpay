@@ -3527,9 +3527,11 @@ async function processarUploadPRIO(file) {
     return;
   }
 
-  const { error } = await db.from('prio_carregamentos').insert(carregamentos);
+  // UPSERT: ON CONFLICT DO NOTHING (UNIQUE em empresa_id+matricula+data+valor)
+  const { error, count } = await db.from('prio_carregamentos')
+    .upsert(carregamentos, { onConflict: 'empresa_id,matricula,data,valor', ignoreDuplicates: true, count: 'exact' });
   if (error) { toast('Erro: '+error.message,'error'); console.error(error); return; }
-  toast(`✅ ${carregamentos.length} carregamentos PRIO importados`);
+  toast(`✅ ${count ?? carregamentos.length} carregamentos PRIO importados (duplicados ignorados)`);
   await carregarResumoCombustivel();
 }
 
@@ -4027,9 +4029,11 @@ async function processViaVerde(file) {
     toast('Nenhuma portagem encontrada — verifica colunas Matrícula+Valor' + dica.substring(0, 200),'error');
     return;
   }
-  const { error } = await db.from('viaverde_portagens').insert(portagens);
+  // UPSERT: ON CONFLICT DO NOTHING (impede duplicar ao re-carregar mesmo CSV)
+  const { error, count } = await db.from('viaverde_portagens')
+    .upsert(portagens, { onConflict: 'empresa_id,matricula,data,valor', ignoreDuplicates: true, count: 'exact' });
   if (error) { toast('Erro ao guardar Via Verde: ' + error.message,'error'); console.error(error); return; }
-  toast(`🛣️ ${portagens.length} portagens importadas!`);
+  toast(`🛣️ ${count ?? portagens.length} portagens importadas! (duplicados ignorados)`);
   carregarResumoVV();
 }
 
