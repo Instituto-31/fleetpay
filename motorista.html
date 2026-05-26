@@ -463,6 +463,9 @@ async function init() {
 
   renderApp();
 
+  // ── ONBOARDING: tutorial 5 ecrãs no 1º acesso ──
+  setTimeout(() => mostrarOnboarding(), 1200);
+
   // ── PASSWORD: oferecer definir password se nunca foi feito (só passa por aqui no 1º login) ──
   setTimeout(() => sugerirDefinirPassword(), 4000);
 }
@@ -758,6 +761,8 @@ async function aceitarTermos(versaoId) {
     // Aceitou! Remover modal e RENDERIZAR app (que estava bloqueada)
     document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
     if (typeof renderApp === 'function') renderApp();
+    // Mostrar onboarding após aceitar termos (1ª vez)
+    setTimeout(() => mostrarOnboarding(), 800);
     setTimeout(() => verificarComplianceBloqueante(), 300);
   } catch (e) {
     console.error('[termos] excecao:', e);
@@ -1928,6 +1933,11 @@ async function abrirPerfil() {
           📱 Instalar app no telemóvel
         </button>
 
+        <button onclick="fecharOverlay(this);setTimeout(()=>mostrarOnboarding(true),200)"
+          style="width:100%;padding:12px;background:rgba(200,146,42,0.05);border:1px solid var(--line);border-radius:3px;color:var(--paper);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);margin-bottom:10px">
+          🎓 Rever tutorial
+        </button>
+
         <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
           style="width:100%;padding:12px;background:rgba(224,82,82,0.1);border:1px solid rgba(224,82,82,0.3);border-radius:3px;color:var(--red);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
           Terminar sessão
@@ -2185,6 +2195,96 @@ function abrirTodosAvisos() {
 }
 
 // ── Cupões / Vantagens ──
+// ─── ONBOARDING (tutorial 5 ecrãs no 1º acesso) ─────────────────────────
+const ONBOARDING_KEY = 'fp-onboarding-visto';
+
+function mostrarOnboarding(forcar = false) {
+  if (!forcar && localStorage.getItem(ONBOARDING_KEY) === '1') return;
+
+  const passos = [
+    {
+      icone: '👋',
+      titulo: 'Bem-vindo ao FleetPay',
+      texto: `Olá, ${(motorista.nome||'').split(' ')[0]}! Em 5 ecrãs explico-te como a app funciona. Demora 1 minuto.`,
+      cor: 'var(--gold)'
+    },
+    {
+      icone: '💶',
+      titulo: 'Os teus pagamentos',
+      texto: 'Todas as semanas, a operadora carrega o teu Uber + Bolt. Vês o cálculo: ganhos – comissão – despesas (slot, aluguer, PRIO, portagens). Não te preocupes com contas — está tudo no recibo.',
+      cor: 'var(--green)'
+    },
+    {
+      icone: '✓',
+      titulo: 'Validar o valor (importante!)',
+      texto: 'Quando vires um pagamento, clica nele para ver detalhe. <strong>Tens 2 botões: ✓ Concordo com o valor / ⚠️ Não concordo</strong>. Só depois de confirmares é que a operadora transfere. Se algo estiver errado, contesta com motivo.',
+      cor: 'var(--gold)'
+    },
+    {
+      icone: '⛽',
+      titulo: 'Despesas (PRIO + Portagens)',
+      texto: 'No botão <strong>⛽ Despesas</strong> em baixo vês os teus carregamentos PRIO/MOBI.E e portagens Via Verde. Já estão descontadas no recibo — só para teres registo.',
+      cor: '#e85a5a'
+    },
+    {
+      icone: '⏱️',
+      titulo: 'Tempos de condução',
+      texto: 'No topo da app tens os 5 estados de tempos (Condução / Outros / Disponível / Pausa / Outro Empregador). Marca SEMPRE para cumprir a Lei 45/2018. Tens 10h máx de condução por dia.',
+      cor: 'var(--gold)'
+    },
+    {
+      icone: '🎉',
+      titulo: 'Pronto!',
+      texto: 'Se tiveres dúvidas, usa o botão <strong>💬 Chat</strong> em baixo para falar diretamente com a operadora.<br><br>Bom trabalho!',
+      cor: 'var(--green)'
+    },
+  ];
+
+  let idx = 0;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'onboarding-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:350;display:flex;flex-direction:column;padding:24px;align-items:center;justify-content:center';
+
+  function render() {
+    const p = passos[idx];
+    overlay.innerHTML = `
+      <div style="background:var(--ink);border:1px solid var(--line);border-radius:12px;max-width:440px;width:100%;padding:36px 28px;text-align:center;animation:fadeIn .3s ease">
+        <div style="font-size:64px;margin-bottom:18px">${p.icone}</div>
+        <h2 style="font-family:var(--serif);font-size:24px;font-weight:300;color:${p.cor};margin-bottom:16px">${p.titulo}</h2>
+        <p style="font-size:14px;color:var(--paper);line-height:1.7;margin-bottom:28px">${p.texto}</p>
+
+        <!-- Progresso -->
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:24px">
+          ${passos.map((_,i) => `<div style="width:24px;height:4px;border-radius:100px;background:${i===idx?'var(--gold)':'rgba(255,255,255,0.2)'};transition:.2s"></div>`).join('')}
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
+          ${idx === 0
+            ? `<button onclick="fecharOnboarding()" style="background:none;border:none;color:var(--sub2);font-size:12px;cursor:pointer;text-decoration:underline">Saltar tutorial</button>`
+            : `<button onclick="navOnboarding(-1)" style="background:none;border:1px solid var(--line);color:var(--paper);padding:10px 16px;border-radius:4px;font-size:12px;cursor:pointer">← Anterior</button>`
+          }
+          <button onclick="${idx === passos.length-1 ? 'fecharOnboarding()' : 'navOnboarding(1)'}" style="background:var(--gold);color:#000;border:none;padding:12px 22px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;flex:1;max-width:200px">${idx === passos.length-1 ? '✓ Comecemos!' : 'Próximo →'}</button>
+        </div>
+
+        <div style="margin-top:18px;font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:1px">${idx+1} / ${passos.length}</div>
+      </div>
+    `;
+  }
+
+  window.navOnboarding = (dir) => {
+    idx = Math.max(0, Math.min(passos.length - 1, idx + dir));
+    render();
+  };
+  window.fecharOnboarding = () => {
+    localStorage.setItem(ONBOARDING_KEY, '1');
+    overlay.remove();
+  };
+
+  render();
+  document.body.appendChild(overlay);
+}
+
 async function abrirDespesas() {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
