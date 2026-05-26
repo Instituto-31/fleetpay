@@ -3484,11 +3484,18 @@ async function processarUploadPRIO(file) {
   const idxValorOutros = header.findIndex(c => /(valor|montante|pre[çc]o|euro|amount)/i.test(c) && !/iva|imposto|desc|duration|energy|energia|price/i.test(c));
   const idxValor = idxValorComIVA >= 0 ? idxValorComIVA : (idxValorTotal >= 0 ? idxValorTotal : idxValorOutros);
   const idxLitros = header.findIndex(c => /(^litros?$|quant|qtd|^energy$|^energia$)/i.test(c) && !/preço|valor|pre[çc]o/i.test(c));
+  // NEW: detalhes PRIO E-Charge
+  const idxEstacao = header.findIndex(c => /idchargingstation|id\s*charging\s*station|estacao|esta[çc][ãa]o|station/i.test(c));
+  const idxDuracao = header.findIndex(c => /totalduration|total\s*duration|dura[çc][ãa]o|duration/i.test(c));
+  const idxCardCode = header.findIndex(c => /^cardcode$|card\s*code/i.test(c));
 
   if (idxMatricula < 0 || idxValor < 0) {
     toast(`Não encontrei coluna Matrícula ou Valor. Header detectado: ${header.join(' | ')}`, 'error');
     return;
   }
+
+  // Detectar tipo de carregamento (electrico se tiver coluna Energy/Energia/IdChargingStation)
+  const ehElectrico = idxEstacao >= 0 || /energia|^energy$|chargingstation/i.test(header.join('|'));
 
   const carregamentos = [];
   linhas.forEach(cols => {
@@ -3500,13 +3507,18 @@ async function processarUploadPRIO(file) {
     const data = parseDataFlexivel(dataRaw);
     const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
     const litros = idxLitros >= 0 ? parseFloat((cols[idxLitros]||'').replace(',','.')) || null : null;
+    const estacao = idxEstacao >= 0 ? (cols[idxEstacao]||'').trim() || null : null;
+    const duracao_min = idxDuracao >= 0 ? parseFloat((cols[idxDuracao]||'').replace(',','.')) || null : null;
+    const card_code = idxCardCode >= 0 ? (cols[idxCardCode]||'').trim() || null : null;
 
     carregamentos.push({
       empresa_id: empresa.id,
       motorista_id: veiculo?.motorista_id || null,
       matricula, data, valor,
       litros, semana_inicio: semanaAtual,
-      fornecedor: 'prio'
+      fornecedor: 'prio',
+      estacao, duracao_min, card_code,
+      tipo: ehElectrico ? 'electrico' : 'combustivel'
     });
   });
 

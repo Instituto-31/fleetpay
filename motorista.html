@@ -2282,16 +2282,29 @@ async function abrirDespesas() {
               </div>
             </div>
             ${sem.prio.length ? `
-              <div style="padding:8px 14px 4px;font-size:10px;color:#e85a5a;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase">⛽ Combustível · ${fmt(sem.totalPrio)}</div>
-              ${sem.prio.map(r => `
-                <div style="padding:8px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);font-size:12px">
-                  <div>
-                    <div style="color:var(--paper)">${fmtD(r.data)}${r.matricula?` · <span style="font-family:var(--mono);color:var(--sub2);font-size:10px">${r.matricula}</span>`:''}</div>
-                    ${r.litros?`<div style="font-size:10px;color:var(--sub2);margin-top:2px">${r.litros} L${r.fornecedor?` · ${r.fornecedor.toUpperCase()}`:''}</div>`:''}
+              <div style="padding:8px 14px 4px;font-size:10px;color:#e85a5a;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase">⛽ Combustível & Energia · ${fmt(sem.totalPrio)}</div>
+              ${sem.prio.map(r => {
+                const ehElectrico = r.tipo === 'electrico' || r.estacao;
+                const icone = ehElectrico ? '⚡' : '⛽';
+                const unidade = ehElectrico ? 'kWh' : 'L';
+                const dataFormatada = fmtD(r.data);
+                const horaMatch = r.data ? null : null;
+                return `
+                <div style="padding:10px 14px;border-top:1px solid var(--line);font-size:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                    <div style="flex:1">
+                      <div style="color:var(--paper);font-weight:500">${icone} ${dataFormatada}${r.matricula?` <span style="font-family:var(--mono);color:var(--sub2);font-size:10px;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:3px;margin-left:4px">${r.matricula}</span>`:''}</div>
+                      <div style="font-size:10px;color:var(--sub2);margin-top:4px;line-height:1.5">
+                        ${r.litros?`<span>🔋 ${r.litros} ${unidade}</span>`:''}
+                        ${r.duracao_min?`<span style="margin-left:8px">⏱️ ${Math.round(r.duracao_min)} min</span>`:''}
+                        ${r.estacao?`<span style="margin-left:8px">📍 ${r.estacao}</span>`:''}
+                        ${ehElectrico?`<div style="margin-top:2px;color:var(--gold);font-size:9px;font-family:var(--mono);letter-spacing:1px">CARREGAMENTO ELÉCTRICO</div>`:''}
+                      </div>
+                    </div>
+                    <div style="font-family:var(--mono);color:#e85a5a;font-weight:600;white-space:nowrap">-${fmt(r.valor)}</div>
                   </div>
-                  <div style="font-family:var(--mono);color:#e85a5a;font-weight:600">-${fmt(r.valor)}</div>
                 </div>
-              `).join('')}
+              `;}).join('')}
             ` : ''}
             ${sem.vv.length ? `
               <div style="padding:8px 14px 4px;font-size:10px;color:var(--gold);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase">🛣️ Portagens · ${fmt(sem.totalVv)}</div>
