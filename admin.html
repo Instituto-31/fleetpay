@@ -3511,11 +3511,13 @@ async function processarUploadPRIO(file) {
     const duracao_min = idxDuracao >= 0 ? parseFloat((cols[idxDuracao]||'').replace(',','.')) || null : null;
     const card_code = idxCardCode >= 0 ? (cols[idxCardCode]||'').trim() || null : null;
 
+    // semana_inicio: segunda-feira da semana ONDE o carregamento aconteceu (não a semana actual!)
+    const semanaCarreg = getSegundaFeira(new Date(data + 'T00:00:00'));
     carregamentos.push({
       empresa_id: empresa.id,
       motorista_id: veiculo?.motorista_id || null,
       matricula, data, valor,
-      litros, semana_inicio: semanaAtual,
+      litros, semana_inicio: semanaCarreg,
       fornecedor: 'prio',
       estacao, duracao_min, card_code,
       tipo: ehElectrico ? 'electrico' : 'combustivel'
@@ -3856,13 +3858,15 @@ async function aplicarMappingCsv(texto, mapping, sep) {
     if (!data) data = new Date().toISOString().split('T')[0];
 
     const veiculo = veiculos.find(v => v.matricula.replace(/[\s-]/g,'').toUpperCase() === matricula);
+    // semana_inicio: segunda da semana onde o carregamento ocorreu (não semanaAtual!)
+    const semanaCarreg = getSegundaFeira(new Date(data + 'T00:00:00'));
     carregamentos.push({
       empresa_id: empresa.id,
       motorista_id: veiculo?.motorista_id || null,
       matricula,
       data,
       valor,
-      semana_inicio: semanaAtual,
+      semana_inicio: semanaCarreg,
       fornecedor: mapping.fornecedor_slug || 'outro',
       litros: m.litros !== null && m.litros !== undefined ? parseFloat((linha[m.litros]||'').replace(',','.')) || null : null,
       estacao: m.estacao !== null && m.estacao !== undefined ? linha[m.estacao] || null : null,
@@ -4012,6 +4016,8 @@ async function processViaVerde(file) {
     const dataISO = parseDataFlexivel(dataRaw);
 
     const veiculo = veiculos.find(v => v.matricula && v.matricula.replace(/[\s-]/g,'').toUpperCase() === matNorm);
+    // semana_inicio: segunda da semana onde a portagem ocorreu (não semanaAtual!)
+    const semanaPortagem = getSegundaFeira(new Date(dataISO + 'T00:00:00'));
     portagens.push({
       empresa_id: empresa.id,
       motorista_id: veiculo?.motorista_id || null,
@@ -4019,7 +4025,7 @@ async function processViaVerde(file) {
       data: dataISO,
       valor,
       descricao: chavesLocal.length ? r[chavesLocal[0]] : '',
-      semana_inicio: semanaAtual
+      semana_inicio: semanaPortagem
     });
   });
 
