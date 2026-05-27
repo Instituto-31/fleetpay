@@ -74,11 +74,13 @@ CREATE POLICY documentos_motorista_select ON documentos
       )
     )
     OR
-    -- docs da viatura atribuída ao motorista
+    -- docs da viatura atribuída ao motorista (FK em veiculos.motorista_id)
     (
       veiculo_id IS NOT NULL AND motorista_id IS NULL
       AND veiculo_id IN (
-        SELECT m.veiculo_id FROM motoristas m WHERE m.perfil_id = auth.uid() AND m.veiculo_id IS NOT NULL
+        SELECT v.id FROM veiculos v
+        INNER JOIN motoristas m ON m.id = v.motorista_id
+        WHERE m.perfil_id = auth.uid()
       )
     )
     OR
