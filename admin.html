@@ -697,6 +697,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('contratos')">
           <span class="nav-icon">📄</span> Contratos
         </button>
+        <button class="nav-item" onclick="showPage('documentos')">
+          <span class="nav-icon">📑</span> Documentos
+        </button>
         <button class="nav-item" onclick="showPage('compliance')">
           <span class="nav-icon">📜</span> Compliance
         </button>
@@ -1068,7 +1071,7 @@ function showPage(page) {
   const titles = {
     dashboard:'Dashboard', pagamentos:'Pagamentos', historico:'Histórico',
     motoristas:'Motoristas', frota:'Frota', contratos:'Contratos',
-    csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
+    documentos:'Documentos', csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
     comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação',
     mensagens:'Mensagens'
@@ -1087,6 +1090,7 @@ function showPage(page) {
     alertas: renderAlertas,
     config: renderConfig,
     contratos: renderContratos,
+    documentos: renderDocumentos,
     compliance: renderCompliance,
     tempos: renderTempos,
     cupoes: renderCupoes,
@@ -5003,6 +5007,339 @@ async function eliminarTemplate(id) {
   toast('✅ Template eliminado');
   await carregarTemplates();
   renderContratosTab();
+}
+
+// ════════════════════════════════════════════
+// ── DOCUMENTOS (Empresa + Viatura + Motorista)
+// ════════════════════════════════════════════
+let documentosLista = [];
+let documentosTabAtiva = 'empresa'; // empresa | viatura | motorista
+
+const TIPOS_DOC = {
+  empresa: [
+    { v:'licenca_operador',   l:'Licença Operador TVDE' },
+    { v:'alvara_tvde',        l:'Alvará TVDE' },
+    { v:'seguro_rc_geral',    l:'Seguro Responsabilidade Civil' },
+    { v:'certidao_permanente',l:'Certidão Permanente' },
+    { v:'outros',             l:'Outros' }
+  ],
+  viatura: [
+    { v:'inspecao',     l:'Inspecção Periódica' },
+    { v:'dua',          l:'DUA / Livrete' },
+    { v:'seguro_auto',  l:'Seguro Automóvel' },
+    { v:'dtr',          l:'DTR (Distintivo TVDE)' },
+    { v:'outros',       l:'Outros' }
+  ],
+  motorista: [
+    { v:'carta_conducao',         l:'Carta de Condução' },
+    { v:'cc_motorista',           l:'Cartão de Cidadão' },
+    { v:'certificado_motorista',  l:'Certificado de Motorista TVDE' },
+    { v:'outros',                 l:'Outros' }
+  ]
+};
+
+function labelTipoDoc(nivel, tipo) {
+  const lista = TIPOS_DOC[nivel] || [];
+  const t = lista.find(x => x.v === tipo);
+  return t ? t.l : tipo;
+}
+
+async function renderDocumentos() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-gold btn-sm" onclick="modalNovoDocumento()">+ Carregar documento</button>
+  `;
+  document.getElementById('content').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+      <button id="doc-tab-empresa" class="btn btn-ghost btn-sm" onclick="mudarTabDocumentos('empresa')">🏢 Empresa</button>
+      <button id="doc-tab-viatura" class="btn btn-ghost btn-sm" onclick="mudarTabDocumentos('viatura')">🚗 Viaturas</button>
+      <button id="doc-tab-motorista" class="btn btn-ghost btn-sm" onclick="mudarTabDocumentos('motorista')">👤 Motoristas</button>
+    </div>
+    <div id="documentos-lista">
+      <div class="loading-row"><div class="spinner"></div></div>
+    </div>
+  `;
+  await carregarDocumentos();
+  mudarTabDocumentos(documentosTabAtiva);
+}
+
+async function carregarDocumentos() {
+  const { data, error } = await db.from('documentos')
+    .select('*, veiculos(matricula, marca, modelo), motoristas(nome, email)')
+    .eq('empresa_id', empresa.id)
+    .order('criado_em', { ascending: false });
+  if (error) {
+    console.error('[documentos] carregar', error);
+    toast('Erro a carregar documentos: ' + (error.message||error.code||'desconhecido'), 'error');
+    documentosLista = [];
+    return;
+  }
+  documentosLista = data || [];
+}
+
+function mudarTabDocumentos(tab) {
+  documentosTabAtiva = tab;
+  ['empresa','viatura','motorista'].forEach(t => {
+    const btn = document.getElementById('doc-tab-'+t);
+    if (!btn) return;
+    if (t === tab) {
+      btn.classList.remove('btn-ghost');
+      btn.classList.add('btn-gold');
+    } else {
+      btn.classList.remove('btn-gold');
+      btn.classList.add('btn-ghost');
+    }
+  });
+  pintarListaDocumentos();
+}
+
+function pintarListaDocumentos() {
+  const cont = document.getElementById('documentos-lista');
+  if (!cont) return;
+  let docs;
+  if (documentosTabAtiva === 'empresa') {
+    docs = documentosLista.filter(d => !d.veiculo_id && !d.motorista_id);
+  } else if (documentosTabAtiva === 'viatura') {
+    docs = documentosLista.filter(d => d.veiculo_id);
+  } else {
+    docs = documentosLista.filter(d => d.motorista_id);
+  }
+
+  if (!docs.length) {
+    cont.innerHTML = `
+      <div style="padding:40px 20px;text-align:center;border:1px dashed var(--line);border-radius:6px;color:var(--sub2)">
+        <div style="font-size:36px;margin-bottom:10px;opacity:.4">📑</div>
+        <div style="font-size:13px">Sem documentos nesta categoria.</div>
+        <button class="btn btn-gold btn-sm" style="margin-top:14px" onclick="modalNovoDocumento('${documentosTabAtiva}')">+ Carregar primeiro documento</button>
+      </div>`;
+    return;
+  }
+
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const em30 = new Date(Date.now()+30*24*3600*1000);
+
+  const rows = docs.map(d => {
+    let alvo = '—';
+    if (d.veiculo_id && d.veiculos) {
+      alvo = `<strong>${d.veiculos.matricula || ''}</strong>${d.veiculos.modelo ? ' · ' + d.veiculos.modelo : ''}`;
+    } else if (d.motorista_id && d.motoristas) {
+      alvo = `<strong>${d.motoristas.nome || ''}</strong>`;
+    } else {
+      alvo = '<em style="color:var(--sub2)">Empresa (geral)</em>';
+    }
+    let validade = '—';
+    if (d.validade) {
+      const dv = new Date(d.validade);
+      const venceu = dv < hoje;
+      const proximo = !venceu && dv < em30;
+      const cor = venceu ? '#ff6b6b' : (proximo ? '#e8943a' : 'var(--paper)');
+      validade = `<span style="color:${cor}">${fmtDshort(d.validade)}${venceu?' ⚠️':proximo?' 🟡':''}</span>`;
+    }
+    const tamanho = d.tamanho_bytes ? formatBytes(d.tamanho_bytes) : '';
+    return `
+      <tr>
+        <td>${labelTipoDoc(documentosTabAtiva, d.tipo)}</td>
+        <td>${alvo}</td>
+        <td>${d.nome}${tamanho?` <span style="color:var(--sub2);font-size:10px">· ${tamanho}</span>`:''}</td>
+        <td>${validade}</td>
+        <td style="white-space:nowrap;text-align:right">
+          <button class="btn btn-ghost btn-sm" title="Ver" onclick="verDocumento('${d.id}')">👁️</button>
+          <button class="btn btn-ghost btn-sm" title="Download" onclick="downloadDocumento('${d.id}')">⬇️</button>
+          <button class="btn btn-ghost btn-sm" title="Eliminar" onclick="eliminarDocumento('${d.id}')">🗑️</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  cont.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>${documentosTabAtiva === 'empresa' ? 'Categoria' : (documentosTabAtiva === 'viatura' ? 'Viatura' : 'Motorista')}</th>
+            <th>Nome do ficheiro</th>
+            <th>Validade</th>
+            <th style="text-align:right">Acções</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+
+function modalNovoDocumento(nivelInicial) {
+  const nivel = nivelInicial || documentosTabAtiva;
+  const tipos = TIPOS_DOC[nivel] || [];
+  const tipoOptions = tipos.map(t => `<option value="${t.v}">${t.l}</option>`).join('');
+
+  let alvoHTML = '';
+  if (nivel === 'viatura') {
+    const opts = veiculos.map(v => `<option value="${v.id}">${v.matricula} · ${v.modelo||''}</option>`).join('');
+    alvoHTML = `
+      <div class="field">
+        <label>Viatura</label>
+        <select id="doc-veiculo">
+          <option value="">— escolher viatura —</option>
+          ${opts}
+        </select>
+      </div>
+    `;
+  } else if (nivel === 'motorista') {
+    const ativos = motoristas.filter(m => m.ativo !== false);
+    const opts = ativos.map(m => `<option value="${m.id}">${m.nome}${m.email?' · '+m.email:''}</option>`).join('');
+    alvoHTML = `
+      <div class="field">
+        <label>Motorista</label>
+        <select id="doc-motorista">
+          <option value="">— escolher motorista —</option>
+          ${opts}
+        </select>
+      </div>
+    `;
+  }
+
+  const body = `
+    <div class="field">
+      <label>Nível</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['empresa','viatura','motorista'].map(n => `
+          <button type="button" class="btn ${n===nivel?'btn-gold':'btn-ghost'} btn-sm" onclick="closeModal();setTimeout(()=>modalNovoDocumento('${n}'),50)">${n==='empresa'?'🏢 Empresa':n==='viatura'?'🚗 Viatura':'👤 Motorista'}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    ${alvoHTML}
+
+    <div class="field">
+      <label>Tipo de documento</label>
+      <select id="doc-tipo">
+        ${tipoOptions}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Validade (opcional)</label>
+      <input type="date" id="doc-validade">
+      <div style="font-size:11px;color:var(--sub2);margin-top:4px">Sistema avisa 30 dias antes de expirar.</div>
+    </div>
+
+    <div class="field">
+      <label>Ficheiro (PDF, JPG, PNG)</label>
+      <input type="file" id="doc-ficheiro" accept=".pdf,.jpg,.jpeg,.png">
+      <div style="font-size:11px;color:var(--sub2);margin-top:4px">Recomendado PDF para a fiscalização. Máx 10 MB.</div>
+    </div>
+
+    <div class="field">
+      <label>Notas (opcional)</label>
+      <textarea id="doc-notas" rows="2" placeholder="ex: apólice X, válida até..."></textarea>
+    </div>
+
+    <input type="hidden" id="doc-nivel" value="${nivel}">
+  `;
+  const footer = `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="uploadDocumento()">📤 Carregar documento</button>
+  `;
+  openModal('Carregar documento', body, footer);
+}
+
+async function uploadDocumento() {
+  const nivel = document.getElementById('doc-nivel').value;
+  const tipo = document.getElementById('doc-tipo').value;
+  const validade = document.getElementById('doc-validade').value || null;
+  const notas = document.getElementById('doc-notas').value.trim() || null;
+  const fileEl = document.getElementById('doc-ficheiro');
+  const file = fileEl.files[0];
+
+  if (!file) { toast('Escolhe um ficheiro','error'); return; }
+  if (file.size > 10*1024*1024) { toast('Ficheiro acima de 10 MB','error'); return; }
+
+  let veiculo_id = null, motorista_id = null;
+  if (nivel === 'viatura') {
+    veiculo_id = document.getElementById('doc-veiculo').value || null;
+    if (!veiculo_id) { toast('Escolhe a viatura','error'); return; }
+  } else if (nivel === 'motorista') {
+    motorista_id = document.getElementById('doc-motorista').value || null;
+    if (!motorista_id) { toast('Escolhe o motorista','error'); return; }
+  }
+
+  try {
+    // 1. Inserir registo BD
+    const { data: doc, error: insErr } = await db.from('documentos').insert({
+      empresa_id: empresa.id,
+      veiculo_id, motorista_id,
+      tipo,
+      nome: file.name,
+      ficheiro_path: 'pending',
+      mime_type: file.type,
+      tamanho_bytes: file.size,
+      validade, notas,
+      criado_por: currentUser.id
+    }).select().single();
+    if (insErr) throw insErr;
+
+    // 2. Upload ao Storage: {empresa_id}/{nivel}/{doc.id}_{filename}
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${empresa.id}/${nivel}/${doc.id}_${safeName}`;
+    const { error: upErr } = await db.storage.from('documentos').upload(path, file, {
+      contentType: file.type,
+      upsert: false
+    });
+    if (upErr) {
+      await db.from('documentos').delete().eq('id', doc.id);
+      throw upErr;
+    }
+    await db.from('documentos').update({ ficheiro_path: path }).eq('id', doc.id);
+
+    toast('✅ Documento carregado');
+    closeModal();
+    await carregarDocumentos();
+    documentosTabAtiva = nivel;
+    mudarTabDocumentos(nivel);
+  } catch (e) {
+    console.error('[documentos] upload', e);
+    toast('Erro: ' + (e.message || 'desconhecido'), 'error');
+  }
+}
+
+async function verDocumento(id) {
+  const doc = documentosLista.find(d => d.id === id);
+  if (!doc) return;
+  const { data, error } = await db.storage.from('documentos')
+    .createSignedUrl(doc.ficheiro_path, 300);
+  if (error) { toast('Erro a obter ficheiro','error'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function downloadDocumento(id) {
+  const doc = documentosLista.find(d => d.id === id);
+  if (!doc) return;
+  const { data, error } = await db.storage.from('documentos').download(doc.ficheiro_path);
+  if (error) { toast('Erro a transferir','error'); return; }
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url; a.download = doc.nome;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+
+async function eliminarDocumento(id) {
+  const doc = documentosLista.find(d => d.id === id);
+  if (!doc) return;
+  if (!confirm(`Eliminar definitivamente o documento "${doc.nome}"?`)) return;
+  if (doc.ficheiro_path && doc.ficheiro_path !== 'pending') {
+    await db.storage.from('documentos').remove([doc.ficheiro_path]);
+  }
+  const { error } = await db.from('documentos').delete().eq('id', id);
+  if (error) { toast('Erro a eliminar','error'); return; }
+  toast('✅ Documento eliminado');
+  await carregarDocumentos();
+  pintarListaDocumentos();
 }
 
 // ── CONFIG ──
