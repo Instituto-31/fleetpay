@@ -70,7 +70,7 @@ CREATE POLICY documentos_motorista_select ON documentos
     (
       veiculo_id IS NULL AND motorista_id IS NULL
       AND empresa_id IN (
-        SELECT m.empresa_id FROM motoristas m WHERE m.user_id = auth.uid()
+        SELECT m.empresa_id FROM motoristas m WHERE m.perfil_id = auth.uid()
       )
     )
     OR
@@ -78,7 +78,7 @@ CREATE POLICY documentos_motorista_select ON documentos
     (
       veiculo_id IS NOT NULL AND motorista_id IS NULL
       AND veiculo_id IN (
-        SELECT m.veiculo_id FROM motoristas m WHERE m.user_id = auth.uid() AND m.veiculo_id IS NOT NULL
+        SELECT m.veiculo_id FROM motoristas m WHERE m.perfil_id = auth.uid() AND m.veiculo_id IS NOT NULL
       )
     )
     OR
@@ -86,7 +86,7 @@ CREATE POLICY documentos_motorista_select ON documentos
     (
       motorista_id IS NOT NULL
       AND motorista_id IN (
-        SELECT m.id FROM motoristas m WHERE m.user_id = auth.uid()
+        SELECT m.id FROM motoristas m WHERE m.perfil_id = auth.uid()
       )
     )
   );
@@ -127,7 +127,7 @@ CREATE POLICY documentos_storage_motorista_select ON storage.objects
   USING (
     bucket_id = 'documentos'
     AND (storage.foldername(name))[1]::uuid IN (
-      SELECT m.empresa_id FROM motoristas m WHERE m.user_id = auth.uid()
+      SELECT m.empresa_id FROM motoristas m WHERE m.perfil_id = auth.uid()
     )
   );
 
