@@ -697,8 +697,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('contratos')">
           <span class="nav-icon">📄</span> Contratos
         </button>
-        <button class="nav-item" onclick="showPage('documentos')">
+        <button class="nav-item" onclick="showPage('documentos')" id="nav-documentos">
           <span class="nav-icon">📑</span> Documentos
+          <span class="nav-badge" id="badge-documentos" style="display:none">0</span>
         </button>
         <button class="nav-item" onclick="showPage('compliance')">
           <span class="nav-icon">📜</span> Compliance
@@ -1022,6 +1023,26 @@ async function calcularAlertas() {
   await calcularBadgeCupoes();
   // Badge de mensagens não-lidas (motorista → operador)
   await calcularBadgeMensagens();
+  // Badge de documentos pendentes de validação (motorista carregou)
+  await calcularBadgeDocumentos();
+}
+
+async function calcularBadgeDocumentos() {
+  try {
+    const { count, error } = await db.from('documentos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresa.id)
+      .eq('criado_por_motorista', true)
+      .is('validado_em', null);
+    const badge = document.getElementById('badge-documentos');
+    if (!badge) return;
+    if (!error && count > 0) {
+      badge.textContent = count;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch (e) { /* ignore */ }
 }
 
 async function calcularBadgeCupoes() {
@@ -5135,13 +5156,22 @@ function pintarListaDocumentos() {
       validade = `<span style="color:${cor}">${fmtDshort(d.validade)}${venceu?' ⚠️':proximo?' 🟡':''}</span>`;
     }
     const tamanho = d.tamanho_bytes ? formatBytes(d.tamanho_bytes) : '';
+    const pendente = d.criado_por_motorista && !d.validado_em;
+    const badgeNovo = pendente
+      ? '<span style="display:inline-block;background:rgba(232,148,58,0.15);color:#e8943a;padding:2px 8px;border-radius:100px;font-size:9px;font-family:var(--mono);letter-spacing:.5px;margin-left:6px;vertical-align:middle">🆕 motorista</span>'
+      : '';
+    const btnValidar = pendente
+      ? `<button class="btn btn-gold btn-sm" title="Validar" onclick="validarDocumento('${d.id}')">✓ Validar</button>`
+      : '';
+    const rowStyle = pendente ? ' style="background:rgba(232,148,58,0.04)"' : '';
     return `
-      <tr>
-        <td>${labelTipoDoc(documentosTabAtiva, d.tipo)}</td>
+      <tr${rowStyle}>
+        <td>${labelTipoDoc(documentosTabAtiva, d.tipo)}${badgeNovo}</td>
         <td>${alvo}</td>
         <td>${d.nome}${tamanho?` <span style="color:var(--sub2);font-size:10px">· ${tamanho}</span>`:''}</td>
         <td>${validade}</td>
         <td style="white-space:nowrap;text-align:right">
+          ${btnValidar}
           <button class="btn btn-ghost btn-sm" title="Ver" onclick="verDocumento('${d.id}')">👁️</button>
           <button class="btn btn-ghost btn-sm" title="Download" onclick="downloadDocumento('${d.id}')">⬇️</button>
           <button class="btn btn-ghost btn-sm" title="Eliminar" onclick="eliminarDocumento('${d.id}')">🗑️</button>
@@ -5326,6 +5356,20 @@ async function downloadDocumento(id) {
   a.href = url; a.download = doc.nome;
   document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(url);
+}
+
+async function validarDocumento(id) {
+  const doc = documentosLista.find(d => d.id === id);
+  if (!doc) return;
+  const { error } = await db.from('documentos').update({
+    validado_em: new Date().toISOString(),
+    validado_por: currentUser.id
+  }).eq('id', id);
+  if (error) { toast('Erro a validar: '+(error.message||''),'error'); return; }
+  toast('✅ Documento validado');
+  await carregarDocumentos();
+  await calcularBadgeDocumentos();
+  pintarListaDocumentos();
 }
 
 async function eliminarDocumento(id) {
