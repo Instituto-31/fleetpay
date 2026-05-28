@@ -424,11 +424,15 @@ async function init() {
     console.warn('[link-motorista] RPC falhou (continua):', e);
   }
 
-  // Buscar dados do motorista
-  const { data: mot } = await db.from('motoristas')
+  // Buscar dados do motorista — tolerante a duplicados (limit 1, ativo prioritário)
+  const { data: mots, error: motErr } = await db.from('motoristas')
     .select('*, empresas(nome, plano, logo_path, nipc, morada, codigo_postal, licenca_tvde, telefone, email)')
     .eq('perfil_id', currentUser.id)
-    .single();
+    .order('ativo', { ascending: false, nullsFirst: false })
+    .order('criado_em', { ascending: false })
+    .limit(1);
+  const mot = (mots && mots[0]) || null;
+  if (motErr) console.warn('[motorista-query]', motErr);
 
   if (!mot) {
     // Motorista sem dados associados — fallback amigável
