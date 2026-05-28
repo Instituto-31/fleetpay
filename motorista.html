@@ -402,12 +402,26 @@ async function init() {
   currentUser = session.user;
 
   // Buscar perfil
-  const { data: perfil } = await db.from('perfis').select('role, nome').eq('id', currentUser.id).single();
+  let { data: perfil } = await db.from('perfis').select('role, nome').eq('id', currentUser.id).single();
 
   // Se for operador, redirecionar
   if (perfil?.role === 'operador' || perfil?.role === 'superadmin') {
     window.location.href = 'admin.html';
     return;
+  }
+
+  // 🔧 Self-healing: garante motorista↔perfil↔empresa ligados antes de tentar query
+  // (resolve casos em que trigger on_auth_user_created falhou silenciosamente)
+  try {
+    const { data: linkRes, error: linkErr } = await db.rpc('garantir_link_motorista');
+    console.log('[link-motorista]', linkRes, linkErr);
+    // refresh perfil caso tenha sido criado/actualizado agora
+    if (linkRes?.ok && !perfil) {
+      const r = await db.from('perfis').select('role, nome').eq('id', currentUser.id).single();
+      perfil = r.data;
+    }
+  } catch (e) {
+    console.warn('[link-motorista] RPC falhou (continua):', e);
   }
 
   // Buscar dados do motorista
@@ -417,7 +431,7 @@ async function init() {
     .single();
 
   if (!mot) {
-    // Motorista sem dados associados
+    // Motorista sem dados associados — fallback amigável
     renderSemAcesso(perfil?.nome || currentUser.email);
     return;
   }
@@ -891,14 +905,38 @@ function renderSemAcesso(nome) {
       <div style="font-family:var(--serif);font-size:28px;font-weight:300;margin-bottom:12px">Olá, ${nome}!</div>
       <p style="color:var(--sub2);font-size:14px;line-height:1.7;max-width:300px">
         A tua conta ainda não foi associada a uma empresa.<br>
-        Fala com o teu operador para ativares o acesso.
+        Tenta carregar em <strong>Ligar agora</strong> — se não resolver, fala com o teu operador.
       </p>
-      <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
-        style="margin-top:32px;padding:12px 28px;background:var(--gold);color:var(--ink);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
-        Sair
-      </button>
+      <div id="sem-acesso-status" style="margin-top:18px;font-size:12px;color:var(--sub);font-family:var(--mono);min-height:18px"></div>
+      <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;justify-content:center">
+        <button onclick="tentarLigarMotorista()"
+          style="padding:12px 28px;background:var(--gold);color:var(--ink);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
+          🔄 Ligar agora
+        </button>
+        <button onclick="db.auth.signOut().then(()=>window.location.href='login.html')"
+          style="padding:12px 28px;background:transparent;color:var(--sub);border:1px solid var(--line);border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">
+          Sair
+        </button>
+      </div>
     </div>
   `;
+}
+
+async function tentarLigarMotorista() {
+  const s = document.getElementById('sem-acesso-status');
+  if (s) s.textContent = 'A ligar...';
+  try {
+    const { data, error } = await db.rpc('garantir_link_motorista');
+    if (error) throw error;
+    if (data?.ok) {
+      if (s) s.textContent = '✓ Ligado! A recarregar...';
+      setTimeout(() => location.reload(), 600);
+    } else {
+      if (s) s.textContent = `Não foi possível: ${data?.reason || 'sem_motorista'} · email: ${data?.email || '?'}`;
+    }
+  } catch (e) {
+    if (s) s.textContent = 'Erro: ' + (e.message || e);
+  }
 }
 
 function renderApp() {
