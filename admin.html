@@ -793,6 +793,7 @@ body.theme-default-dark { /* já é o root, sem override */ }
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="fleetpay-config.js"></script>
 <script>
 
@@ -1002,7 +1003,7 @@ async function calcularAlertas() {
     [['Licença TVDE', m.licenca_tvde_validade],['Carta Condução', m.carta_conducao_validade],
      ['Cartão Cidadão', m.cartao_cidadao_validade],['Reg. Criminal', m.registo_criminal_validade]
     ].forEach(([t,v]) => {
-      if (v && v <= em30) alertas.push({tipo:t, nome:m.nome, validade:v, expirado:v<hoje, categoria:'motorista'});
+      if (v && v <= em30) alertas.push({tipo:t, nome:m.nome, validade:v, expirado:v<hoje, categoria:'motorista', motorista_id:m.id});
     });
   });
 
@@ -1012,6 +1013,17 @@ async function calcularAlertas() {
       if (val && val <= em30) alertas.push({tipo:t, nome:v.matricula, validade:val, expirado:val<hoje, categoria:'veiculo'});
     });
   });
+
+  // Documentos da tabela `documentos` com validade próxima — inclui motorista_id quando aplicável
+  try {
+    const { data: docs } = await db.from('documentos').select('id, tipo, validade, motorista_id, veiculo_id, motoristas(nome), veiculos(matricula)')
+      .eq('empresa_id', empresa.id).not('validade','is',null).lte('validade', em30);
+    (docs||[]).forEach(d => {
+      const cat = d.motorista_id ? 'motorista' : (d.veiculo_id ? 'veiculo' : 'empresa');
+      const nome = d.motoristas?.nome || d.veiculos?.matricula || 'Empresa';
+      alertas.push({tipo: d.tipo, nome, validade: d.validade, expirado: d.validade < hoje, categoria: cat, motorista_id: d.motorista_id, doc_id: d.id});
+    });
+  } catch (e) { /* tabela pode não existir ainda */ }
 
   const badge = document.getElementById('badge-alertas');
   if (alertas.length > 0) {
@@ -2193,6 +2205,200 @@ function renderLinhaPagamento(p) {
   `;
 }
 
+// ════════════════════════════════════════════════════════════
+// ── RECIBOS PDF (auto ao marcar pago) ──
+// ════════════════════════════════════════════════════════════
+
+function formatEuro(n) {
+  return new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(n || 0);
+}
+
+async function gerarReciboPagamento(pagamentoId) {
+  if (!window.PDFLib) {
+    console.warn('[recibo] pdf-lib não carregada');
+    return { ok: false, reason: 'pdf-lib não disponível' };
+  }
+  // Buscar pagamento + motorista (RLS-safe)
+  const { data: p } = await db.from('pagamentos')
+    .select('*, motoristas(id, nome, email, nif, telefone, perfil_id)')
+    .eq('id', pagamentoId).maybeSingle();
+  if (!p) return { ok: false, reason: 'pagamento não encontrado' };
+  const mot = p.motoristas || {};
+
+  // Reaproveita variável empresa já carregada
+  const emp = empresa || {};
+
+  // Próximo nº de recibo (ou reusa existente)
+  let reciboNum = p.recibo_numero;
+  if (!reciboNum) {
+    const { data: numData } = await db.rpc('proximo_numero_recibo', {
+      p_empresa_id: emp.id, p_data: p.data_pagamento ? p.data_pagamento.slice(0,10) : new Date().toISOString().slice(0,10)
+    });
+    reciboNum = numData;
+  }
+
+  // Despesas da semana (PRIO + Via Verde) — não bloqueia se falhar
+  let despesasPrio = 0, despesasVV = 0;
+  try {
+    const semIni = p.semana_inicio;
+    const semFimDate = new Date(semIni); semFimDate.setDate(semFimDate.getDate()+6);
+    const semFim = semFimDate.toISOString().slice(0,10);
+    const { data: prio } = await db.from('prio_carregamentos').select('valor_com_iva')
+      .eq('motorista_id', mot.id).gte('data', semIni).lte('data', semFim);
+    despesasPrio = (prio||[]).reduce((s,x)=>s+(parseFloat(x.valor_com_iva)||0),0);
+    const { data: vv } = await db.from('viaverde_movimentos').select('valor_liquido')
+      .eq('motorista_id', mot.id).gte('data', semIni).lte('data', semFim);
+    despesasVV = (vv||[]).reduce((s,x)=>s+(parseFloat(x.valor_liquido)||0),0);
+  } catch (e) { console.warn('[recibo] despesas', e); }
+
+  // Construir PDF A4
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595, 842]); // A4
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const serif = await doc.embedFont(StandardFonts.TimesRoman);
+
+  const INK = rgb(0.067, 0.078, 0.094);
+  const GOLD = rgb(0.784, 0.573, 0.165);
+  const SAGE = rgb(0.478, 0.549, 0.4);
+  const SUB = rgb(0.4, 0.4, 0.4);
+  const LINE = rgb(0.9, 0.88, 0.84);
+  const PAPER = rgb(0.957, 0.945, 0.918);
+
+  let y = 800;
+  // Header bar
+  page.drawRectangle({ x:0, y:790, width:595, height:52, color: INK });
+  page.drawText('FleetPay', { x: 40, y: 808, size: 22, font: serif, color: GOLD });
+  page.drawText('RECIBO', { x: 455, y: 815, size: 12, font: bold, color: PAPER });
+  page.drawText(reciboNum || '—', { x: 455, y: 800, size: 11, font, color: PAPER });
+
+  y = 770;
+  // Empresa
+  page.drawText((emp.nome || '').toUpperCase(), { x: 40, y, size: 12, font: bold, color: INK });
+  y -= 14;
+  if (emp.nipc) { page.drawText('NIPC: ' + emp.nipc, { x: 40, y, size: 9, font, color: SUB }); y -= 11; }
+  if (emp.morada) { page.drawText(emp.morada, { x: 40, y, size: 9, font, color: SUB }); y -= 11; }
+  if (emp.codigo_postal) { page.drawText(emp.codigo_postal, { x: 40, y, size: 9, font, color: SUB }); y -= 11; }
+  if (emp.licenca_tvde) { page.drawText('Licença TVDE: ' + emp.licenca_tvde, { x: 40, y, size: 9, font, color: SUB }); y -= 11; }
+
+  // Data emissão (top-right)
+  const dEmissao = new Date(p.data_pagamento || Date.now()).toLocaleDateString('pt-PT');
+  page.drawText('Data: ' + dEmissao, { x: 430, y: 770, size: 9, font, color: SUB });
+
+  y = 690;
+  // Bloco motorista
+  page.drawRectangle({ x: 40, y: y-72, width: 515, height: 72, color: PAPER, borderColor: LINE, borderWidth: 0.5 });
+  page.drawText('MOTORISTA', { x: 50, y: y-14, size: 8, font: bold, color: SUB });
+  page.drawText(mot.nome || '', { x: 50, y: y-30, size: 13, font: bold, color: INK });
+  if (mot.email) page.drawText(mot.email, { x: 50, y: y-46, size: 9, font, color: SUB });
+  if (mot.nif) page.drawText('NIF: ' + mot.nif, { x: 50, y: y-60, size: 9, font, color: SUB });
+
+  // Semana (right block)
+  const semIni = new Date(p.semana_inicio); const semFim = new Date(p.semana_inicio); semFim.setDate(semFim.getDate()+6);
+  page.drawText('SEMANA', { x: 350, y: y-14, size: 8, font: bold, color: SUB });
+  page.drawText(`${semIni.toLocaleDateString('pt-PT')} – ${semFim.toLocaleDateString('pt-PT')}`,
+    { x: 350, y: y-30, size: 11, font: bold, color: INK });
+
+  y -= 100;
+  // Tabela
+  const drawRow = (label, val, opts={}) => {
+    const f = opts.bold ? bold : font;
+    const c = opts.color || INK;
+    page.drawText(label, { x: 50, y, size: 10, font: f, color: c });
+    page.drawText(val, { x: 460, y, size: 10, font: f, color: c });
+    y -= 18;
+  };
+  const drawSep = () => {
+    page.drawLine({ start:{x:40,y:y+6}, end:{x:555,y:y+6}, thickness: 0.5, color: LINE });
+  };
+
+  page.drawText('DETALHE', { x: 40, y: y+10, size: 8, font: bold, color: SUB });
+  drawSep();
+  y -= 8;
+
+  if (p.uber_bruto != null) drawRow('Uber bruto', formatEuro(p.uber_bruto));
+  if (p.uber_taxa != null) drawRow('Uber taxa operadora', '-' + formatEuro(p.uber_taxa));
+  if (p.uber_liquido != null) drawRow('Uber líquido', formatEuro(p.uber_liquido), { bold: true });
+  if (p.bolt_bruto != null) drawRow('Bolt bruto', formatEuro(p.bolt_bruto));
+  if (p.bolt_taxa != null) drawRow('Bolt taxa operadora', '-' + formatEuro(p.bolt_taxa));
+  if (p.bolt_iva_cobrar != null) drawRow('IVA a cobrar (Bolt)', '-' + formatEuro(p.bolt_iva_cobrar));
+  if (p.bolt_liquido != null) drawRow('Bolt líquido', formatEuro(p.bolt_liquido), { bold: true });
+
+  if (despesasPrio > 0) drawRow('Despesas combustível/energia', '-' + formatEuro(despesasPrio));
+  if (despesasVV > 0) drawRow('Despesas Via Verde', '-' + formatEuro(despesasVV));
+
+  if (p.comissao != null) drawRow('Comissão operador', '-' + formatEuro(p.comissao), { color: SUB });
+
+  y -= 6;
+  drawSep();
+  y -= 18;
+
+  // Total
+  page.drawRectangle({ x: 40, y: y-6, width: 515, height: 36, color: PAPER });
+  page.drawText('TOTAL TRANSFERIDO', { x: 50, y: y+10, size: 10, font: bold, color: SAGE });
+  page.drawText(formatEuro(p.valor_liquido || 0), { x: 440, y: y+8, size: 18, font: bold, color: SAGE });
+
+  y -= 60;
+  if (p.referencia_transferencia) {
+    page.drawText('Referência: ' + p.referencia_transferencia, { x: 50, y, size: 9, font, color: SUB });
+    y -= 14;
+  }
+
+  // Validação digital
+  y -= 16;
+  page.drawRectangle({ x: 40, y: y-26, width: 515, height: 30, color: PAPER, borderColor: LINE, borderWidth: 0.5 });
+  page.drawText('Documento emitido digitalmente pela plataforma FleetPay nos termos do DL 12/2021', { x: 50, y: y-10, size: 8, font, color: SUB });
+  page.drawText('e do Reg. (UE) 910/2014 (eIDAS). Validade jurídica equivalente à forma escrita.', { x: 50, y: y-20, size: 8, font, color: SUB });
+
+  // Footer
+  page.drawText('fleetpay.pt', { x: 40, y: 30, size: 8, font, color: SUB });
+  page.drawText(`Página 1 de 1 · ${new Date().toLocaleString('pt-PT')}`, { x: 420, y: 30, size: 8, font, color: SUB });
+
+  const pdfBytes = await doc.save();
+
+  // Upload Storage
+  const path = `${emp.id}/${mot.id}/${reciboNum.replace(/\//g,'-')}.pdf`;
+  const { error: upErr } = await db.storage.from('recibos').upload(path, pdfBytes, {
+    contentType: 'application/pdf', upsert: true
+  });
+  if (upErr) {
+    console.warn('[recibo] upload falhou', upErr);
+    return { ok: false, reason: upErr.message };
+  }
+
+  // UPDATE pagamento
+  await db.from('pagamentos').update({
+    recibo_path: path,
+    recibo_numero: reciboNum,
+    recibo_gerado_em: new Date().toISOString()
+  }).eq('id', pagamentoId);
+
+  return { ok: true, path, reciboNum, motorista: mot, pagamento: p };
+}
+
+// Envia email "recibo disponível" + invoca gerador
+async function notificarRecibo(pagamentoId, info) {
+  if (!info?.ok) return;
+  const { motorista, pagamento, reciboNum } = info;
+  if (!motorista?.id) return;
+  try {
+    const { error } = await db.functions.invoke('enviar-email-motorista', {
+      body: {
+        motorista_id: motorista.id,
+        tipo: 'pagamento_pago',
+        referencia_id: pagamentoId,
+        dados: {
+          semana: new Date(pagamento.semana_inicio).toLocaleDateString('pt-PT'),
+          valor: formatEuro(pagamento.valor_liquido || 0),
+          recibo_numero: reciboNum
+        }
+      }
+    });
+    if (error) console.warn('[notif] enviar-email falhou', error);
+  } catch (e) { console.warn('[notif]', e); }
+}
+
 async function marcarPago(id) {
   const p = pagamentos.find(x => x.id === id);
   // Avisar se ainda não foi validado pelo motorista
@@ -2207,7 +2413,17 @@ async function marcarPago(id) {
     estado:'pago', data_pagamento: new Date().toISOString(), referencia_transferencia: ref
   }).eq('id', id);
   if (error) { toast('Erro ao marcar pago', 'error'); return; }
-  toast('✅ Marcado como pago!');
+  toast('✅ Marcado como pago — a gerar recibo...');
+  // Gera recibo + notifica (fire-and-forget mas com await para mostrar resultado)
+  try {
+    const info = await gerarReciboPagamento(id);
+    if (info.ok) {
+      toast(`📄 Recibo ${info.reciboNum} gerado!`);
+      notificarRecibo(id, info); // sem await — assíncrono
+    } else {
+      toast('⚠️ Pago mas recibo falhou: ' + info.reason, 'error');
+    }
+  } catch (e) { console.warn('[recibo]', e); }
   await carregarDados();
   renderTabelaPagamentos();
 }
@@ -2236,7 +2452,17 @@ async function marcarTodosPagos() {
   const ids = alvo.map(p=>p.id);
   const { error } = await db.from('pagamentos').update({estado:'pago',data_pagamento:new Date().toISOString()}).in('id',ids);
   if (error) { toast('Erro', 'error'); return; }
-  toast(`✅ ${alvo.length} pagamentos marcados!`);
+  toast(`✅ ${alvo.length} pagamentos marcados — a gerar recibos...`);
+  // Gera recibos sequencialmente (evita rate-limit do Resend) e notifica
+  let okCount = 0, falhas = 0;
+  for (const pid of ids) {
+    try {
+      const info = await gerarReciboPagamento(pid);
+      if (info.ok) { okCount++; notificarRecibo(pid, info); }
+      else falhas++;
+    } catch (e) { console.warn('[recibo-batch]', e); falhas++; }
+  }
+  toast(`📄 ${okCount}/${ids.length} recibos gerados${falhas?` · ${falhas} falharam`:''}`);
   await carregarDados();
   renderTabelaPagamentos();
 }
@@ -2718,6 +2944,7 @@ async function confirmarCSV() {
   if (!ok2) return;
 
   let ok = 0, erros = 0;
+  const novosParaNotificar = [];  // motoristas com pagamento criado/atualizado nesta sessão
 
   for (const d of csvDados) {
     if (!d.motorista) { erros++; continue; }
@@ -2780,14 +3007,54 @@ async function confirmarCSV() {
     };
     // Limpar undefined (Supabase nao aceita)
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-    const { error } = await db.from('pagamentos').upsert(payload, {onConflict:'empresa_id,motorista_id,semana_inicio'});
-    if (error) erros++; else ok++;
+    const { data: upserted, error } = await db.from('pagamentos').upsert(payload, {onConflict:'empresa_id,motorista_id,semana_inicio'}).select('id, valor_final').maybeSingle();
+    if (error) { erros++; continue; }
+    ok++;
+    if (upserted) {
+      novosParaNotificar.push({
+        pagamento_id: upserted.id,
+        motorista_id: d.motorista.id,
+        valor: upserted.valor_final ?? valorFinal,
+        semana: segunda
+      });
+    }
   }
 
   toast(`✅ ${ok} pagamentos guardados${erros>0?` · ${erros} erros`:''}`);
   uberData = []; boltData = []; csvDados = []; semanaCsvDetectada = null;
+
+  // Pergunta se quer enviar emails de "valida o teu pagamento"
+  if (novosParaNotificar.length > 0) {
+    if (confirm(`📧 Enviar email aos ${novosParaNotificar.length} motoristas a pedir validação do valor?`)) {
+      notificarLancamentoPagamento(novosParaNotificar);
+    }
+  }
+
   await carregarDados();
   showPage('pagamentos');
+}
+
+// Envia em batch o email "valida o teu pagamento" a múltiplos motoristas
+async function notificarLancamentoPagamento(lista) {
+  toast(`📧 A enviar ${lista.length} emails...`);
+  let okCount = 0, falhas = 0;
+  for (const item of lista) {
+    try {
+      const { error } = await db.functions.invoke('enviar-email-motorista', {
+        body: {
+          motorista_id: item.motorista_id,
+          tipo: 'pagamento_criado',
+          referencia_id: item.pagamento_id,
+          dados: {
+            semana: new Date(item.semana).toLocaleDateString('pt-PT'),
+            valor: formatEuro(item.valor || 0)
+          }
+        }
+      });
+      if (error) falhas++; else okCount++;
+    } catch (e) { console.warn('[notif-lancar]', e); falhas++; }
+  }
+  toast(`📧 ${okCount}/${lista.length} emails enviados${falhas?` · ${falhas} falharam`:''}`);
 }
 
 async function aplicarPrioViaVerde() {
@@ -4084,7 +4351,12 @@ async function processViaVerde(file) {
 
 // ── ALERTAS ──
 function renderAlertas() {
-  document.getElementById('topbar-actions').innerHTML = '';
+  const motoristasAfectados = alertas.filter(a => a.categoria === 'motorista' && a.motorista_id);
+  const motoristasUnicos = [...new Set(motoristasAfectados.map(a => a.motorista_id))].length;
+
+  document.getElementById('topbar-actions').innerHTML = motoristasUnicos > 0
+    ? `<button class="btn btn-gold btn-sm" onclick="avisarTodosMotoristasDocs()">📧 Avisar ${motoristasUnicos} motoristas</button>`
+    : '';
   document.getElementById('content').innerHTML = `
     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
       <div class="kpi"><div class="kpi-label">Total alertas</div><div class="kpi-val">${alertas.length}</div></div>
@@ -4095,21 +4367,80 @@ function renderAlertas() {
     <div class="table-wrap">
       <div class="table-header"><div class="table-title">Documentos a expirar</div></div>
       <div style="padding:16px">
-        ${alertas.map(a=>`
-          <div class="alerta-item ${a.expirado?'alerta-exp':'alerta-aviso'}">
+        ${alertas.map((a,i)=>{
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          const dias = Math.ceil((new Date(a.validade)-hoje)/86400000);
+          return `
+          <div class="alerta-item ${a.expirado?'alerta-exp':'alerta-aviso'}" style="display:flex;align-items:center;gap:12px">
             <div class="alerta-icon">${a.categoria==='motorista'?'👤':'🚗'}</div>
-            <div class="alerta-info">
+            <div class="alerta-info" style="flex:1">
               <div class="alerta-nome">${a.nome}</div>
               <div class="alerta-desc">${a.tipo}</div>
             </div>
             <div class="alerta-data" style="color:${a.expirado?'var(--red)':'var(--orange)'}">
               ${a.expirado?'⚠️ EXPIRADO':fmtD(a.validade)}
             </div>
+            ${a.motorista_id ? `<button class="btn btn-ghost btn-sm" title="Avisar motorista" onclick="avisarMotoristaDoc(${i})">📧</button>` : ''}
           </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>`}
   `;
+}
+
+async function avisarMotoristaDoc(alertaIdx) {
+  const a = alertas[alertaIdx];
+  if (!a?.motorista_id) return;
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dias = Math.ceil((new Date(a.validade)-hoje)/86400000);
+  toast('📧 A enviar...');
+  try {
+    const { error } = await db.functions.invoke('enviar-email-motorista', {
+      body: {
+        motorista_id: a.motorista_id,
+        tipo: 'documento_expira',
+        referencia_id: a.doc_id || null,
+        dados: {
+          doc_tipo: a.tipo,
+          validade: new Date(a.validade).toLocaleDateString('pt-PT'),
+          dias: Math.max(0, dias)
+        },
+        forcar: true  // permite reenviar se já avisou anteriormente
+      }
+    });
+    if (error) throw error;
+    toast('✅ Aviso enviado');
+  } catch (e) { toast('Erro: ' + (e.message||e), 'error'); }
+}
+
+async function avisarTodosMotoristasDocs() {
+  const motAlertas = alertas.filter(a => a.categoria === 'motorista' && a.motorista_id);
+  if (!motAlertas.length) return;
+  const motUnicos = [...new Set(motAlertas.map(a => a.motorista_id))];
+  if (!confirm(`Enviar email a ${motUnicos.length} motoristas com docs a expirar?`)) return;
+  toast(`📧 A enviar ${motAlertas.length} avisos...`);
+  let ok = 0, falhas = 0;
+  for (const a of motAlertas) {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const dias = Math.ceil((new Date(a.validade)-hoje)/86400000);
+    try {
+      const { error } = await db.functions.invoke('enviar-email-motorista', {
+        body: {
+          motorista_id: a.motorista_id,
+          tipo: 'documento_expira',
+          referencia_id: a.doc_id || null,
+          dados: {
+            doc_tipo: a.tipo,
+            validade: new Date(a.validade).toLocaleDateString('pt-PT'),
+            dias: Math.max(0, dias)
+          }
+        }
+      });
+      if (error) falhas++; else ok++;
+    } catch (e) { falhas++; }
+  }
+  toast(`📧 ${ok}/${motAlertas.length} avisos enviados${falhas?` · ${falhas} falharam`:''}`);
 }
 
 // ── HISTÓRICO ──
