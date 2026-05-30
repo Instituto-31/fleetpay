@@ -52,11 +52,10 @@ button:disabled{opacity:.5;cursor:wait}
   </div>
 </div>
 
-<script type="module">
-import { db } from './fleetpay-config.js';
-window.db = db;
-
-window.entrar = async function() {
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="fleetpay-config.js"></script>
+<script>
+async function entrar() {
   const btn = document.getElementById('btn');
   const err = document.getElementById('err');
   err.style.display = 'none';
@@ -68,7 +67,6 @@ window.entrar = async function() {
       password: 'FleetPayDemo2026!'
     });
     if (error) throw error;
-    // sucesso: redireciona para o admin
     location.href = 'admin.html';
   } catch (e) {
     err.textContent = 'Erro: ' + (e.message || 'tente novamente em alguns segundos');
