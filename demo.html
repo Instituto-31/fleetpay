@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Demo · FleetPay</title>
+<link rel="icon" href="favicon.svg">
+<style>
+:root{--ink:#111418;--paper:#f4f1ea;--gold:#c8922a;--sage:#7a8c66;--sub:#888;--line:#e6e1d6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;background:var(--ink);color:var(--paper);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#111418 0%,#1a1d22 100%)}
+.card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;max-width:480px;width:100%;padding:40px 36px;text-align:center}
+h1{font-family:ui-serif,Georgia,serif;font-weight:300;font-size:28px;margin-bottom:8px;color:var(--paper)}
+h1 em{color:var(--gold);font-style:normal}
+.sub{color:#aaa;font-size:14px;line-height:1.6;margin-bottom:24px}
+.feat{display:flex;flex-direction:column;gap:10px;text-align:left;margin:24px 0;padding:18px;background:rgba(200,146,42,0.04);border:1px solid rgba(200,146,42,0.18);border-radius:6px}
+.feat-item{display:flex;align-items:center;gap:10px;color:#ddd;font-size:13px}
+.feat-item .ic{font-size:18px;width:24px;text-align:center}
+button{width:100%;padding:14px;background:var(--gold);color:var(--ink);border:none;border-radius:4px;font-size:12px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:transform .1s}
+button:hover{transform:translateY(-1px)}
+button:disabled{opacity:.5;cursor:wait}
+.note{margin-top:20px;font-size:11px;color:var(--sub);line-height:1.7}
+.note a{color:var(--gold);text-decoration:none}
+.err{margin-top:14px;padding:10px;background:rgba(196,69,69,0.1);border:1px solid #c44545;border-radius:4px;color:#ff8a8a;font-size:12px;display:none}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:var(--ink);border-radius:50%;animation:s .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+.brand{font-family:ui-serif,Georgia,serif;color:var(--gold);font-size:22px;margin-bottom:24px;letter-spacing:-.5px}
+.brand em{color:var(--paper);font-style:normal}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">Fleet<em>Pay</em></div>
+  <h1>Experimenta o <em>FleetPay</em></h1>
+  <div class="sub">Demo navegável com 5 motoristas, 30 pagamentos, recibos e tudo o resto.<br>Sem registo. Reset automático todas as semanas.</div>
+
+  <div class="feat">
+    <div class="feat-item"><span class="ic">💶</span> Pagamentos Uber + Bolt + IVA automático</div>
+    <div class="feat-item"><span class="ic">📄</span> Recibos PDF profissionais ao marcar pago</div>
+    <div class="feat-item"><span class="ic">📑</span> Documentos (empresa + viatura + motorista)</div>
+    <div class="feat-item"><span class="ic">⏱️</span> Tempos de condução (Reg. UE 165/2014)</div>
+    <div class="feat-item"><span class="ic">📧</span> Email + WhatsApp aos motoristas</div>
+    <div class="feat-item"><span class="ic">🚗</span> Vista do motorista (PWA mobile)</div>
+  </div>
+
+  <button id="btn" onclick="entrar()">Entrar na demo →</button>
+  <div class="err" id="err"></div>
+
+  <div class="note">
+    Já tens conta? <a href="login.html">Login normal</a><br>
+    Queres conta real? <a href="signup.html">Criar conta</a>
+  </div>
+</div>
+
+<script type="module">
+import { db } from './fleetpay-config.js';
+window.db = db;
+
+window.entrar = async function() {
+  const btn = document.getElementById('btn');
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>A entrar...';
+  try {
+    const { error } = await db.auth.signInWithPassword({
+      email: 'demo@fleetpay.pt',
+      password: 'FleetPayDemo2026!'
+    });
+    if (error) throw error;
+    // sucesso: redireciona para o admin
+    location.href = 'admin.html';
+  } catch (e) {
+    err.textContent = 'Erro: ' + (e.message || 'tente novamente em alguns segundos');
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Tentar novamente';
+  }
+}
+</script>
+</body>
+</html>

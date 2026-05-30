@@ -893,6 +893,19 @@ async function init() {
   document.getElementById('user-avatar').textContent = (perfil.nome || currentUser.email)[0].toUpperCase();
   renderEmpresaSelector();
 
+  // 🧪 Banner MODO DEMO
+  if (empresa?.demo === true) {
+    const existing = document.getElementById('demo-banner');
+    if (!existing) {
+      const banner = document.createElement('div');
+      banner.id = 'demo-banner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#e8943a,#c8922a);color:#111418;padding:10px 16px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;font-weight:600;letter-spacing:.6px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)';
+      banner.innerHTML = '🧪 MODO DEMO — Dados fictícios. Tudo o que fizeres aqui é apenas para experimentar. <a href="https://fleetpay.pt/signup.html" style="color:#111418;text-decoration:underline;margin-left:8px;font-weight:700">Criar conta real →</a>';
+      document.body.prepend(banner);
+      document.body.style.paddingTop = '40px';
+    }
+  }
+
   await carregarDados();
   showPage('dashboard');
 }
