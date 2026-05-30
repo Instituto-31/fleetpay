@@ -2532,9 +2532,19 @@ async function guardarPagamento(id) {
 
 function enviarRecibo(p) {
   const nome = p.motoristas?.nome || '—';
-  const whatsapp = p.motoristas?.whatsapp || '';
+  const whatsapp = p.motoristas?.whatsapp || p.motoristas?.telefone || '';
   const email = p.motoristas?.email || '';
-  const texto = `Olá ${nome.split(' ')[0]}! 👋\n\nRecibo semana ${fmtD(p.semana_inicio)} — ${fmtD(getDomingo(p.semana_inicio))}:\n• Uber líq.: ${fmt(p.uber_liquido)}\n• Bolt líq.: ${fmt(p.bolt_liquido)}\n• Comissão: ${fmt(p.iva_cobrar)}\n• Despesas: -${fmt(p.total_despesas)}\n\n✅ *Total a receber: ${fmt(p.valor_final)}*\n\nBom trabalho! 🚗`;
+  const appUrl = (location.origin || 'https://fleetpay.pt') + '/motorista.html';
+  const isPago = p.estado === 'pago';
+  const reciboNum = p.recibo_numero ? `\n📄 Recibo: ${p.recibo_numero}` : '';
+  const cabec = isPago
+    ? `Olá ${nome.split(' ')[0]}! 👋\n\n✅ Pagamento da semana ${fmtD(p.semana_inicio)} — ${fmtD(getDomingo(p.semana_inicio))} *já transferido*.${reciboNum}\n\n`
+    : `Olá ${nome.split(' ')[0]}! 👋\n\n💶 *Já tens novo pagamento para validar* — semana ${fmtD(p.semana_inicio)} — ${fmtD(getDomingo(p.semana_inicio))}\n\n`;
+  const detalhe = `• Uber líq.: ${fmt(p.uber_liquido)}\n• Bolt líq.: ${fmt(p.bolt_liquido)}\n• Comissão: ${fmt(p.iva_cobrar)}\n• Despesas: -${fmt(p.total_despesas)}\n\n✅ *Total: ${fmt(p.valor_final)}*\n\n`;
+  const acao = isPago
+    ? `📥 Descarrega o recibo aqui:\n${appUrl}\n\nBom trabalho! 🚗`
+    : `👉 Valida agora aqui:\n${appUrl}\n\nObrigada! 🙏`;
+  const texto = cabec + detalhe + acao;
 
   openModal(`Enviar recibo — ${nome}`, `
     <div class="tabs-nav">

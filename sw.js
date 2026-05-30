@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v40-2026-05-27-fix-overflow-tabela-icones-cortados';
+const CACHE_VERSION = 'fleetpay-v41-2026-05-27-whatsapp-msg-melhorada-com-link';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
