@@ -41,14 +41,14 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET nome = EXCLUDED.nome, ativo = TRUE;
 
 -- 4) 5 viaturas (1 por motorista)
-INSERT INTO veiculos (id, empresa_id, motorista_id, matricula, modelo, marca, ano, ativo)
+INSERT INTO veiculos (id, empresa_id, motorista_id, matricula, modelo, marca, ano, estado)
 VALUES
-  ('deadbeef-2000-0000-0000-000000000001','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000001','AA-11-DM','Corolla Hybrid','Toyota',  2023, true),
-  ('deadbeef-2000-0000-0000-000000000002','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000002','BB-22-DM','Captur E-Tech', 'Renault', 2022, true),
-  ('deadbeef-2000-0000-0000-000000000003','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000003','CC-33-DM','C3 Aircross',   'Citroen', 2024, true),
-  ('deadbeef-2000-0000-0000-000000000004','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000004','DD-44-DM','Kona EV',       'Hyundai', 2023, true),
-  ('deadbeef-2000-0000-0000-000000000005','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000005','EE-55-DM','e-208',         'Peugeot', 2024, true)
-ON CONFLICT (id) DO UPDATE SET matricula = EXCLUDED.matricula, ativo = TRUE;
+  ('deadbeef-2000-0000-0000-000000000001','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000001','AA-11-DM','Corolla Hybrid','Toyota',  2023, 'ativo'),
+  ('deadbeef-2000-0000-0000-000000000002','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000002','BB-22-DM','Captur E-Tech', 'Renault', 2022, 'ativo'),
+  ('deadbeef-2000-0000-0000-000000000003','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000003','CC-33-DM','C3 Aircross',   'Citroen', 2024, 'ativo'),
+  ('deadbeef-2000-0000-0000-000000000004','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000004','DD-44-DM','Kona EV',       'Hyundai', 2023, 'ativo'),
+  ('deadbeef-2000-0000-0000-000000000005','deadbeef-0000-0000-0000-000000000001','deadbeef-1000-0000-0000-000000000005','EE-55-DM','e-208',         'Peugeot', 2024, 'ativo')
+ON CONFLICT (id) DO UPDATE SET matricula = EXCLUDED.matricula, estado = 'ativo';
 
 -- 5) 6 semanas de pagamentos (30 rows total)
 DO $$
