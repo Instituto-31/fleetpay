@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v39-2026-05-27-recibos-pdf-emails-grafico';
+const CACHE_VERSION = 'fleetpay-v40-2026-05-27-fix-overflow-tabela-icones-cortados';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
