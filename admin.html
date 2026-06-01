@@ -893,6 +893,48 @@ async function init() {
   document.getElementById('user-avatar').textContent = (perfil.nome || currentUser.email)[0].toUpperCase();
   renderEmpresaSelector();
 
+  // 🕒 Banner TRIAL (se aplicável) + modo read-only se expirou
+  if (empresa?.trial_termina_em) {
+    const fim = new Date(empresa.trial_termina_em);
+    const agora = new Date();
+    const diasRest = Math.ceil((fim - agora) / (1000*60*60*24));
+    const expirou = fim < agora;
+    window.fleetpayTrialExpirou = expirou;
+    const existing = document.getElementById('trial-banner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'trial-banner';
+    if (expirou) {
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#c44545,#a43838);color:#fff;padding:12px 16px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:600;letter-spacing:.4px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)';
+      banner.innerHTML = '⏰ <strong>Trial expirado</strong> — A app está em modo leitura. <a href="upgrade.html" style="color:#fff;text-decoration:underline;margin-left:8px;font-weight:700">Subscrever para continuar →</a>';
+      // adiciona CSS que desactiva botões de escrita
+      const css = document.createElement('style');
+      css.id = 'trial-readonly-css';
+      css.textContent = `
+        body.trial-readonly .btn-gold:not([data-allow-readonly]),
+        body.trial-readonly .btn-primary:not([data-allow-readonly]),
+        body.trial-readonly button[onclick*="marcarPago"],
+        body.trial-readonly button[onclick*="guardar"],
+        body.trial-readonly button[onclick*="eliminar"],
+        body.trial-readonly button[onclick*="adicionar"],
+        body.trial-readonly button[onclick*="criar"],
+        body.trial-readonly input[type="file"],
+        body.trial-readonly textarea,
+        body.trial-readonly input:not([readonly]):not([data-allow-readonly]) {
+          pointer-events:none !important; opacity:0.5 !important; cursor:not-allowed !important;
+        }
+      `;
+      document.head.appendChild(css);
+      document.body.classList.add('trial-readonly');
+    } else {
+      const cor = diasRest <= 7 ? 'linear-gradient(90deg,#e8943a,#c8922a)' : 'linear-gradient(90deg,#7a8c66,#5d6b4f)';
+      banner.style.cssText = `position:fixed;top:0;left:0;right:0;z-index:9999;background:${cor};color:#fff;padding:9px 16px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;font-weight:500;letter-spacing:.4px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.2)`;
+      banner.innerHTML = `⏱️ <strong>Trial gratuito</strong> — ${diasRest} ${diasRest===1?'dia':'dias'} restante${diasRest===1?'':'s'}. <a href="upgrade.html" style="color:#fff;text-decoration:underline;margin-left:8px;font-weight:700">Subscrever →</a>`;
+    }
+    document.body.prepend(banner);
+    document.body.style.paddingTop = '40px';
+  }
+
   // 🧪 Banner MODO DEMO
   if (empresa?.demo === true) {
     const existing = document.getElementById('demo-banner');
