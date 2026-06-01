@@ -2487,11 +2487,11 @@ function editarPagamento(id) {
   openModal(`Editar — ${p.motoristas?.nome}`, `
     <div class="field-row">
       <div class="field"><label>Uber Bruto (€)</label><input type="number" id="e-uber-bruto" value="${p.uber_bruto||0}" step="0.01"></div>
-      <div class="field"><label>IVA Uber (%)</label><input type="number" id="e-iva-pct" value="${p.uber_iva_pct||23}" step="0.1"></div>
+      <div class="field"><label>Comissão (%)</label><input type="number" id="e-iva-pct" value="${p.uber_iva_pct ?? 6}" step="0.1"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Bolt Líquido (€)</label><input type="number" id="e-bolt-liq" value="${p.bolt_liquido||0}" step="0.01"></div>
-      <div class="field"><label>IVA Bolt (€)</label><input type="number" id="e-bolt-iva" value="${p.bolt_iva||0}" step="0.01"></div>
+      <div class="field"><label>Comissão Bolt (€)</label><input type="number" id="e-bolt-iva" value="${p.bolt_iva||0}" step="0.01"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Slot (€)</label><input type="number" id="e-slot" value="${p.slot_valor||0}" step="0.01"></div>
@@ -2509,7 +2509,7 @@ function editarPagamento(id) {
 
 async function guardarPagamento(id) {
   const uberBruto = parseFloat(document.getElementById('e-uber-bruto').value)||0;
-  const ivaPct = parseFloat(document.getElementById('e-iva-pct').value)||23;
+  const ivaPct = (v => isNaN(v) ? 6 : v)(parseFloat(document.getElementById('e-iva-pct').value));
   const boltLiq = parseFloat(document.getElementById('e-bolt-liq').value)||0;
   const boltIva = parseFloat(document.getElementById('e-bolt-iva').value)||0;
   const slot = parseFloat(document.getElementById('e-slot').value)||0;
@@ -3461,8 +3461,8 @@ async function guardarMotorista(id) {
     iban: document.getElementById('m-iban').value,
     slot_semanal: parseFloat(document.getElementById('m-slot').value)||0,
     aluguer_semanal: parseFloat(document.getElementById('m-aluguer').value)||0,
-    comissao_pct: parseFloat(document.getElementById('m-comissao')?.value) || 6,
-    iva_pct: parseFloat(document.getElementById('m-iva').value) || 6,
+    comissao_pct: (v => isNaN(v) ? 6 : v)(parseFloat(document.getElementById('m-comissao')?.value)),
+    iva_pct: (v => isNaN(v) ? 6 : v)(parseFloat(document.getElementById('m-iva').value)),
     morada: document.getElementById('m-morada').value,
     doc_id: document.getElementById('m-doc-id').value,
     licenca_tvde: document.getElementById('m-licenca').value,
