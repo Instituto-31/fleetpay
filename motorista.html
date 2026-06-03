@@ -153,6 +153,68 @@ body{font-family:var(--sans);background:var(--ink);color:var(--paper);min-height
   border-top:1px solid var(--line);
   display:flex;z-index:100;
 }
+
+/* ── FAB (Floating Action Button) ── */
+.fab{
+  position:fixed; right:18px; bottom:80px;
+  width:60px; height:60px; border-radius:50%;
+  background:linear-gradient(135deg, var(--gold), #a06e1a);
+  color:var(--ink); border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 20px rgba(200,146,42,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  z-index:90; transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+}
+.fab:hover{ transform:scale(1.08); box-shadow:0 8px 24px rgba(200,146,42,0.5), 0 2px 8px rgba(0,0,0,0.4); }
+.fab:active{ transform:scale(0.96); }
+.fab.open{ transform:rotate(45deg); }
+.fab svg{ width:24px; height:24px; }
+.fab-estado-badge{
+  position:absolute; top:-4px; right:-4px;
+  min-width:18px; height:18px; padding:0 5px;
+  background:#27c93f; color:#fff; border-radius:100px;
+  font-size:9px; font-weight:700; font-family:var(--mono);
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--ink);
+}
+
+.fab-menu{
+  position:fixed; right:18px; bottom:150px; z-index:91;
+  display:flex; flex-direction:column-reverse; gap:10px;
+  pointer-events:none;
+}
+.fab-action{
+  display:flex; align-items:center; gap:12px;
+  background:none; border:none; cursor:pointer; padding:0;
+  opacity:0; transform:translateY(10px) scale(.85);
+  transition:opacity .2s, transform .25s cubic-bezier(.34,1.56,.64,1);
+}
+.fab-menu.show .fab-action{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto }
+.fab-menu.show .fab-action:nth-child(1){ transition-delay:.05s }
+.fab-menu.show .fab-action:nth-child(2){ transition-delay:.10s }
+.fab-menu.show .fab-action:nth-child(3){ transition-delay:.15s }
+.fab-menu.show .fab-action:nth-child(4){ transition-delay:.20s }
+.fab-menu.show .fab-action:nth-child(5){ transition-delay:.25s }
+.fab-action-label{
+  background:var(--ink); color:var(--paper);
+  padding:6px 12px; border-radius:100px;
+  font-size:11px; font-family:var(--sans); font-weight:500;
+  border:1px solid var(--line); white-space:nowrap;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+.fab-action-btn{
+  width:46px; height:46px; border-radius:50%;
+  background:var(--ink); color:var(--paper);
+  border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+.fab-backdrop{
+  position:fixed; inset:0; background:rgba(0,0,0,0.4);
+  backdrop-filter:blur(2px); z-index:89;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+.fab-backdrop.show{ opacity:1; pointer-events:auto }
+body.fab-no .fab, body.fab-no .fab-menu, body.fab-no .fab-backdrop{ display:none !important }
 .nav-item{
   flex:1;padding:14px 8px;position:relative;
   display:flex;flex-direction:column;align-items:center;gap:5px;
@@ -996,6 +1058,34 @@ function renderApp() {
         ${pagamentos.length === 0 ? renderEmpty() : pagamentos.map((p,i) => renderCard(p, i)).join('')}
       </div>
     </div>
+
+    <div class="fab-backdrop" id="fab-backdrop" onclick="toggleFab(false)"></div>
+    <div class="fab-menu" id="fab-menu">
+      <button class="fab-action" onclick="fabAction('estado')">
+        <span class="fab-action-label">Mudar estado</span>
+        <span class="fab-action-btn" id="fab-estado-icon">🚗</span>
+      </button>
+      <button class="fab-action" onclick="fabAction('validar')">
+        <span class="fab-action-label">Validar pagamento</span>
+        <span class="fab-action-btn">💶</span>
+      </button>
+      <button class="fab-action" onclick="fabAction('despesas')">
+        <span class="fab-action-label">Ver despesas</span>
+        <span class="fab-action-btn">⛽</span>
+      </button>
+      <button class="fab-action" onclick="fabAction('chat')">
+        <span class="fab-action-label">Falar com operador</span>
+        <span class="fab-action-btn">💬</span>
+      </button>
+      <button class="fab-action" onclick="fabAction('docs')">
+        <span class="fab-action-label">Os meus documentos</span>
+        <span class="fab-action-btn">📑</span>
+      </button>
+    </div>
+    <button class="fab" id="fab-main" onclick="toggleFab()" aria-label="Menu rápido">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="fab-estado-badge" id="fab-badge" style="display:none"></span>
+    </button>
 
     <div class="bottom-nav">
       <button class="nav-item active">
@@ -1974,6 +2064,82 @@ function filtrar(mes, btn) {
 
 
 // toggleTheme() e init de tema vêm de fleetpay-config.js (helper `themes`)
+
+// ════════════════════════════════════════════════════════════
+// ── FAB (Floating Action Button) ──
+// ════════════════════════════════════════════════════════════
+function toggleFab(force) {
+  const fab = document.getElementById('fab-main');
+  const menu = document.getElementById('fab-menu');
+  const bd = document.getElementById('fab-backdrop');
+  if (!fab || !menu || !bd) return;
+  const willOpen = (typeof force === 'boolean') ? force : !fab.classList.contains('open');
+  fab.classList.toggle('open', willOpen);
+  menu.classList.toggle('show', willOpen);
+  bd.classList.toggle('show', willOpen);
+  // Atualiza ícone do estado actual
+  if (willOpen) atualizarFabEstado();
+}
+
+function atualizarFabEstado() {
+  // Procura estado activo (registo aberto). Variável `estadoAtual` pode existir global.
+  const el = document.getElementById('fab-estado-icon');
+  if (!el) return;
+  const ic = {
+    conducao: '🚗', outros_trabalhos: '🔧', disponivel: '⏱️',
+    pausa: '☕', outro_empregador: '👥'
+  };
+  const e = window.estadoAtual || (window.condEstado && window.condEstado.tipo);
+  el.textContent = e && ic[e] ? ic[e] : '🚗';
+  // Badge no FAB principal (mostra ponto verde se está em condução)
+  const badge = document.getElementById('fab-badge');
+  if (badge) {
+    if (e === 'conducao') {
+      badge.style.display = 'flex';
+      badge.style.background = '#27c93f';
+      badge.textContent = '●';
+    } else if (e) {
+      badge.style.display = 'flex';
+      badge.style.background = '#e8943a';
+      badge.textContent = '●';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+function fabAction(action) {
+  toggleFab(false);
+  switch (action) {
+    case 'estado':
+      if (typeof abrirTempos === 'function') abrirTempos();
+      else if (typeof mostrarTempos === 'function') mostrarTempos();
+      else document.querySelector('[onclick*="Tempos"]')?.click();
+      break;
+    case 'validar':
+      // Scroll até primeiro pagamento que precisa de validação
+      const pendente = document.querySelector('[onclick*="confirmarValor"]') || document.querySelector('.pagamento');
+      if (pendente) pendente.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      break;
+    case 'despesas':
+      if (typeof abrirDespesas === 'function') abrirDespesas();
+      break;
+    case 'chat':
+      if (typeof abrirChat === 'function') abrirChat();
+      break;
+    case 'docs':
+      if (typeof abrirPerfil === 'function') abrirPerfil();
+      // Auto-scroll para secção docs após abrir perfil
+      setTimeout(() => {
+        const docs = document.querySelector('[onclick*="modalUploadDocMotorista"]')?.closest('div');
+        if (docs) docs.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+      break;
+  }
+}
+
+// Atualiza FAB sempre que o estado de condução muda (chama-se daqui)
+window.atualizarFabEstado = atualizarFabEstado;
 
 // Modal de Perfil — info motorista + contratos + tema + logout
 async function abrirPerfil() {
