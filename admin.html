@@ -935,7 +935,7 @@ async function init() {
     document.body.style.paddingTop = '40px';
   }
 
-  // 🧪 Banner MODO DEMO
+  // 🧪 Banner MODO DEMO + bloqueio de uploads
   if (empresa?.demo === true) {
     const existing = document.getElementById('demo-banner');
     if (!existing) {
@@ -946,9 +946,38 @@ async function init() {
       const resetBtn = isSuperadminLocal
         ? ' <button onclick="resetDemoData()" style="background:rgba(17,20,24,0.15);border:1px solid rgba(17,20,24,0.3);color:#111418;padding:3px 10px;border-radius:100px;font-size:10px;font-weight:700;cursor:pointer;margin-left:8px;font-family:inherit">🔄 Reset agora</button>'
         : '';
-      banner.innerHTML = '🧪 MODO DEMO — Dados fictícios. Reset automático todos os dias às 04h.' + resetBtn + ' <a href="https://fleetpay.pt/signup.html" style="color:#111418;text-decoration:underline;margin-left:8px;font-weight:700">Criar conta real →</a>';
+      banner.innerHTML = '🧪 MODO DEMO — Dados fictícios. Uploads desactivados. Reset diário às 04h.' + resetBtn + ' <a href="https://fleetpay.pt/signup.html" style="color:#111418;text-decoration:underline;margin-left:8px;font-weight:700">Criar conta real →</a>';
       document.body.prepend(banner);
       document.body.style.paddingTop = '40px';
+
+      // Bloqueia uploads na demo (excepto superadmin que pode manter para gerir matriz/templates)
+      if (!isSuperadminLocal) {
+        document.body.classList.add('demo-mode-uploads-off');
+        // Intercepta .click() programático em inputs file (botões tipo "+ Carregar")
+        const origClick = HTMLInputElement.prototype.click;
+        HTMLInputElement.prototype.click = function() {
+          if (document.body.classList.contains('demo-mode-uploads-off') && this.type === 'file') {
+            try { toast('🧪 Demo: uploads desactivados. Cria conta real para experimentares com os teus ficheiros.', 'error'); } catch(e){ alert('Demo: uploads desactivados.'); }
+            return;
+          }
+          return origClick.apply(this, arguments);
+        };
+        // Intercepta change (caso o utilizador arraste ficheiro para o input visível)
+        document.addEventListener('change', (e) => {
+          if (!document.body.classList.contains('demo-mode-uploads-off')) return;
+          if (e.target.type === 'file' && e.target.files?.length) {
+            e.target.value = '';
+            e.preventDefault(); e.stopImmediatePropagation();
+            try { toast('🧪 Demo: uploads desactivados.', 'error'); } catch(_){}
+          }
+        }, true);
+        // CSS visual: opacity nos botões de upload
+        const css = document.createElement('style');
+        css.textContent = `
+          body.demo-mode-uploads-off input[type=file] { opacity:0.4 !important; cursor:not-allowed !important; }
+        `;
+        document.head.appendChild(css);
+      }
     }
   }
 
