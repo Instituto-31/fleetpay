@@ -4584,10 +4584,19 @@ async function carregarContratosAssinados() {
 }
 
 async function carregarTemplates() {
+  // Busca templates da empresa actual + todos os matriz (de qualquer empresa)
   const { data, error } = await db.from('contratos_templates')
-    .select('*').eq('empresa_id', empresa.id).order('ordem').order('nome');
+    .select('*, empresas(nome)')
+    .or(`empresa_id.eq.${empresa.id},is_matriz.eq.true`)
+    .order('ordem').order('nome');
   if (error) { console.error(error); contratosTemplates = []; return; }
-  contratosTemplates = data || [];
+  // Deduplica caso a empresa actual tenha templates próprios que também são matriz
+  const vistos = new Set();
+  contratosTemplates = (data || []).filter(t => {
+    if (vistos.has(t.id)) return false;
+    vistos.add(t.id);
+    return true;
+  });
 }
 
 function renderContratosTab() {
@@ -4667,7 +4676,11 @@ function modalCarregarAssinado() {
     <div class="field"><label>Template usado</label>
       <select id="ass-template">
         <option value="">— selecionar —</option>
-        ${contratosTemplates.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')}
+        ${contratosTemplates.filter(t => t.ativo).map(t => {
+          const isMatrizExtern = t.is_matriz && t.empresa_id !== empresa.id;
+          const sufixo = isMatrizExtern ? ` (matriz · ${t.empresas?.nome || ''})` : (t.is_matriz ? ' (minha matriz)' : '');
+          return `<option value="${t.id}">${t.nome}${sufixo}</option>`;
+        }).join('')}
       </select>
     </div>
     <div class="field">
@@ -5181,49 +5194,78 @@ async function downloadContrato() {
 function renderTemplatesList() {
   const isSuperadmin = perfil?.role === 'superadmin';
   const hasOutrasEmpresas = empresasDisponiveis.length > 1;
+  // Separa matriz (de outras empresas) dos próprios
+  const proprios = contratosTemplates.filter(t => t.empresa_id === empresa.id);
+  const matriz = contratosTemplates.filter(t => t.is_matriz && t.empresa_id !== empresa.id);
+
+  const renderRow = (t, isMatrizExtern) => {
+    const origemLabel = isMatrizExtern && t.empresas?.nome
+      ? `<span style="font-size:9px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px;margin-left:6px">via ${t.empresas.nome}</span>`
+      : '';
+    const matrizBadge = t.is_matriz
+      ? `<span class="badge badge-gold" style="margin-left:6px"><span class="badge-dot"></span>MATRIZ</span>`
+      : '';
+    const acoes = isMatrizExtern
+      ? `<button class="btn btn-gold btn-sm" onclick="usarMatrizComoBase('${t.id}')">📋 Usar como base</button>`
+      : `
+        ${t.is_matriz
+          ? `<button class="btn btn-ghost btn-sm" onclick="despromoverMatriz('${t.id}')" title="Retirar da matriz">🌐 Privado</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="promoverMatriz('${t.id}')" title="Disponibilizar como matriz para outras empresas">🌐 Promover</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="toggleTemplateAtivo('${t.id}', ${!t.ativo})">${t.ativo?'Desativar':'Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarTemplate('${t.id}')">🗑️</button>
+      `;
+    return `
+      <tr>
+        <td>${t.nome}${origemLabel}${matrizBadge}</td>
+        <td style="color:var(--sub2)">${t.tipo||'—'}</td>
+        <td style="text-align:center;color:var(--gold)">${(t.placeholders||[]).length}</td>
+        <td style="text-align:center">
+          <span class="badge ${t.ativo?'badge-green':'badge-red'}">
+            <span class="badge-dot"></span>${t.ativo?'Ativo':'Inativo'}
+          </span>
+        </td>
+        <td style="text-align:right;white-space:nowrap">${acoes}</td>
+      </tr>`;
+  };
+
   return `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${contratosTemplates.length} template(s) para esta empresa</div>
-        <div style="font-size:11px;color:var(--sub2)">Templates .docx com placeholders no formato «NOME_DO_CAMPO»</div>
+        <div style="font-size:14px;color:var(--paper);margin-bottom:4px">${proprios.length} próprio(s) · ${matriz.length} matriz disponíveis</div>
+        <div style="font-size:11px;color:var(--sub2)">Carrega .docx com placeholders «NOME_DO_CAMPO» ou usa um da matriz como base.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${isSuperadmin && hasOutrasEmpresas && contratosTemplates.length>0 ? `<button class="btn btn-ghost btn-sm" onclick="modalCopiarTemplates()">📋 Copiar p/ outra empresa</button>` : ''}
+        ${isSuperadmin && hasOutrasEmpresas && proprios.length>0 ? `<button class="btn btn-ghost btn-sm" onclick="modalCopiarTemplates()">📋 Copiar p/ outra empresa</button>` : ''}
         <button class="btn btn-gold btn-sm" onclick="document.getElementById('tpl-file').click()">+ Carregar template</button>
       </div>
       <input type="file" id="tpl-file" accept=".docx" style="display:none" onchange="processarUploadTemplate(this.files[0])">
     </div>
 
-    ${contratosTemplates.length === 0 ? `
+    ${matriz.length ? `
+      <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold)">📋 Matriz FleetPay (base)</div>
+      <div style="font-size:11px;color:var(--sub2);margin-bottom:10px;padding:10px 12px;background:rgba(200,146,42,0.05);border:1px solid rgba(200,146,42,0.18);border-radius:4px">
+        Templates partilhados por outros operadores. Carrega <strong>"Usar como base"</strong> para fazeres uma cópia editável para a tua empresa.
+      </div>
+      <div class="table-wrap" style="margin-bottom:24px">
+        <table>
+          <thead><tr><th>Nome</th><th>Tipo</th><th style="text-align:center">Placeholders</th><th style="text-align:center">Estado</th><th></th></tr></thead>
+          <tbody>${matriz.map(t => renderRow(t, true)).join('')}</tbody>
+        </table>
+      </div>
+    ` : ''}
+
+    <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--sub)">📝 Os meus templates</div>
+    ${proprios.length === 0 ? `
       <div class="empty-state">
         <div class="empty-state-icon">📁</div>
-        <div class="empty-state-text">Sem templates carregados</div>
-        <div class="empty-state-sub">Carrega .docx com placeholders «MOTORISTA_NOME», «VEICULO_MATRICULA», etc.</div>
+        <div class="empty-state-text">Sem templates próprios</div>
+        <div class="empty-state-sub">${matriz.length ? 'Usa um da matriz acima ou carrega o teu .docx.' : 'Carrega .docx com placeholders «MOTORISTA_NOME», etc.'}</div>
       </div>
     ` : `
       <div class="table-wrap">
         <table>
-          <thead><tr>
-            <th>Nome</th><th>Tipo</th><th style="text-align:center">Placeholders</th><th style="text-align:center">Estado</th><th></th>
-          </tr></thead>
-          <tbody>
-            ${contratosTemplates.map(t => `
-              <tr>
-                <td>${t.nome}</td>
-                <td style="color:var(--sub2)">${t.tipo||'—'}</td>
-                <td style="text-align:center;color:var(--gold)">${(t.placeholders||[]).length}</td>
-                <td style="text-align:center">
-                  <span class="badge ${t.ativo?'badge-green':'badge-red'}">
-                    <span class="badge-dot"></span>${t.ativo?'Ativo':'Inativo'}
-                  </span>
-                </td>
-                <td style="text-align:right">
-                  <button class="btn btn-ghost btn-sm" onclick="toggleTemplateAtivo('${t.id}', ${!t.ativo})">${t.ativo?'Desativar':'Ativar'}</button>
-                  <button class="btn btn-danger btn-sm" onclick="eliminarTemplate('${t.id}')">🗑️</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
+          <thead><tr><th>Nome</th><th>Tipo</th><th style="text-align:center">Placeholders</th><th style="text-align:center">Estado</th><th></th></tr></thead>
+          <tbody>${proprios.map(t => renderRow(t, false)).join('')}</tbody>
         </table>
       </div>
     `}
@@ -5408,6 +5450,78 @@ async function toggleTemplateAtivo(id, novoEstado) {
   toast('✅ Template ' + (novoEstado?'ativado':'desativado'));
   await carregarTemplates();
   renderContratosTab();
+}
+
+async function promoverMatriz(id) {
+  const tpl = contratosTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  if (!confirm(`Promover "${tpl.nome}" a matriz?\n\nOutras empresas poderão ver e copiar este template como base. (Não vão poder editar o teu — só fazer uma cópia.)`)) return;
+  const { error } = await db.from('contratos_templates').update({
+    is_matriz: true, promovido_em: new Date().toISOString(), promovido_por: currentUser.id
+  }).eq('id', id);
+  if (error) { toast('Erro: '+(error.message||''),'error'); return; }
+  toast('🌐 Template promovido a matriz');
+  await carregarTemplates();
+  renderContratosTab();
+}
+
+async function despromoverMatriz(id) {
+  const tpl = contratosTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  if (!confirm(`Retirar "${tpl.nome}" da matriz?\n\nDeixa de estar visível para outras empresas. Cópias que já fizeram para si mantêm-se.`)) return;
+  const { error } = await db.from('contratos_templates').update({
+    is_matriz: false, promovido_em: null, promovido_por: null
+  }).eq('id', id);
+  if (error) { toast('Erro: '+(error.message||''),'error'); return; }
+  toast('🔒 Template voltou a privado');
+  await carregarTemplates();
+  renderContratosTab();
+}
+
+async function usarMatrizComoBase(matrizId) {
+  const tpl = contratosTemplates.find(t => t.id === matrizId);
+  if (!tpl) return;
+  if (!confirm(`Copiar "${tpl.nome}" como base para a tua empresa?\n\nFica editável só para ti. O original na empresa de origem não é afetado.`)) return;
+
+  try {
+    // 1. Download do ficheiro original
+    const { data: file, error: dlErr } = await db.storage.from('contratos-templates').download(tpl.ficheiro_path);
+    if (dlErr) throw dlErr;
+
+    // 2. Cria novo registo na minha empresa (sem o ficheiro_path ainda)
+    const { data: novoTpl, error: insErr } = await db.from('contratos_templates').insert({
+      empresa_id: empresa.id,
+      nome: tpl.nome + ' (cópia)',
+      tipo: tpl.tipo,
+      placeholders: tpl.placeholders,
+      ordem: tpl.ordem || 99,
+      ativo: true,
+      ficheiro_path: 'pending',
+      is_matriz: false,
+      matriz_origem: matrizId
+    }).select().single();
+    if (insErr) throw insErr;
+
+    // 3. Upload do .docx para o storage da minha empresa
+    const safeName = tpl.nome.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const novoPath = `${empresa.id}/${novoTpl.id}_${safeName}.docx`;
+    const { error: upErr } = await db.storage.from('contratos-templates').upload(novoPath, file, {
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      upsert: false
+    });
+    if (upErr) {
+      await db.from('contratos_templates').delete().eq('id', novoTpl.id);
+      throw upErr;
+    }
+    await db.from('contratos_templates').update({ ficheiro_path: novoPath }).eq('id', novoTpl.id);
+
+    toast('✅ Template copiado — agora podes editá-lo nos teus');
+    await carregarTemplates();
+    renderContratosTab();
+  } catch (e) {
+    console.error('[usarMatriz]', e);
+    toast('Erro: ' + (e.message || 'desconhecido'), 'error');
+  }
 }
 
 async function eliminarTemplate(id) {
