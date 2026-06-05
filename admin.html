@@ -4678,7 +4678,7 @@ function modalCarregarAssinado() {
         <option value="">— selecionar —</option>
         ${contratosTemplates.filter(t => t.ativo).map(t => {
           const isMatrizExtern = t.is_matriz && t.empresa_id !== empresa.id;
-          const sufixo = isMatrizExtern ? ` (matriz · ${t.empresas?.nome || ''})` : (t.is_matriz ? ' (minha matriz)' : '');
+          const sufixo = isMatrizExtern ? ' (matriz)' : '';
           return `<option value="${t.id}">${t.nome}${sufixo}</option>`;
         }).join('')}
       </select>
@@ -5199,9 +5199,7 @@ function renderTemplatesList() {
   const matriz = contratosTemplates.filter(t => t.is_matriz && t.empresa_id !== empresa.id);
 
   const renderRow = (t, isMatrizExtern) => {
-    const origemLabel = isMatrizExtern && t.empresas?.nome
-      ? `<span style="font-size:9px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px;margin-left:6px">via ${t.empresas.nome}</span>`
-      : '';
+    const origemLabel = '';  // anónimo — os outros operadores nao precisam saber qual empresa partilhou
     const matrizBadge = t.is_matriz
       ? `<span class="badge badge-gold" style="margin-left:6px"><span class="badge-dot"></span>MATRIZ</span>`
       : '';
