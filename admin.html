@@ -5206,7 +5206,7 @@ function renderTemplatesList() {
       ? `<span class="badge badge-gold" style="margin-left:6px"><span class="badge-dot"></span>MATRIZ</span>`
       : '';
     const acoes = isMatrizExtern
-      ? `<button class="btn btn-gold btn-sm" onclick="usarMatrizComoBase('${t.id}')">📋 Usar como base</button>`
+      ? `<button class="btn btn-ghost btn-sm" onclick="usarMatrizComoBase('${t.id}')" title="Cria uma cópia editável só para a tua empresa">📝 Copiar para editar</button>`
       : `
         ${t.is_matriz
           ? `<button class="btn btn-ghost btn-sm" onclick="despromoverMatriz('${t.id}')" title="Retirar da matriz">🌐 Privado</button>`
@@ -5242,9 +5242,10 @@ function renderTemplatesList() {
     </div>
 
     ${matriz.length ? `
-      <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold)">📋 Matriz FleetPay (base)</div>
+      <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold)">📋 Matriz FleetPay — disponíveis para todos</div>
       <div style="font-size:11px;color:var(--sub2);margin-bottom:10px;padding:10px 12px;background:rgba(200,146,42,0.05);border:1px solid rgba(200,146,42,0.18);border-radius:4px">
-        Templates partilhados por outros operadores. Carrega <strong>"Usar como base"</strong> para fazeres uma cópia editável para a tua empresa.
+        ✅ <strong>Podes usar estes templates directamente</strong> em "Gerar contrato" (aparecem no dropdown).<br>
+        📝 Se quiseres modificar algum, carrega <strong>"Copiar para editar"</strong> → fica uma cópia tua editável.
       </div>
       <div class="table-wrap" style="margin-bottom:24px">
         <table>
