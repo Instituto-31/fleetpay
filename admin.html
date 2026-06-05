@@ -939,10 +939,14 @@ async function init() {
   if (empresa?.demo === true) {
     const existing = document.getElementById('demo-banner');
     if (!existing) {
+      const isSuperadminLocal = perfil?.role === 'superadmin';
       const banner = document.createElement('div');
       banner.id = 'demo-banner';
       banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#e8943a,#c8922a);color:#111418;padding:10px 16px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;font-weight:600;letter-spacing:.6px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)';
-      banner.innerHTML = '🧪 MODO DEMO — Dados fictícios. Tudo o que fizeres aqui é apenas para experimentar. <a href="https://fleetpay.pt/signup.html" style="color:#111418;text-decoration:underline;margin-left:8px;font-weight:700">Criar conta real →</a>';
+      const resetBtn = isSuperadminLocal
+        ? ' <button onclick="resetDemoData()" style="background:rgba(17,20,24,0.15);border:1px solid rgba(17,20,24,0.3);color:#111418;padding:3px 10px;border-radius:100px;font-size:10px;font-weight:700;cursor:pointer;margin-left:8px;font-family:inherit">🔄 Reset agora</button>'
+        : '';
+      banner.innerHTML = '🧪 MODO DEMO — Dados fictícios. Reset automático todos os dias às 04h.' + resetBtn + ' <a href="https://fleetpay.pt/signup.html" style="color:#111418;text-decoration:underline;margin-left:8px;font-weight:700">Criar conta real →</a>';
       document.body.prepend(banner);
       document.body.style.paddingTop = '40px';
     }
@@ -1131,6 +1135,20 @@ async function calcularBadgeCupoes() {
       badge.style.display = 'none';
     }
   } catch(e) { /* tabela ainda não existe — silencioso */ }
+}
+
+async function resetDemoData() {
+  if (!confirm('Reset completo da demo agora?\n\nVai apagar todos os pagamentos/contratos/docs criados pelos leads e re-gerar seed limpo (5 motoristas, 30 pagamentos).')) return;
+  toast('🔄 A fazer reset...');
+  try {
+    const { data, error } = await db.rpc('reset_demo_data');
+    if (error) throw error;
+    toast(`✅ Reset concluído em ${data?.duracao_ms}ms — 5 motoristas, 30 pagamentos`);
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    console.error('[reset-demo]', e);
+    toast('Erro: ' + (e.message || 'desconhecido'), 'error');
+  }
 }
 
 async function logout() {
