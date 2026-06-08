@@ -64,8 +64,9 @@ serve(async (req) => {
     });
 
     let authUserId: string | null = null;
+    let envioStatus = 'criado-e-enviado';
     if (linkErr) {
-      // Pode ja existir — tenta apanhar o id existente
+      // User já existe — apanha id e reenvia magic link manualmente
       const { data: existing } = await supabase.auth.admin.listUsers();
       const found = existing?.users.find(u => u.email?.toLowerCase() === email);
       if (!found) {
@@ -74,6 +75,18 @@ serve(async (req) => {
         });
       }
       authUserId = found.id;
+      // Reenvia magic link via generateLink (sai pelo SMTP configurado se enabled)
+      try {
+        const redirectTo = `${req.headers.get('origin') || 'https://fleetpay.pt'}/motorista.html`;
+        const { error: resendErr } = await supabase.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo },
+        });
+        envioStatus = resendErr ? `existente-erro-reenvio:${resendErr.message}` : 'existente-reenviado';
+      } catch (e) {
+        envioStatus = `existente-erro-reenvio:${(e as Error).message}`;
+      }
     } else {
       authUserId = linkData.user?.id || null;
     }
