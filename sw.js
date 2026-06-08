@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v50-2026-06-08-password-fixa-motorista';
+const CACHE_VERSION = 'fleetpay-v51-2026-06-08-motorista-mudar-password';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 
