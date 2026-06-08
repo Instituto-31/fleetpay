@@ -3296,8 +3296,9 @@ function renderLinhaMotorista(m) {
         <div style="display:inline-flex;gap:4px">
           <button class="btn btn-ghost btn-sm" title="Editar motorista" onclick="modalMotorista('${m.id}')" style="padding:6px 10px">✏️</button>
           ${ativo
-            ? `<button class="btn btn-ghost btn-sm" title="Convidar (enviar magic link)" onclick="convidarMotorista('${m.id}')" style="padding:6px 10px">📧</button>
-               <button class="btn btn-ghost btn-sm" title="Desactivar — mantém histórico, deixa de aparecer nos activos" onclick="toggleAtivoMotorista('${m.id}', false)" style="padding:6px 10px;color:var(--orange)">⏸️</button>`
+            ? `<button class="btn btn-ghost btn-sm" title="Enviar magic link" onclick="convidarMotorista('${m.id}')" style="padding:6px 10px">📧</button>
+               <button class="btn btn-ghost btn-sm" title="Definir / mudar password" onclick="definirPasswordMotorista('${m.id}')" style="padding:6px 10px">🔑</button>
+               <button class="btn btn-ghost btn-sm" title="Desactivar — mantém histórico" onclick="toggleAtivoMotorista('${m.id}', false)" style="padding:6px 10px;color:var(--orange)">⏸️</button>`
             : `<button class="btn btn-ghost btn-sm" title="Reactivar motorista" onclick="toggleAtivoMotorista('${m.id}', true)" style="padding:6px 10px;color:var(--green)">↻</button>
                <button class="btn btn-danger btn-sm" title="Eliminar PERMANENTEMENTE (só se sem histórico)" onclick="eliminarMotoristaPermanente('${m.id}')" style="padding:6px 10px">🗑️</button>`
           }
@@ -3623,6 +3624,102 @@ async function enviarConvite() {
   } catch (e) {
     console.error('[convidar-motorista]', e);
     toast('Erro inesperado: ' + e.message, 'error');
+  }
+}
+
+function gerarPasswordSegura(len = 10) {
+  // Gera password lembrável: 2 palavras + 2 dígitos + 1 símbolo
+  const palavras = ['fleet','rota','sol','luz','via','rua','mar','rio','sul','mar','olho','pao','vela'];
+  const w1 = palavras[Math.floor(Math.random()*palavras.length)];
+  const w2 = palavras[Math.floor(Math.random()*palavras.length)];
+  const n = Math.floor(Math.random()*90 + 10);
+  return `${w1.charAt(0).toUpperCase()+w1.slice(1)}${w2}${n}!`;
+}
+
+async function definirPasswordMotorista(id) {
+  const m = motoristas.find(x=>x.id===id);
+  if (!m) return;
+  if (!m.email) { toast('Motorista sem email — não posso criar conta','error'); return; }
+
+  const passwordSugerida = gerarPasswordSegura();
+
+  openModal(`🔑 Password de acesso — ${m.nome}`, `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:14px;line-height:1.6">
+      Define uma password para o ${m.nome}. Vais copiar e enviar por WhatsApp.<br>
+      Ele depois pode mudar no Perfil dele.
+    </p>
+    <div class="field">
+      <label>Email</label>
+      <input id="pw-email" value="${m.email}" disabled style="opacity:0.7">
+    </div>
+    <div class="field">
+      <label>Password (mínimo 6 caracteres)</label>
+      <div style="display:flex;gap:6px">
+        <input id="pw-password" value="${passwordSugerida}" style="flex:1;font-family:var(--mono);font-size:13px">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pw-password').value = gerarPasswordSegura()" title="Gerar nova">🔄</button>
+        <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('pw-password').value);toast('Password copiada')" title="Copiar">📋</button>
+      </div>
+      <div style="font-size:11px;color:var(--sub2);margin-top:6px">A password é gerada — podes mudar/regenerar se quiseres.</div>
+    </div>
+    <div style="padding:12px;background:rgba(200,146,42,0.06);border:1px solid var(--gold);border-radius:4px;margin-top:12px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">📱 Mensagem para WhatsApp</div>
+      <div id="pw-mensagem" style="font-size:11px;color:var(--paper);line-height:1.6;white-space:pre-line"></div>
+      <button class="btn btn-gold btn-sm" style="margin-top:8px" onclick="copiarMensagemPassword('${m.id}')">📋 Copiar mensagem completa</button>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" onclick="confirmarPasswordMotorista('${m.id}')">🔑 Definir Password</button>
+  `);
+
+  // Atualiza mensagem em real-time conforme password muda
+  const atualizarMsg = () => {
+    const pw = document.getElementById('pw-password').value;
+    const url = (location.origin || 'https://fleetpay.pt') + '/login.html';
+    document.getElementById('pw-mensagem').textContent =
+      `Olá ${m.nome.split(' ')[0]}! 👋\n\nA tua conta no FleetPay está pronta.\n\n` +
+      `🌐 ${url}\n` +
+      `📧 Email: ${m.email}\n` +
+      `🔑 Password: ${pw}\n\n` +
+      `Podes mudar a password depois no Perfil.\nQualquer dúvida fala comigo.`;
+  };
+  setTimeout(() => {
+    atualizarMsg();
+    document.getElementById('pw-password').oninput = atualizarMsg;
+  }, 100);
+}
+
+function copiarMensagemPassword(id) {
+  const m = motoristas.find(x=>x.id===id);
+  const pw = document.getElementById('pw-password').value;
+  const url = (location.origin || 'https://fleetpay.pt') + '/login.html';
+  const msg = `Olá ${m.nome.split(' ')[0]}! 👋\n\nA tua conta no FleetPay está pronta.\n\n` +
+    `🌐 ${url}\n📧 Email: ${m.email}\n🔑 Password: ${pw}\n\n` +
+    `Podes mudar a password depois no Perfil.\nQualquer dúvida fala comigo.`;
+  navigator.clipboard.writeText(msg);
+  toast('✅ Mensagem copiada — cola no WhatsApp');
+}
+
+async function confirmarPasswordMotorista(id) {
+  const password = document.getElementById('pw-password').value.trim();
+  if (!password || password.length < 6) { toast('Password tem de ter mínimo 6 caracteres','error'); return; }
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/definir-password-motorista`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({ motorista_id: id, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('Erro: ' + (data.error || 'desconhecido'), 'error'); console.error(data); return; }
+    toast('✅ Password definida — copia a mensagem e envia ao motorista');
+    // Não fecha o modal — operador ainda pode querer copiar a mensagem
+  } catch (e) {
+    console.error('[definir-password]', e);
+    toast('Erro: ' + e.message, 'error');
   }
 }
 
