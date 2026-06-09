@@ -1166,6 +1166,58 @@ async function calcularBadgeCupoes() {
   } catch(e) { /* tabela ainda não existe — silencioso */ }
 }
 
+async function guardarModeloComissao(modelo) {
+  if (!empresa?.id) return;
+  if (!['directo','inclusivo'].includes(modelo)) return;
+  const anterior = empresa.modelo_comissao || 'directo';
+  if (anterior === modelo) return;
+
+  if (!confirm(`Mudar para modelo "${modelo}"?\n\nVai recalcular automaticamente os pagamentos AINDA NÃO PAGOS desta empresa. Os pagamentos já marcados pagos ficam congelados.`)) {
+    // reverte radio button
+    document.querySelector(`input[name="modelo-comissao"][value="${anterior}"]`).checked = true;
+    return;
+  }
+
+  toast('💶 A actualizar modelo...');
+  // 1. Update empresa
+  const { error: errEmp } = await db.from('empresas').update({ modelo_comissao: modelo }).eq('id', empresa.id);
+  if (errEmp) { toast('Erro: '+errEmp.message,'error'); return; }
+  empresa.modelo_comissao = modelo;
+
+  // 2. Recalcular pagamentos NÃO pagos desta empresa
+  const { data: pags, error: errLista } = await db.from('pagamentos')
+    .select('id, motorista_id, uber_bruto, bolt_liquido, slot_valor, aluguer_valor, prio_valor, viaverde_valor, estado, motoristas(comissao_pct)')
+    .eq('empresa_id', empresa.id)
+    .neq('estado', 'pago');
+  if (errLista) { toast('Erro a buscar pagamentos: '+errLista.message,'error'); return; }
+
+  let actualizados = 0;
+  for (const p of (pags || [])) {
+    const pct = p.motoristas?.comissao_pct ?? 6;
+    const divisor = modelo === 'inclusivo' ? (100 + pct) : 100;
+    const uberFat = parseFloat(p.uber_bruto) || 0;
+    const boltFat = parseFloat(p.bolt_liquido) || 0;
+    const comUber = uberFat * pct / divisor;
+    const comBolt = boltFat * pct / divisor;
+    const comTotal = comUber + comBolt;
+    const slot = parseFloat(p.slot_valor) || 0;
+    const alug = parseFloat(p.aluguer_valor) || 0;
+    const prio = parseFloat(p.prio_valor) || 0;
+    const vv = parseFloat(p.viaverde_valor) || 0;
+    const valorFinal = (uberFat + boltFat) - comTotal - slot - alug - prio - vv;
+    const { error } = await db.from('pagamentos').update({
+      uber_iva_valor: comUber,
+      bolt_iva: comBolt,
+      iva_cobrar: comTotal,
+      valor_final: valorFinal,
+    }).eq('id', p.id);
+    if (!error) actualizados++;
+  }
+  toast(`✅ Modelo "${modelo}" guardado · ${actualizados} pagamentos recalculados`);
+  await carregarDados();
+  if (currentPage === 'pagamentos') renderPagamentos();
+}
+
 async function resetDemoData() {
   if (!confirm('Reset completo da demo agora?\n\nVai apagar todos os pagamentos/contratos/docs criados pelos leads e re-gerar seed limpo (5 motoristas, 30 pagamentos).')) return;
   toast('🔄 A fazer reset...');
@@ -2606,9 +2658,10 @@ async function guardarPagamento(id) {
   const prio = parseFloat(document.getElementById('e-prio').value)||0;
   const vv = parseFloat(document.getElementById('e-vv').value)||0;
 
-  // Modelo: CSV Uber/Bolt da' a FATURACAO LIQUIDA. Comissao = faturacao * pct/(100+pct)
-  // ivaPct neste contexto e' a % de comissao (default 6 para TVDE)
-  const comissaoUber = uberBruto * ivaPct / (100 + ivaPct);
+  // Modelo de comissão da empresa: 'directo' ou 'inclusivo'
+  const modeloCom = empresa?.modelo_comissao || 'directo';
+  const divisor = modeloCom === 'inclusivo' ? (100 + ivaPct) : 100;
+  const comissaoUber = uberBruto * ivaPct / divisor;
   const uberLiq = uberBruto;                              // Sem desconto adicional
   const ivaCobrar = comissaoUber + boltIva;               // Total de comissoes
   const rendLiq = uberBruto + boltLiq;                    // Ganhos do motorista
@@ -2952,14 +3005,16 @@ function mostrarPreviewCSV() {
     if (!mot && u.bruto > 0) mot = findMotorista(nome, { platform:'uber' });
     if (!mot && b.liquido > 0) mot = findMotorista(nome, { platform:'bolt' });
     if (!mot) mot = findMotorista(nome);
-    // O CSV da Uber e Bolt ja vem com a FATURACAO LIQUIDA (o que a plataforma paga ao operador).
-    // A "Comissao" e' o que a EMPRESA cobra ao motorista (default 6% TVDE, override por motorista).
-    // Formula: comissao = faturacao * pct / (100 + pct) — equivale a 6% do valor liquido motorista.
+    // Modelo de comissão:
+    //   - 'directo' (default): comissao = bruto × pct / 100
+    //   - 'inclusivo' (estilo IVA): comissao = bruto × pct / (100 + pct)
+    const modeloCom = empresa?.modelo_comissao || 'directo';
     const comissaoPct = mot?.comissao_pct ?? 6;
-    const uberFat = u.bruto;                              // Uber CSV = faturacao liquida
-    const boltFat = b.liquido;                            // Bolt CSV = faturacao liquida
-    const comissaoUber = uberFat * comissaoPct / (100 + comissaoPct);
-    const comissaoBolt = boltFat * comissaoPct / (100 + comissaoPct);
+    const uberFat = u.bruto;
+    const boltFat = b.liquido;
+    const divisor = modeloCom === 'inclusivo' ? (100 + comissaoPct) : 100;
+    const comissaoUber = uberFat * comissaoPct / divisor;
+    const comissaoBolt = boltFat * comissaoPct / divisor;
     const comissaoTotal = comissaoUber + comissaoBolt;
     const slot = mot?.slot_semanal || 0;
     const aluguer = mot?.aluguer_semanal || 0;
@@ -6101,6 +6156,36 @@ function renderConfig() {
                 ${empresa?.logo_path ? `<button class="btn btn-ghost btn-sm" onclick="removerLogo()">🗑️ Remover</button>` : ''}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom:24px">
+        <div class="table-header">
+          <div>
+            <div class="table-title">💶 Modelo de comissão</div>
+            <div class="table-sub">Como a percentagem é calculada sobre o bruto dos motoristas</div>
+          </div>
+        </div>
+        <div style="padding:24px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <label style="display:flex;gap:10px;padding:14px 16px;background:transparent;border:1px solid ${(empresa?.modelo_comissao||'directo')==='directo'?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;align-items:flex-start">
+              <input type="radio" name="modelo-comissao" value="directo" ${(empresa?.modelo_comissao||'directo')==='directo'?'checked':''} onchange="guardarModeloComissao('directo')" style="margin-top:3px;accent-color:var(--gold)">
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13px;color:var(--paper)">Directo <span style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-left:6px">RECOMENDADO</span></div>
+                <div style="font-size:12px;color:var(--sub2);margin-top:4px;line-height:1.5">Comissão = bruto × pct / 100. Ex: 10% de 1000€ = <strong>100€</strong>. Motorista recebe 900€. Modelo mais usado em TVDE.</div>
+              </div>
+            </label>
+            <label style="display:flex;gap:10px;padding:14px 16px;background:transparent;border:1px solid ${(empresa?.modelo_comissao||'directo')==='inclusivo'?'var(--gold)':'var(--line)'};border-radius:4px;cursor:pointer;align-items:flex-start">
+              <input type="radio" name="modelo-comissao" value="inclusivo" ${(empresa?.modelo_comissao||'directo')==='inclusivo'?'checked':''} onchange="guardarModeloComissao('inclusivo')" style="margin-top:3px;accent-color:var(--gold)">
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:13px;color:var(--paper)">Inclusivo (estilo IVA)</div>
+                <div style="font-size:12px;color:var(--sub2);margin-top:4px;line-height:1.5">Comissão = bruto × pct / (100+pct). Ex: 10% de 1000€ = <strong>90,91€</strong>. Motorista recebe 909,09€. Usado quando a margem está incluída no bruto.</div>
+              </div>
+            </label>
+          </div>
+          <div style="margin-top:14px;padding:10px 12px;background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:4px;font-size:11px;color:var(--sub2);line-height:1.6">
+            ⚠️ Mudar o modelo recalcula os pagamentos <strong>ainda não pagos</strong>. Pagamentos pagos ficam congelados como histórico.
           </div>
         </div>
       </div>
