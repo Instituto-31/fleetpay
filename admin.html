@@ -2658,8 +2658,9 @@ async function guardarPagamento(id) {
   const prio = parseFloat(document.getElementById('e-prio').value)||0;
   const vv = parseFloat(document.getElementById('e-vv').value)||0;
 
-  // Modelo de comissão da empresa: 'directo' ou 'inclusivo'
-  const modeloCom = empresa?.modelo_comissao || 'directo';
+  // Modelo de comissão (do motorista): 'directo' ou 'inclusivo'
+  const motEdit = motoristas.find(m => pagamentos.find(x=>x.id===id)?.motorista_id === m.id);
+  const modeloCom = motEdit?.modelo_comissao || 'directo';
   const divisor = modeloCom === 'inclusivo' ? (100 + ivaPct) : 100;
   const comissaoUber = uberBruto * ivaPct / divisor;
   const uberLiq = uberBruto;                              // Sem desconto adicional
@@ -3005,10 +3006,10 @@ function mostrarPreviewCSV() {
     if (!mot && u.bruto > 0) mot = findMotorista(nome, { platform:'uber' });
     if (!mot && b.liquido > 0) mot = findMotorista(nome, { platform:'bolt' });
     if (!mot) mot = findMotorista(nome);
-    // Modelo de comissão:
+    // Modelo de comissão (por motorista):
     //   - 'directo' (default): comissao = bruto × pct / 100
     //   - 'inclusivo' (estilo IVA): comissao = bruto × pct / (100 + pct)
-    const modeloCom = empresa?.modelo_comissao || 'directo';
+    const modeloCom = mot?.modelo_comissao || 'directo';
     const comissaoPct = mot?.comissao_pct ?? 6;
     const uberFat = u.bruto;
     const boltFat = b.liquido;
@@ -3438,6 +3439,13 @@ function modalMotorista(id=null) {
       <div class="field"><label>Comissão empresa (%)</label><input type="number" id="m-comissao" value="${m.comissao_pct ?? 6}" step="0.1" title="Percentagem que a empresa retém do bruto Uber/Bolt"></div>
       <div class="field"><label>IVA recibo (%)</label><input type="number" id="m-iva" value="${m.iva_pct ?? 6}" step="0.1" title="0=isento (regime simplificado), 6=normal TVDE, 23=normal geral"></div>
     </div>
+    <div class="field">
+      <label>Como cobras a comissão</label>
+      <select id="m-modelo-comissao" title="Directo = 10% sobre 1000€ = 100€. Inclusivo = 10% incluído = 90.91€ retido.">
+        <option value="directo" ${(m.modelo_comissao||'directo')==='directo'?'selected':''}>📊 Directo · 10% de 1000€ = 100€ (recomendado)</option>
+        <option value="inclusivo" ${m.modelo_comissao==='inclusivo'?'selected':''}>🧮 Inclusivo · 10% de 1000€ = 90,91€ (estilo IVA)</option>
+      </select>
+    </div>
     <div class="field"><label>Reg. Criminal validade</label><input type="date" id="m-rc" value="${m.registo_criminal_validade||''}"></div>
     <div class="field"><label>Notas</label><input id="m-notas" value="${m.notas||''}"></div>
 
@@ -3607,6 +3615,7 @@ async function guardarMotorista(id) {
     slot_semanal: parseFloat(document.getElementById('m-slot').value)||0,
     aluguer_semanal: parseFloat(document.getElementById('m-aluguer').value)||0,
     comissao_pct: (v => isNaN(v) ? 6 : v)(parseFloat(document.getElementById('m-comissao')?.value)),
+    modelo_comissao: document.getElementById('m-modelo-comissao')?.value || 'directo',
     iva_pct: (v => isNaN(v) ? 6 : v)(parseFloat(document.getElementById('m-iva').value)),
     morada: document.getElementById('m-morada').value,
     doc_id: document.getElementById('m-doc-id').value,
@@ -6160,50 +6169,7 @@ function renderConfig() {
         </div>
       </div>
 
-      <div class="table-wrap" style="margin-bottom:24px">
-        <div class="table-header">
-          <div>
-            <div class="table-title">💶 Como cobras a comissão</div>
-            <div class="table-sub">Imagina um motorista que esta semana fez 1000 € (Uber + Bolt)</div>
-          </div>
-        </div>
-        <div style="padding:24px">
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <label style="display:flex;gap:14px;padding:18px;background:transparent;border:2px solid ${(empresa?.modelo_comissao||'directo')==='directo'?'var(--gold)':'var(--line)'};border-radius:6px;cursor:pointer;align-items:flex-start">
-              <input type="radio" name="modelo-comissao" value="directo" ${(empresa?.modelo_comissao||'directo')==='directo'?'checked':''} onchange="guardarModeloComissao('directo')" style="margin-top:4px;accent-color:var(--gold);width:18px;height:18px">
-              <div style="flex:1">
-                <div style="font-weight:600;font-size:14px;color:var(--paper);margin-bottom:8px">
-                  📊 Cobro 10% directos do bruto
-                  <span style="font-size:10px;color:var(--gold);font-family:var(--mono);margin-left:6px;background:rgba(200,146,42,0.15);padding:2px 6px;border-radius:100px">RECOMENDADO</span>
-                </div>
-                <div style="font-size:13px;color:var(--paper);line-height:1.7;background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:4px;font-family:var(--mono)">
-                  Motorista fez <strong>1000 €</strong><br>
-                  → Tu retiras <strong style="color:var(--gold)">100 € (10%)</strong><br>
-                  → Motorista recebe <strong>900 €</strong>
-                </div>
-                <div style="font-size:11px;color:var(--sub2);margin-top:8px">É a forma mais comum em TVDE. Se não tens certeza, escolhe esta.</div>
-              </div>
-            </label>
-            <label style="display:flex;gap:14px;padding:18px;background:transparent;border:2px solid ${(empresa?.modelo_comissao||'directo')==='inclusivo'?'var(--gold)':'var(--line)'};border-radius:6px;cursor:pointer;align-items:flex-start">
-              <input type="radio" name="modelo-comissao" value="inclusivo" ${(empresa?.modelo_comissao||'directo')==='inclusivo'?'checked':''} onchange="guardarModeloComissao('inclusivo')" style="margin-top:4px;accent-color:var(--gold);width:18px;height:18px">
-              <div style="flex:1">
-                <div style="font-weight:600;font-size:14px;color:var(--paper);margin-bottom:8px">
-                  🧮 Cobro como IVA (a 10% está incluída no bruto)
-                </div>
-                <div style="font-size:13px;color:var(--paper);line-height:1.7;background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:4px;font-family:var(--mono)">
-                  Motorista fez <strong>1000 €</strong> (com a tua margem incluída)<br>
-                  → Tu retiras <strong style="color:var(--gold)">90,91 €</strong> (10% sobre 909,09)<br>
-                  → Motorista recebe <strong>909,09 €</strong>
-                </div>
-                <div style="font-size:11px;color:var(--sub2);margin-top:8px">Modelo usado em algumas frotas antigas. Só se o teu contabilista pedir.</div>
-              </div>
-            </label>
-          </div>
-          <div style="margin-top:14px;padding:10px 12px;background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:4px;font-size:11px;color:var(--sub2);line-height:1.6">
-            ⚠️ Ao mudar, todos os pagamentos por pagar recalculam automaticamente. Pagamentos já feitos não mexem.
-          </div>
-        </div>
-      </div>
+<!-- Modelo de comissão movido para a ficha de cada motorista (Motoristas → editar) -->
 
       <div class="table-wrap" style="margin-bottom:24px">
         <div class="table-header">
