@@ -7091,35 +7091,66 @@ async function sincronizarBolt() {
 }
 
 async function sincronizarBoltPagamentos() {
-  if (!confirm('Vai buscar as corridas Bolt das últimas 8 semanas e agregar em pagamentos por motorista. Continuar?')) return;
-  toast('💰 A buscar corridas Bolt...');
-  try {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) { toast('Sessão expirou — recarrega a página','error'); return; }
-    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/bolt-earnings`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
-      },
-      body: JSON.stringify({ empresa_id: empresa.id, months: 2 }),
-    });
-    const data = await r.json();
-    console.log('[bolt-earnings] resposta:', data);
-    if (!r.ok) {
-      alert('Erro Bolt earnings:\n\n' + (data.error || JSON.stringify(data)));
-      return;
+  if (!confirm('Vai buscar as corridas Bolt das últimas 8 semanas com retry até importar tudo (até 3 tentativas). Continuar?')) return;
+
+  const MAX_RETRIES = 3;
+  let totalCriados = 0, totalActualizados = 0, totalOrders = 0;
+  let ultimaResposta = null;
+
+  for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+    toast(`💰 Tentativa ${tentativa}/${MAX_RETRIES} — A buscar Bolt...`);
+    try {
+      const { data: { session } } = await db.auth.getSession();
+      if (!session) { toast('Sessão expirou','error'); return; }
+      const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/bolt-earnings`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+        },
+        body: JSON.stringify({ empresa_id: empresa.id, months: 2 }),
+      });
+      const data = await r.json();
+      ultimaResposta = data;
+      console.log(`[bolt-earnings #${tentativa}] resposta:`, data);
+
+      if (!r.ok) {
+        if (tentativa === MAX_RETRIES) {
+          alert('Erro Bolt earnings (todas as tentativas falharam):\n\n' + (data.error || JSON.stringify(data)));
+          return;
+        }
+        await new Promise(r => setTimeout(r, 2000)); // pausa 2s antes de retry
+        continue;
+      }
+
+      const s = data.summary || {};
+      totalCriados += (s.pagamentos_created || 0);
+      totalActualizados += (s.pagamentos_updated || 0);
+      totalOrders = Math.max(totalOrders, s.orders_received || 0);
+
+      // Se nada novo nesta tentativa, sai cedo
+      if ((s.pagamentos_created || 0) + (s.pagamentos_updated || 0) === 0 && tentativa > 1) {
+        console.log('[bolt-earnings] nada novo, sai');
+        break;
+      }
+      // Pausa entre tentativas para a API respirar
+      if (tentativa < MAX_RETRIES) await new Promise(r => setTimeout(r, 1500));
+    } catch (e) {
+      console.error(`[bolt-earnings #${tentativa}]`, e);
+      if (tentativa === MAX_RETRIES) {
+        alert('Erro inesperado: ' + e.message);
+        return;
+      }
+      await new Promise(r => setTimeout(r, 2000));
     }
-    const s = data.summary || {};
-    const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} ERROS:\n${s.errors.slice(0, 5).join('\n')}${s.errors.length>5?'\n...':''}` : '';
-    alert(`✅ Pagamentos Bolt sincronizados\n\n📦 ${s.orders_received||0} corridas recebidas\n📊 ${s.buckets||0} semanas × motorista agrupadas\n💾 ${s.pagamentos_created||0} criados · ${s.pagamentos_updated||0} atualizados${s.pagamentos_skipped_no_motorista?` · ${s.pagamentos_skipped_no_motorista} sem motorista`:''}${erros}`);
-    await carregarDados();
-    showPage('pagamentos');
-  } catch (e) {
-    console.error('[bolt-earnings]', e);
-    alert('Erro inesperado: '+e.message);
   }
+
+  const s = ultimaResposta?.summary || {};
+  const erros = s.errors?.length ? `\n\n⚠️ ${s.errors.length} avisos:\n${s.errors.slice(0, 3).join('\n')}` : '';
+  alert(`✅ Sincronização Bolt completa\n\n📦 ${totalOrders} corridas recebidas\n💾 ${totalCriados} criados · ${totalActualizados} atualizados (total das tentativas)${erros}`);
+  await carregarDados();
+  showPage('pagamentos');
 }
 
 async function guardarConfigUber() {
