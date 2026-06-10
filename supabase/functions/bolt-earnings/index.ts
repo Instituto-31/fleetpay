@@ -273,18 +273,15 @@ serve(async (req) => {
         summary.errors.push(`semana ${b.semanaInicio}: driver_uuid ${b.driverUuid} sem motorista no FleetPay`);
         continue;
       }
-      const bolt_bruto = round2(b.agg.bruto);
+      // ⚠️ SIMPLIFICAÇÃO: guardamos só o líquido (net_earnings).
+      // O trigger fp_pagamento_auto_calcular calcula bolt_iva, iva_cobrar e valor_final
+      // automaticamente usando o modelo_comissao do motorista. Não calculamos aqui.
       const bolt_liquido = round2(b.agg.liquido);
-      const bolt_taxa = round2(b.agg.taxa);
-      // Comissao por motorista (override) ou default da empresa, fallback 6
-      const comissaoPct = Number(m.comissao_pct ?? emp.bolt_iva_pct ?? 6);
-      // Comissao da empresa, descontada do bruto (IVA incluido: bruto * pct / (100+pct))
-      const bolt_iva = round2(bolt_bruto * comissaoPct / (100 + comissaoPct));
 
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
         .from('pagamentos')
-        .select('id, slot_valor, aluguer_valor, prio_valor, viaverde_valor, uber_bruto, uber_iva_pct, uber_iva_valor, uber_liquido, outros_descontos')
+        .select('id')
         .eq('empresa_id', empresaId)
         .eq('motorista_id', m.id)
         .eq('semana_inicio', b.semanaInicio)
@@ -294,22 +291,8 @@ serve(async (req) => {
         continue;
       }
 
-      const slot = Number(existing?.slot_valor || 0);
-      const aluguer = Number(existing?.aluguer_valor || 0);
-      const prio = Number(existing?.prio_valor || 0);
-      const viaverde = Number(existing?.viaverde_valor || 0);
-      const outros = Number(existing?.outros_descontos || 0);
-      const total_despesas = round2(slot + aluguer + prio + viaverde + outros);
-      const uberLiq = Number(existing?.uber_liquido || 0);
-      const uberIvaVal = Number(existing?.uber_iva_valor || 0);
-      const iva_cobrar = round2(uberIvaVal + bolt_iva);
-      // uberLiq ja vem da BD com IVA descontado. Aqui so descontamos IVA Bolt ao bolt_liquido.
-      const rendimento_liquido = round2(uberLiq + (bolt_liquido - bolt_iva));
-      const valor_final = round2(rendimento_liquido - total_despesas);
-
       const payload: any = {
-        bolt_bruto, bolt_liquido, bolt_taxa, bolt_iva,
-        iva_cobrar, rendimento_liquido, total_despesas, valor_final,
+        bolt_liquido,
         origem: 'api',
       };
 
