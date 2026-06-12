@@ -815,28 +815,30 @@ async function aceitarTermos(versaoId) {
   if (!versaoId) { restaurar('❌ Versão dos termos não disponível. Recarrega a página.'); return; }
 
   try {
-    // Timeout 8s + log detalhado
-    const insert = db.from('termos_aceitacoes').insert({
-      motorista_id: motorista.id,
-      termos_versao_id: versaoId,
-      user_agent: navigator.userAgent
-    });
+    // RPC SECURITY DEFINER — bypassa RLS lento, idempotente, ~50ms
+    const rpcCall = db.rpc('aceitar_termos', { p_versao_id: versaoId });
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_8S')), 8000));
-    const { data, error } = await Promise.race([insert, timeout]);
+    const { data, error } = await Promise.race([rpcCall, timeout]);
 
     if (error) {
-      console.error('[termos] erro insert:', JSON.stringify(error));
-      // Já tinha aceite (UNIQUE) → segue em frente
-      if (error.code === '23505' || /duplicate|unique/i.test(error.message||'')) {
-        console.log('[termos] ja tinha aceite — seguir');
-      } else if (error.code === '42501' || /row-level|policy/i.test(error.message||'')) {
-        restaurar('⚠️ Permissão negada (RLS).\n\nA tua conta não tem permissão para registar aceitação.\nDetalhes: ' + (error.message||'') + '\n\nContacta a operadora.');
-        return;
-      } else {
-        restaurar('❌ Erro: ' + (error.message || JSON.stringify(error)) + '\n\nFaz screenshot e envia à operadora.');
+      console.error('[termos] erro rpc:', JSON.stringify(error));
+      restaurar('❌ Erro: ' + (error.message || JSON.stringify(error)) + '\n\nFaz screenshot e envia à operadora.');
+      return;
+    }
+    if (data && data.ok === false) {
+      console.warn('[termos] rpc devolveu', data);
+      if (data.reason === 'sem_motorista') {
+        restaurar('⚠️ A tua conta não está ligada a uma frota. Contacta a operadora.');
         return;
       }
+      if (data.reason === 'versao_de_outra_empresa' || data.reason === 'versao_inexistente') {
+        restaurar('⚠️ Versão dos termos inválida. Recarrega a página.');
+        return;
+      }
+      restaurar('❌ Erro: ' + (data.erro || data.reason || 'desconhecido'));
+      return;
     }
+    console.log('[termos] aceito OK', data);
 
     // Aceitou! Remover modal e RENDERIZAR app (que estava bloqueada)
     document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
