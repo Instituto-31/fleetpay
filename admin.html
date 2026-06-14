@@ -3767,14 +3767,34 @@ async function confirmarPasswordMotorista(id) {
   const password = document.getElementById('pw-password').value.trim();
   if (!password || password.length < 6) { toast('Password tem de ter mínimo 6 caracteres','error'); return; }
   try {
-    // RPC SECURITY DEFINER — cria/actualiza auth.users + perfil + liga motorista directamente
-    const { data, error } = await db.rpc('definir_password_motorista', {
-      p_motorista_id: id, p_password: password
+    // Tenta primeiro Edge Function (forma oficial Supabase admin API)
+    const { data: { session } } = await db.auth.getSession();
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/definir-password-motorista`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': FLEETPAY_CONFIG.supabase.anonKey,
+      },
+      body: JSON.stringify({ motorista_id: id, password }),
     });
-    if (error) { toast('Erro: ' + (error.message || 'desconhecido'), 'error'); console.error(error); return; }
-    if (data?.ok === false) {
-      toast('Erro: ' + (data.erro || data.reason || 'desconhecido'), 'error');
-      console.error('[definir-password]', data);
+    if (r.status === 404) {
+      // Edge Function não deployed → fallback RPC
+      console.warn('[definir-password] Edge Function 404, fallback RPC');
+      const { data: rpcData, error: rpcErr } = await db.rpc('definir_password_motorista', {
+        p_motorista_id: id, p_password: password
+      });
+      if (rpcErr || rpcData?.ok === false) {
+        toast('Erro RPC: ' + (rpcErr?.message || rpcData?.erro || rpcData?.reason), 'error');
+        return;
+      }
+      toast('✅ Password definida via SQL (Edge Function não está deployed)');
+      return;
+    }
+    const data = await r.json();
+    if (!r.ok || data?.error) {
+      toast('Erro: ' + (data.error || JSON.stringify(data).slice(0,200)), 'error');
+      console.error(data);
       return;
     }
     toast('✅ Password definida — copia a mensagem e envia ao motorista');
