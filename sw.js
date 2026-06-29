@@ -7,7 +7,7 @@
 //   - Imagens locais → cache-first (rápido)
 //   - Quando há nova versão deste sw.js → activa e força refresh dos clientes
 
-const CACHE_VERSION = 'fleetpay-v58-2026-06-08-definir-password-edge-fn-com-fallback-rpc';
+const CACHE_VERSION = 'fleetpay-v59-2026-06-08-painel-saas-admin-operadores';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_RUNTIME = `${CACHE_VERSION}-runtime`;
 

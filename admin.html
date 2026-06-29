@@ -744,6 +744,10 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('ajuda')">
           <span class="nav-icon">❓</span> Ajuda
         </button>
+        <button class="nav-item nav-superadmin" onclick="showPage('operadores')" id="nav-operadores" style="display:none">
+          <span class="nav-icon">🏢</span> Operadores
+          <span class="nav-badge" id="badge-operadores" style="display:none">SA</span>
+        </button>
       </div>
     </nav>
 
@@ -892,6 +896,12 @@ async function init() {
   document.getElementById('user-nome').textContent = perfil.nome || currentUser.email.split('@')[0];
   document.getElementById('user-avatar').textContent = (perfil.nome || currentUser.email)[0].toUpperCase();
   renderEmpresaSelector();
+
+  // Mostrar item Operadores se é superadmin
+  if (perfil.role === 'superadmin') {
+    const navOp = document.getElementById('nav-operadores');
+    if (navOp) navOp.style.display = '';
+  }
 
   // 🕒 Banner TRIAL (se aplicável) + modo read-only se expirou
   if (empresa?.trial_termina_em) {
@@ -1232,6 +1242,220 @@ async function resetDemoData() {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// ── PAINEL SaaS ADMIN (só superadmin) ──
+// ════════════════════════════════════════════════════════════
+let operadoresLista = [];
+let operadoresFiltro = { plano: 'todos', estado: 'todos', pesquisa: '' };
+
+async function renderOperadores() {
+  if (perfil?.role !== 'superadmin') {
+    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔒</div><div class="empty-state-text">Apenas superadmin</div></div>';
+    return;
+  }
+
+  document.getElementById('topbar-actions').innerHTML = `
+    <input id="op-pesquisa" class="search-bar" placeholder="🔍 Pesquisar empresa..." oninput="filtrarOperadores('pesquisa', this.value)" value="${operadoresFiltro.pesquisa}">
+    <button class="btn btn-gold btn-sm" onclick="carregarOperadores(true)">🔄 Atualizar</button>
+  `;
+  document.getElementById('content').innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+
+  await carregarOperadores();
+  pintarOperadores();
+}
+
+async function carregarOperadores(reload) {
+  const [{ data: kpis }, { data: empresas }] = await Promise.all([
+    db.rpc('fp_kpis_saas'),
+    db.rpc('fp_empresas_dashboard')
+  ]);
+  window.__kpis_saas = kpis || {};
+  operadoresLista = empresas || [];
+  if (reload) pintarOperadores();
+}
+
+function filtrarOperadores(campo, valor) {
+  operadoresFiltro[campo] = (valor || '').toString().toLowerCase();
+  pintarOperadores();
+}
+
+function pintarOperadores() {
+  const kpis = window.__kpis_saas || {};
+  const lista = operadoresLista.filter(e => {
+    if (operadoresFiltro.plano !== 'todos' && e.plano !== operadoresFiltro.plano) return false;
+    if (operadoresFiltro.estado === 'trial' && !(e.dias_trial_restantes > 0)) return false;
+    if (operadoresFiltro.estado === 'pago' && (!e.plano || e.plano === 'free' || e.dias_trial_restantes > 0)) return false;
+    if (operadoresFiltro.estado === 'expirado' && !(e.dias_trial_restantes === 0 && e.trial_termina_em)) return false;
+    if (operadoresFiltro.pesquisa && !e.nome?.toLowerCase().includes(operadoresFiltro.pesquisa)) return false;
+    return true;
+  });
+
+  const fmtEur = n => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(n||0);
+  const fmtData = d => d ? new Date(d).toLocaleDateString('pt-PT') : '—';
+  const fmtDataHora = d => d ? new Date(d).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' }) : '—';
+  const planoBadge = p => {
+    const cores = { starter:'badge-orange', pro:'badge-gold', enterprise:'badge-green', free:'' };
+    return `<span class="badge ${cores[p]||''}"><span class="badge-dot"></span>${(p||'free').toUpperCase()}</span>`;
+  };
+  const trialBadge = e => {
+    if (!e.trial_termina_em) return '';
+    if (e.dias_trial_restantes > 0) return `<span class="badge badge-orange" style="margin-left:6px"><span class="badge-dot"></span>${e.dias_trial_restantes}d</span>`;
+    return `<span class="badge badge-red" style="margin-left:6px"><span class="badge-dot"></span>EXPIRADO</span>`;
+  };
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px">
+      <div class="kpi"><div class="kpi-label">Total operadores</div><div class="kpi-val">${kpis.total_empresas||0}</div></div>
+      <div class="kpi"><div class="kpi-label">Em trial</div><div class="kpi-val" style="color:var(--orange)">${kpis.em_trial||0}</div></div>
+      <div class="kpi"><div class="kpi-label">Pagantes</div><div class="kpi-val" style="color:var(--green)">${kpis.pagas||0}</div></div>
+      <div class="kpi"><div class="kpi-label">Motoristas</div><div class="kpi-val">${kpis.motoristas_total||0}</div></div>
+      <div class="kpi"><div class="kpi-label">MRR</div><div class="kpi-val gold">${fmtEur(kpis.mrr_total||0)}</div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <select onchange="filtrarOperadores('plano', this.value)" class="search-bar" style="max-width:160px">
+        <option value="todos" ${operadoresFiltro.plano==='todos'?'selected':''}>Todos os planos</option>
+        <option value="free">Free</option>
+        <option value="starter">Starter</option>
+        <option value="pro">Pro</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+      <select onchange="filtrarOperadores('estado', this.value)" class="search-bar" style="max-width:160px">
+        <option value="todos" ${operadoresFiltro.estado==='todos'?'selected':''}>Todos os estados</option>
+        <option value="trial">Trial activo</option>
+        <option value="pago">Pagantes</option>
+        <option value="expirado">Trial expirado</option>
+      </select>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--sub2);align-self:center">${lista.length} de ${operadoresLista.length} empresas</div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Empresa</th>
+          <th>Plano</th>
+          <th style="text-align:center">Motoristas</th>
+          <th style="text-align:center">Pag. 30d</th>
+          <th style="text-align:right">MRR</th>
+          <th>Última actividade</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${lista.length === 0 ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--sub2)">Nenhuma empresa</td></tr>' :
+          lista.map(e => `
+            <tr>
+              <td><strong>${e.nome}</strong>${e.demo ? '<span class="badge badge-gold" style="margin-left:6px">DEMO</span>':''}</td>
+              <td>${planoBadge(e.plano)}${trialBadge(e)}</td>
+              <td style="text-align:center">${e.motoristas_ativos||0}</td>
+              <td style="text-align:center">${e.pagamentos_30d||0}</td>
+              <td style="text-align:right;color:var(--gold);font-family:var(--mono)">${fmtEur(e.mrr_estimado)}</td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--sub2)">${fmtDataHora(e.ultima_actividade)}</td>
+              <td style="text-align:right;white-space:nowrap">
+                <button class="btn btn-ghost btn-sm" title="Entrar nesta empresa" onclick="entrarComoEmpresa('${e.id}')">↳ Entrar</button>
+                <button class="btn btn-ghost btn-sm" title="Gerir trial" onclick="modalGerirEmpresa('${e.id}')">⚙️</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function entrarComoEmpresa(empresaId) {
+  // Regista audit log
+  const alvo = operadoresLista.find(e => e.id === empresaId);
+  await db.from('audit_log').insert({
+    actor_id: currentUser.id,
+    actor_email: currentUser.email,
+    action: 'entrar_como_empresa',
+    target_type: 'empresa',
+    target_id: empresaId,
+    target_label: alvo?.nome
+  });
+  localStorage.setItem('fleetpay-empresa-ativa', empresaId);
+  location.reload();
+}
+
+function modalGerirEmpresa(empresaId) {
+  const e = operadoresLista.find(x => x.id === empresaId);
+  if (!e) return;
+  openModal(`⚙️ Gerir — ${e.nome}`, `
+    <div class="field">
+      <label>Plano</label>
+      <select id="ge-plano">
+        <option value="free" ${e.plano==='free'?'selected':''}>Free</option>
+        <option value="starter" ${e.plano==='starter'?'selected':''}>Starter — 20€/mês</option>
+        <option value="pro" ${e.plano==='pro'?'selected':''}>Pro — 49€/mês</option>
+        <option value="enterprise" ${e.plano==='enterprise'?'selected':''}>Enterprise — 99€/mês</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Activar trial (dias)</label>
+        <input type="number" id="ge-trial-dias" value="30" min="1" max="365">
+      </div>
+      <div class="field" style="align-self:flex-end">
+        <button class="btn btn-gold btn-sm" onclick="activarTrialEmpresaSA('${empresaId}')">⏱️ Activar Trial</button>
+      </div>
+    </div>
+    ${e.trial_termina_em ? `<div style="font-size:11px;color:var(--sub2);margin-bottom:14px;font-family:var(--mono)">Trial actual termina em: ${new Date(e.trial_termina_em).toLocaleString('pt-PT')}</div>` : ''}
+    <div style="margin-top:14px;padding:10px 12px;background:rgba(232,90,90,0.06);border:1px solid rgba(232,90,90,0.3);border-radius:4px">
+      <div style="font-size:11px;color:var(--red);margin-bottom:6px;font-family:var(--mono);text-transform:uppercase">⚠️ Zona perigosa</div>
+      <button class="btn btn-danger btn-sm" onclick="suspenderEmpresaSA('${empresaId}')">⏸️ Suspender empresa</button>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+    <button class="btn btn-gold" onclick="guardarPlanoEmpresa('${empresaId}')">💾 Guardar Plano</button>
+  `);
+}
+
+async function activarTrialEmpresaSA(empresaId) {
+  const dias = parseInt(document.getElementById('ge-trial-dias').value) || 30;
+  const { data, error } = await db.rpc('activar_trial_empresa', { p_empresa_id: empresaId, p_dias: dias });
+  if (error || data?.ok === false) { toast('Erro: '+(error?.message||data?.reason),'error'); return; }
+  await db.from('audit_log').insert({
+    actor_id: currentUser.id, actor_email: currentUser.email,
+    action: 'activar_trial', target_type: 'empresa', target_id: empresaId,
+    target_label: operadoresLista.find(e=>e.id===empresaId)?.nome,
+    detalhes: { dias }
+  });
+  toast(`✅ Trial ${dias} dias activado`);
+  closeModal();
+  await carregarOperadores(true);
+}
+
+async function guardarPlanoEmpresa(empresaId) {
+  const novoPlano = document.getElementById('ge-plano').value;
+  const { error } = await db.from('empresas').update({ plano: novoPlano }).eq('id', empresaId);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  await db.from('audit_log').insert({
+    actor_id: currentUser.id, actor_email: currentUser.email,
+    action: 'mudar_plano', target_type: 'empresa', target_id: empresaId,
+    target_label: operadoresLista.find(e=>e.id===empresaId)?.nome,
+    detalhes: { novo_plano: novoPlano }
+  });
+  toast(`✅ Plano actualizado: ${novoPlano}`);
+  closeModal();
+  await carregarOperadores(true);
+}
+
+async function suspenderEmpresaSA(empresaId) {
+  const alvo = operadoresLista.find(e => e.id === empresaId);
+  if (!confirm(`Suspender "${alvo?.nome}"?\n\nO operador deixa de conseguir entrar. Não apaga dados — só impede acesso. Pode ser revertido depois.`)) return;
+  const { error } = await db.from('empresas').update({ plano: 'free', trial_termina_em: null }).eq('id', empresaId);
+  if (error) { toast('Erro: '+error.message,'error'); return; }
+  await db.from('audit_log').insert({
+    actor_id: currentUser.id, actor_email: currentUser.email,
+    action: 'suspender_empresa', target_type: 'empresa', target_id: empresaId,
+    target_label: alvo?.nome
+  });
+  toast('⏸️ Empresa suspensa');
+  closeModal();
+  await carregarOperadores(true);
+}
+
 async function logout() {
   await db.auth.signOut();
   window.location.href = 'login.html';
@@ -1262,7 +1486,7 @@ function showPage(page) {
     documentos:'Documentos', csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
     comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação',
-    mensagens:'Mensagens'
+    mensagens:'Mensagens', operadores:'🏢 Operadores · Painel SaaS'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -1285,6 +1509,7 @@ function showPage(page) {
     comunicacoes: renderComunicacoes,
     ajuda: renderAjuda,
     mensagens: renderMensagens,
+    operadores: renderOperadores,
   };
   // Parar polling de mensagens quando saímos da página
   if (page !== 'mensagens') pararMensagensPolling();
