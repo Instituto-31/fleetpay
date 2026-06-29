@@ -3640,7 +3640,14 @@ function modalMotorista(id=null) {
       <div class="field"><label>WhatsApp</label><input id="m-wa" value="${m.whatsapp||''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>NIF</label><input id="m-nif" value="${m.nif||''}"></div>
+      <div class="field">
+        <label>NIF <span style="font-size:10px;color:var(--sub2)">${id?'':'· novo? Pesquisa primeiro'}</span></label>
+        <div style="display:flex;gap:6px">
+          <input id="m-nif" value="${m.nif||''}" style="flex:1">
+          ${id?'':'<button type="button" class="btn btn-ghost btn-sm" onclick="pesquisarMotoristaPorNif()" title="Pesquisar se já existe">🔍</button>'}
+        </div>
+        <div id="m-nif-resultado" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(200,146,42,0.06);border:1px solid var(--line);border-radius:4px;font-size:12px"></div>
+      </div>
       <div class="field"><label>IBAN</label><input id="m-iban" value="${m.iban||''}"></div>
     </div>
     <div class="field"><label>Morada (rua, nº, andar — código postal cidade)</label><input id="m-morada" value="${m.morada||''}"></div>
@@ -3826,6 +3833,70 @@ async function downloadAssinadoModal(path, nome) {
   const a = document.createElement('a');
   a.href = url; a.download = (nome || 'contrato') + '.pdf'; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════
+// ── PESQUISA GLOBAL DE MOTORISTAS (RGPD) ──
+// ═══════════════════════════════════════════
+async function pesquisarMotoristaPorNif() {
+  const nif = (document.getElementById('m-nif')?.value || '').trim();
+  const resultado = document.getElementById('m-nif-resultado');
+  if (!nif || nif.length < 9) {
+    resultado.style.display = 'block';
+    resultado.innerHTML = '<span style="color:var(--orange)">NIF tem de ter 9 dígitos</span>';
+    return;
+  }
+  resultado.style.display = 'block';
+  resultado.innerHTML = '⏳ A pesquisar...';
+
+  // 1. Local (dentro da empresa)
+  const { data: locais } = await db.rpc('pesquisar_motorista_local', { p_nif: nif });
+  if (locais?.length) {
+    const m = locais[0];
+    resultado.innerHTML = `
+      <div style="margin-bottom:8px"><strong style="color:var(--orange)">⚠️ Já existe nesta empresa:</strong></div>
+      <div>${m.nome} · ${m.email||'(sem email)'} · ${m.ativo?'<span style="color:var(--green)">activo</span>':'<span style="color:var(--red)">inactivo</span>'}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="closeModal();modalMotorista('${m.id}')">✏️ Editar este</button>
+    `;
+    return;
+  }
+
+  // 2. Global (outras empresas, com opt-in)
+  const { data: globais, error } = await db.rpc('pesquisar_motorista_global', { p_nif: nif });
+  if (error) {
+    resultado.innerHTML = '<span style="color:var(--red)">Erro: '+error.message+'</span>';
+    return;
+  }
+  if (globais?.length) {
+    resultado.innerHTML = `
+      <div style="margin-bottom:8px"><strong style="color:var(--gold)">🌐 Encontrado noutra frota (partilha activa):</strong></div>
+      ${globais.map(m => `
+        <div style="padding:8px;background:rgba(255,255,255,0.03);border-radius:4px;margin-bottom:6px">
+          <div><strong>${m.nome_partial}</strong> · ${m.empresa_atual}</div>
+          <div style="font-size:11px;color:var(--sub2);margin-top:2px">${m.email_ofuscado||'—'} · ${m.telefone_ofuscado||'—'}</div>
+          ${m.pode_pedir ? `<button class="btn btn-gold btn-sm" style="margin-top:6px" onclick="pedirImportar('${m.id}')">📩 Pedir autorização para importar</button>` : ''}
+        </div>
+      `).join('')}
+      <div style="font-size:11px;color:var(--sub2);margin-top:6px">O motorista vai receber pedido na app dele. Se aprovar, os dados ficam copiados para esta empresa.</div>
+    `;
+    return;
+  }
+
+  resultado.innerHTML = '✅ NIF não encontrado — segue para preencher os dados.';
+}
+
+async function pedirImportar(motoristaOrigemId) {
+  if (!confirm('Vai enviar pedido de autorização ao motorista. Ele aprova na app dele e os dados são copiados para esta empresa.\n\nConfirmar?')) return;
+  const { data, error } = await db.rpc('pedir_importar_motorista', { p_motorista_origem_id: motoristaOrigemId, p_notas: null });
+  if (error || data?.ok === false) {
+    toast('Erro: '+(error?.message||data?.reason),'error');
+    return;
+  }
+  if (data.ja_pendente) {
+    toast('⏳ Já existe pedido pendente para este motorista');
+  } else {
+    toast('✅ Pedido enviado ao motorista');
+  }
 }
 
 async function guardarMotorista(id) {
