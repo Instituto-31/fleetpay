@@ -4312,7 +4312,11 @@ function parseDataFlexivel(dataRaw) {
       // MM/DD/YYYY
       return `${usMatch[3]}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
     } else {
-      // Ambíguo (<=12): assume PT DD/MM/YYYY (mais comum em PT)
+      // Ambíguo (<=12): detecta AM/PM → US (M/D). Caso contrário assume PT (D/M).
+      if (/\b(AM|PM|am|pm)\b/.test(s)) {
+        // US M/D/YYYY (formato PRIO E-Charge, Uber CSV, etc.)
+        return `${usMatch[3]}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
+      }
       return `${usMatch[3]}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
     }
   }
