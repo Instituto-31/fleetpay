@@ -4347,13 +4347,27 @@ function renderFrota() {
               <td class="${inpClass}">${fmtD(v.inspecao_validade)}</td>
               <td style="font-family:var(--mono);font-size:11px">${v.km_atuais?.toLocaleString('pt-PT')||'—'}</td>
               <td><span class="badge ${v.estado==='ativo'?'badge-green':v.estado==='manutencao'?'badge-orange':'badge-red'}"><span class="badge-dot"></span>${v.estado}</span></td>
-              <td><button class="btn btn-ghost btn-sm" onclick="modalVeiculo('${v.id}')">✏️</button></td>
+              <td>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="modalVeiculo('${v.id}')">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="apagarVeiculo('${v.id}','${v.matricula}')">🗑️</button>
+                </div>
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>`}
     </div>
   `;
+}
+
+async function apagarVeiculo(id, matricula) {
+  if (!confirm(`Apagar viatura ${matricula}?\n\nEsta ação não pode ser desfeita.`)) return;
+  const { error } = await db.from('veiculos').delete().eq('id', id);
+  if (error) { toast('Erro ao apagar viatura: ' + error.message, 'error'); return; }
+  toast(`✅ Viatura ${matricula} apagada!`);
+  await carregarDados();
+  renderFrota();
 }
 
 function modalVeiculo(id=null) {
