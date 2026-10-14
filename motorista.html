@@ -412,6 +412,8 @@ let filtroMes = null;
 let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
 let totalSegundosHoje = 0;            // soma de condução já fechada hoje
 let conducaoTickInterval = null;
+let gpsWatchId = null;                // ID do watch de geolocalização
+let ultimaPosicao = null;             // última posição GPS conhecida
 let eventosSemana = [];               // todos os registos dos últimos 7 dias (segunda→domingo)
 let avisos = [];                      // comunicacoes ativas do operador
 let cupoesDisponiveis = [];           // cupões ativos da empresa visíveis ao motorista
@@ -1119,7 +1121,17 @@ function renderApp() {
     </div>
   `;
   // Se há sessão ativa, arranca o timer ao vivo
-  if (sessaoConducaoAtiva) iniciarTickInterval();
+  if (sessaoConducaoAtiva) {
+    iniciarTickInterval();
+    // Verificar se a sessão foi esquecida (chamada também aqui para sessões que
+    // não estão em condução ativa mas estão em pausa há demasiado tempo)
+    verificarSessaoEsquecida();
+    // Se estava em condução, retomar GPS watch
+    if (sessaoConducaoAtiva.tipo === 'conducao' && gpsWatchId === null) iniciarWatchGPS();
+  } else {
+    // Sem sessão ativa — perguntar se está em serviço
+    setTimeout(verificarAlertaInicioServico, 1500);
+  }
 }
 
 // ── Tempo de Condução ──
@@ -1715,22 +1727,30 @@ function renderConducaoCard() {
 async function mudarEstado(novoTipo) {
   if (!TIPOS_CONFIG[novoTipo]) return;
   if (sessaoConducaoAtiva && sessaoConducaoAtiva.tipo === novoTipo) return;
-  // Fechar registo atual
+  // Fechar registo atual + guardar GPS de fim
   if (sessaoConducaoAtiva) {
-    await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', sessaoConducaoAtiva.id);
+    const idAnterior = sessaoConducaoAtiva.id;
+    await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', idAnterior);
+    guardarPosicaoGPS(idAnterior, 'fim'); // async mas não bloqueia
     if (sessaoConducaoAtiva.tipo === 'conducao') {
       totalSegundosHoje += Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
     }
   }
-  // Abrir novo
+  // Abrir novo registo
   const { data, error } = await db.from('registos_conducao').insert({
     motorista_id: motorista.id, empresa_id: motorista.empresa_id, tipo: novoTipo
   }).select().single();
   if (error) { alert('Erro: '+error.message); return; }
   sessaoConducaoAtiva = data;
+  guardarPosicaoGPS(data.id, 'inicio'); // guardar GPS de início
   await carregarEventosHoje();
-  if (novoTipo === 'conducao') iniciarTickInterval();
-  else pararTickInterval();
+  if (novoTipo === 'conducao') {
+    iniciarTickInterval();
+    iniciarWatchGPS(); // ligar tracking GPS contínuo
+  } else {
+    pararTickInterval();
+    pararWatchGPS();   // parar GPS em pausa (poupa bateria)
+  }
   renderApp();
 }
 
@@ -1742,19 +1762,214 @@ async function trocarParaConducao() { return mudarEstado('conducao'); }
 async function terminarSessao() {
   if (!sessaoConducaoAtiva) return;
   if (!confirm('Terminar a sessão atual?')) return;
+  const idSessao = sessaoConducaoAtiva.id;
   // Fechar registo + somar total se for condução
-  await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', sessaoConducaoAtiva.id);
+  await db.from('registos_conducao').update({ fim: new Date().toISOString() }).eq('id', idSessao);
+  guardarPosicaoGPS(idSessao, 'fim'); // GPS de fim
   if (sessaoConducaoAtiva.tipo === 'conducao') {
     totalSegundosHoje += Math.floor((Date.now()-new Date(sessaoConducaoAtiva.inicio).getTime())/1000);
   }
   sessaoConducaoAtiva = null;
   pararTickInterval();
+  pararWatchGPS();
+  // Limpar posição do perfil (motorista offline)
+  if (motorista) {
+    await db.from('perfis').update({ gps_lat: null, gps_lng: null, gps_at: null }).eq('id', motorista.id);
+  }
   await carregarEventosHoje();
   renderApp();
 }
 
+// ── GPS / GEOLOCALIZAÇÃO ─────────────────────────────────────────────────────
+async function obterPosicaoGPS() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
+      () => resolve(null),
+      { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
+    );
+  });
+}
+
+async function guardarPosicaoGPS(registoId, evento) {
+  const pos = await obterPosicaoGPS();
+  if (!pos || !registoId) return;
+  ultimaPosicao = pos;
+  // Guarda coordenadas no registo de condução
+  await db.from('registos_conducao').update({
+    [`gps_${evento}_lat`]: pos.lat,
+    [`gps_${evento}_lng`]: pos.lng,
+    [`gps_${evento}_acc`]: Math.round(pos.acc)
+  }).eq('id', registoId);
+}
+
+function iniciarWatchGPS() {
+  pararWatchGPS();
+  if (!navigator.geolocation) return;
+  gpsWatchId = navigator.geolocation.watchPosition(
+    async (pos) => {
+      ultimaPosicao = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+      // Atualizar posição atual no perfil do motorista (para o mapa do admin)
+      if (motorista && sessaoConducaoAtiva) {
+        await db.from('perfis').update({
+          gps_lat: ultimaPosicao.lat,
+          gps_lng: ultimaPosicao.lng,
+          gps_at: new Date().toISOString()
+        }).eq('id', motorista.id);
+      }
+    },
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+  );
+}
+
+function pararWatchGPS() {
+  if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── ALERTA "ESTÁS EM SERVIÇO?" ────────────────────────────────────────────────
+function verificarAlertaInicioServico() {
+  // Só mostrar se: app aberta, sem sessão ativa, dentro de horário provável de trabalho (6h–23h)
+  if (sessaoConducaoAtiva) return;
+  const hora = new Date().getHours();
+  if (hora < 6 || hora >= 23) return;
+
+  // Ver se já mostrámos hoje
+  const hoje = new Date().toDateString();
+  const jaViu = localStorage.getItem('alerta_servico_viu');
+  if (jaViu === hoje) return;
+
+  localStorage.setItem('alerta_servico_viu', hoje);
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-inicio-servico';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.65);
+    z-index:99998;
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#fff;border-radius:16px;padding:28px 24px;max-width:360px;width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,0.35);text-align:center;
+    ">
+      <div style="font-size:52px;margin-bottom:10px">🚕</div>
+      <h2 style="margin:0 0 8px;font-size:19px;color:#333;font-weight:700">Estás em serviço?</h2>
+      <p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.5">
+        Se já começaste a trabalhar, não te esqueças de ligar os tempos de condução!
+      </p>
+      <button onclick="fecharAlertaServico(true)" style="
+        width:100%;padding:14px;background:var(--gold,#c8922a);color:#fff;border:none;
+        border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;
+      ">▶️ Sim, iniciar serviço</button>
+      <button onclick="fecharAlertaServico(false)" style="
+        width:100%;padding:12px;background:#f0f0f0;color:#555;border:none;
+        border-radius:10px;font-size:14px;cursor:pointer;
+      ">Ainda não estou em serviço</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function fecharAlertaServico(iniciar) {
+  const modal = document.getElementById('modal-inicio-servico');
+  if (modal) modal.remove();
+  if (iniciar) await mudarEstado('conducao');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── ALERTA SESSÃO ESQUECIDA ──────────────────────────────────────────────────
+let alertaSessaoMostrado = false;
+
+function verificarSessaoEsquecida() {
+  if (!sessaoConducaoAtiva) { alertaSessaoMostrado = false; return; }
+  if (alertaSessaoMostrado) return;
+
+  const inicio = new Date(sessaoConducaoAtiva.inicio);
+  const agora = new Date();
+  const horasDecorridas = (agora - inicio) / 1000 / 3600;
+  const diaChanged = inicio.toDateString() !== agora.toDateString();
+
+  // Mostrar alerta às 9h50 (10 min antes do limite legal) ou se o dia mudou
+  if (horasDecorridas >= 9.833 || diaChanged) {
+    alertaSessaoMostrado = true;
+    mostrarAlertaSessaoEsquecida(inicio, horasDecorridas);
+  }
+}
+
+function mostrarAlertaSessaoEsquecida(inicio, horas) {
+  // Remover modal anterior se existir
+  const existente = document.getElementById('modal-sessao-esquecida');
+  if (existente) existente.remove();
+
+  const horasStr = horas >= 24
+    ? `${Math.floor(horas)}h`
+    : horas.toFixed(1).replace('.', 'h') + 'min'.replace('hmin', 'h');
+  const inicioStr = inicio.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+  const diaStr = inicio.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-sessao-esquecida';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.75);
+    z-index:99999;
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#fff;border-radius:16px;padding:28px 24px;max-width:380px;width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,0.4);text-align:center;
+    ">
+      <div style="font-size:56px;margin-bottom:12px">⚠️</div>
+      <h2 style="margin:0 0 8px;font-size:20px;color:#c73e3e;font-weight:700">Sessão aberta há muito tempo</h2>
+      <p style="margin:0 0 6px;color:#555;font-size:15px">
+        Tens uma sessão de condução em aberto desde
+      </p>
+      <p style="margin:0 0 18px;color:#333;font-size:16px;font-weight:600">
+        ${diaStr}, ${inicioStr}
+      </p>
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:22px">
+        <p style="margin:0;color:#856404;font-size:13px;line-height:1.5">
+          Esqueceste-te de terminar o serviço?<br>
+          Verifica e termina a sessão se já não estás a conduzir.
+        </p>
+      </div>
+      <button onclick="terminarServicoPorAlerta()" style="
+        width:100%;padding:14px;background:#c73e3e;color:#fff;border:none;
+        border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:10px;
+      ">🛑 Terminar serviço agora</button>
+      <button onclick="fecharAlertaSessao()" style="
+        width:100%;padding:12px;background:#f0f0f0;color:#555;border:none;
+        border-radius:10px;font-size:14px;cursor:pointer;
+      ">Ainda estou a conduzir</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function terminarServicoPorAlerta() {
+  const modal = document.getElementById('modal-sessao-esquecida');
+  if (modal) modal.remove();
+  await terminarServico();
+}
+
+function fecharAlertaSessao() {
+  const modal = document.getElementById('modal-sessao-esquecida');
+  if (modal) modal.remove();
+  // Não volta a mostrar nesta sessão de app
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function iniciarTickInterval() {
   pararTickInterval();
+  // Verificar sessão esquecida ao (re)iniciar o ticker (ex: ao abrir a app)
+  verificarSessaoEsquecida();
   conducaoTickInterval = setInterval(() => {
     if (!sessaoConducaoAtiva) { pararTickInterval(); return; }
     const elTimer = document.getElementById('cond-timer');
