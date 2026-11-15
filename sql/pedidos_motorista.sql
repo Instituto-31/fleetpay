@@ -62,8 +62,8 @@ BEGIN
   IF TG_OP = 'UPDATE' AND NEW.estado IN ('aprovado','recusado') AND OLD.estado = 'pendente' THEN
     v_tipo := CASE NEW.tipo WHEN 'ferias' THEN 'férias' WHEN 'documento' THEN 'documento'
                             WHEN 'adiantamento' THEN 'adiantamento' WHEN 'troca_carro' THEN 'troca de viatura' ELSE 'pedido' END;
-    v_txt := CASE WHEN NEW.estado = 'aprovado' THEN '✅ O seu pedido de ' || v_tipo || ' foi aprovado.'
-                  ELSE '❌ O seu pedido de ' || v_tipo || ' não foi aprovado desta vez.' END;
+    v_txt := CASE WHEN NEW.estado = 'aprovado' THEN '✅ Boas notícias: o seu pedido de ' || v_tipo || ' foi aprovado! 🎉'
+                  ELSE '❌ Desta vez não foi possível aprovar o seu pedido de ' || v_tipo || '.' END;
     IF NEW.resposta IS NOT NULL AND length(trim(NEW.resposta)) > 0 THEN v_txt := v_txt || ' ' || NEW.resposta; END IF;
     INSERT INTO mensagens (empresa_id, motorista_id, autor, autor_nome, mensagem)
     VALUES (NEW.empresa_id, NEW.motorista_id, 'operador', 'FleetPay', v_txt);

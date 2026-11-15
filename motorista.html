@@ -594,7 +594,7 @@ async function sugerirDefinirPassword() {
       <div style="text-align:center;font-size:42px;margin-bottom:8px">🔐</div>
       <h2 style="font-family:var(--serif);font-weight:300;font-size:24px;margin:0 0 6px;text-align:center;color:var(--paper)">Define uma password</h2>
       <p style="text-align:center;font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:20px">
-        Da próxima vez entra em <strong>5 segundos</strong>, sem esperar pelo email.<br>
+        Da próxima vez entra em <strong>5 segundos</strong> — mais rápido do que arrancar o carro.<br>
         O telemóvel pode também usar <strong>Face ID ou impressão digital</strong> 🤳 para entrar automaticamente.
       </p>
       <form id="form-pwd" style="display:flex;flex-direction:column;gap:10px">
@@ -886,7 +886,7 @@ function mostrarBannerChecklist() {
   banner.id = 'banner-checklist';
   banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--gold);color:#000;padding:14px 24px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 4px 16px rgba(0,0,0,0.2);font-family:var(--sans)';
   banner.innerHTML = `
-    <span style="font-size:14px;font-weight:600">☀️ Bom turno! Antes de arrancar, faça o check diário da viatura</span>
+    <span style="font-size:14px;font-weight:600">☀️ Bom turno! Antes de arrancar, dê uma vista de olhos ao carro — o check diário leva um minuto</span>
     <button onclick="abrirChecklistDiario()" style="padding:9px 18px;background:#000;color:var(--gold);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">✅ Fazer agora</button>
   `;
   document.body.prepend(banner);
@@ -927,7 +927,7 @@ async function abrirChecklistDiario() {
         </div>` : ''}
 
         <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">📸 Fotos da viatura</div>
-        <p style="font-size:11px;color:var(--sub2);margin-bottom:8px;line-height:1.5">Quatro fotos à volta do carro ficam como prova do estado ao início do turno — e poupam discussões ao fim do dia. O painel com os km é opcional.</p>
+        <p style="font-size:11px;color:var(--sub2);margin-bottom:8px;line-height:1.5">Quatro fotos à volta do carro: 20 segundos agora, zero discussões ao fim do dia. O painel com os km é opcional (mas fica bem na fotografia).</p>
         <div id="ck-fotos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
           ${['frente','tras','esquerda','direita','painel'].map(a => `
           <label style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1;background:rgba(255,255,255,0.03);border:1px dashed var(--line);border-radius:6px;cursor:pointer;overflow:hidden;font-size:11px;color:var(--sub2)">
@@ -1042,7 +1042,7 @@ async function confirmarChecklist(allItemIds) {
 
   document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
   document.getElementById('banner-checklist')?.remove();
-  alert(todosOk ? '✅ Check diário registado. Boa viagem e bons clientes!' : '⚠️ Check registado com itens em falta. Conduza com cuidado redobrado.');
+  alert(todosOk ? '✅ Check feito, carro pronto. Boa viagem, bons clientes e boas gorjetas! 🚀' : '⚠️ Check registado com itens em falta. Conduza com cuidado redobrado — e trate disso hoje.');
 }
 
 function renderSemAcesso(nome) {
@@ -1960,11 +1960,11 @@ function renderConducaoCard() {
   // Alerta
   let alerta = '';
   if (total >= LIMITE_LEGAL_SEG) {
-    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Está na hora de terminar o serviço — a Lei TVDE não negoceia.</div>`;
+    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ 10 horas de condução — limite legal atingido.</strong> Hora de arrumar o carro: a Lei TVDE não negoceia, mas o sofá agradece.</div>`;
   } else if (total >= ALERTA_LARANJA) {
-    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--orange);line-height:1.5">A aproximar-se das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} — planeie o fim do turno.</div>`;
+    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--orange);line-height:1.5">Reta final: faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para as 10h. Vá pensando na última corrida.</div>`;
   } else if (total >= ALERTA_AMARELO) {
-    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:#c8a020;line-height:1.5">Já leva ${fmtHMS(total).slice(0,5)} de condução. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para o limite.</div>`;
+    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:#c8a020;line-height:1.5">Já leva ${fmtHMS(total).slice(0,5)} ao volante — bom ritmo. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para o limite.</div>`;
   }
 
   return `
@@ -2151,9 +2151,9 @@ function verificarAlertaInicioServico() {
       box-shadow:0 20px 60px rgba(0,0,0,0.35);text-align:center;
     ">
       <div style="font-size:52px;margin-bottom:10px">🚕</div>
-      <h2 style="margin:0 0 8px;font-size:19px;color:#333;font-weight:700">Já está em serviço?</h2>
+      <h2 style="margin:0 0 8px;font-size:19px;color:#333;font-weight:700">Já está ao volante? 🚕</h2>
       <p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.5">
-        Se já começou a trabalhar, ligue os tempos de condução — o relógio não se liga sozinho.
+        Se já começou o turno, ligue os tempos de condução. O relógio é bom, mas ainda não adivinha.
       </p>
       <button onclick="fecharAlertaServico(true)" style="
         width:100%;padding:14px;background:var(--gold,#c8922a);color:#fff;border:none;
@@ -2162,7 +2162,7 @@ function verificarAlertaInicioServico() {
       <button onclick="fecharAlertaServico(false)" style="
         width:100%;padding:12px;background:#f0f0f0;color:#555;border:none;
         border-radius:10px;font-size:14px;cursor:pointer;
-      ">Ainda não, obrigado</button>
+      ">Ainda não — ainda estou no café ☕</button>
     </div>
   `;
   document.body.appendChild(modal);
@@ -2229,7 +2229,7 @@ function mostrarAlertaSessaoEsquecida(inicio, horas) {
       </p>
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:22px">
         <p style="margin:0;color:#856404;font-size:13px;line-height:1.5">
-          Esqueceu-se de terminar o serviço? Acontece aos melhores.<br>
+          Esqueceu-se de terminar o serviço? Acontece aos melhores — e aos cafés fortes.<br>
           Se já não está a conduzir, termine a sessão para os tempos ficarem certos.
         </p>
       </div>
@@ -2377,7 +2377,7 @@ function renderSemanaEmCurso() {
         ${uber ? `<div class="s-metric"><div class="s-metric-label">Uber</div><div class="s-metric-val">${fmt(uber)}</div></div>` : ''}
         <div class="s-metric"><div class="s-metric-label">Bolt${Number(s.bolt_gorjetas)>0?' <span style="opacity:.7">💝</span>':''}</div><div class="s-metric-val">${fmt(bolt)}</div></div>
       </div>
-      <div style="font-size:11px;color:var(--sub2);margin-top:8px">Faturação já recebida das plataformas${quando ? ' · atualizado ' + quando : ''}. Despesas e valor a receber só depois de a empresa fechar a semana — sem surpresas.</div>
+      <div style="font-size:11px;color:var(--sub2);margin-top:8px">Faturação já recebida das plataformas${quando ? ' · atualizado ' + quando : ''}. Despesas e valor final só quando a empresa fechar a semana — sem surpresas, prometido.</div>
     </div>`;
 }
 
@@ -2575,7 +2575,7 @@ async function contestarValor(id) {
     confirmado_motorista_ua: null,
   }).eq('id', id);
   if (error) { alert('Erro: ' + error.message); console.error(error); return; }
-  alert('Contestação registada. A operadora vai analisar antes de transferir — obrigado pelo aviso.');
+  alert('Contestação registada. A operadora vai analisar antes de transferir — obrigado por avisar, é assim que se acerta.');
   location.reload();
 }
 
@@ -2584,7 +2584,7 @@ function renderEmpty() {
     <div class="empty">
       <div class="empty-icon">📋</div>
       <div class="empty-text">Sem pagamentos</div>
-      <p class="empty-sub">Os seus recibos aparecem aqui assim que a semana for fechada. Até lá, boas corridas.</p>
+      <p class="empty-sub">Os seus recibos aparecem aqui assim que a semana fechar. Até lá: boas corridas e passageiros simpáticos.</p>
     </div>
   `;
 }
@@ -2858,7 +2858,7 @@ function modalMudarPassword() {
       });
       if (error) throw error;
       overlay.remove();
-      alert('✅ Password atualizada. Na próxima entrada, é com a nova.');
+      alert('✅ Password atualizada. Na próxima entrada é com a nova — não a escreva no para-sol.');
     } catch (e) {
       mostrarErro('Erro: ' + (e.message || 'desconhecido'));
       btn.disabled = false; btn.textContent = '✓ Guardar password';
@@ -3056,7 +3056,7 @@ async function uploadDocMotorista() {
     }
     await db.from('documentos').update({ ficheiro_path: path }).eq('id', doc.id);
 
-    alert('✅ Documento carregado. O operador vai validar — obrigado.');
+    alert('✅ Documento recebido. O operador vai validar — obrigado, menos uma coisa na lista.');
     document.querySelectorAll('[data-motorista-overlay]').forEach(o => o.remove());
     abrirPerfil();
   } catch (e) {
@@ -3325,13 +3325,13 @@ function mostrarOnboarding(forcar = false) {
     {
       icone: '👋',
       titulo: 'Bem-vindo ao FleetPay',
-      texto: `Olá, ${(motorista.nome||'').split(' ')[0]}! Em 5 ecrãs mostramos como a app funciona. Demora um minuto — menos do que uma corrida curta.`,
+      texto: `Olá, ${(motorista.nome||'').split(' ')[0]}! Bem-vindo a bordo. Em 5 ecrãs mostramos como a app funciona — demora menos do que uma corrida até à esquina.`,
       cor: 'var(--gold)'
     },
     {
       icone: '💶',
       titulo: 'Os seus pagamentos',
-      texto: 'Todas as semanas, a operadora carrega o seu Uber + Bolt. O cálculo é claro: ganhos – comissão – despesas (slot, aluguer, PRIO, portagens). As contas ficam connosco; o recibo fica consigo.',
+      texto: 'Todas as semanas, a operadora carrega o seu Uber + Bolt. O cálculo é claro: ganhos – comissão – despesas (slot, aluguer, PRIO, portagens). As contas ficam connosco; o recibo (e o dinheiro) ficam consigo.',
       cor: 'var(--green)'
     },
     {
@@ -3355,7 +3355,7 @@ function mostrarOnboarding(forcar = false) {
     {
       icone: '🎉',
       titulo: 'Pronto!',
-      texto: 'Em caso de dúvida, o botão <strong>💬 Chat</strong> em baixo fala diretamente com a operadora.<br><br>Bom trabalho e boas corridas!',
+      texto: 'Em caso de dúvida, o botão <strong>💬 Chat</strong> em baixo fala diretamente com a operadora.<br><br>Pronto, já sabe tudo. Cinto apertado e boas corridas! 🚗💨',
       cor: 'var(--green)'
     },
   ];
@@ -3456,7 +3456,7 @@ async function renderIncidentesSheet(overlay) {
       <button type="submit" class="btn-recibo" style="margin:0">Registar incidente</button>
     </form>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus registos</div>
-    ${incs.length ? incs.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Sem incidentes registados. Que continue assim.</div>'}
+    ${incs.length ? incs.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Sem incidentes registados. Toque na madeira — e que continue assim.</div>'}
   `;
 }
 
@@ -3562,7 +3562,7 @@ async function renderPedidosSheet(overlay) {
       <button type="submit" class="btn-recibo" style="margin:0">Enviar pedido</button>
     </form>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus pedidos</div>
-    ${pedidos.length ? pedidos.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Ainda não há pedidos. Quando precisar, é aqui.</div>'}
+    ${pedidos.length ? pedidos.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Ainda não há pedidos. Férias, documentos, adiantamentos — quando precisar, é aqui que se pede (e não no WhatsApp às 23h).</div>'}
   `;
   pedidoCamposTipo();
 }
@@ -3956,7 +3956,7 @@ function mostrarModalPartilha(c, link, msg) {
 async function reservarCupao(cupaoId) {
   const c = cupoesDisponiveis.find(x => x.id === cupaoId);
   if (!c) return;
-  if (!confirm(`Reservar "${c.titulo}"?\n\nVai receber um código para mostrar ao parceiro.`)) return;
+  if (!confirm(`Reservar "${c.titulo}"?\n\nVai receber um código para mostrar ao parceiro. Bom proveito!`)) return;
   const { data, error } = await db.from('cupoes_redencoes').insert({
     cupao_id: cupaoId,
     motorista_id: motorista.id,
