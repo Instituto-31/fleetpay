@@ -43,10 +43,10 @@ BEGIN
     INSERT INTO mensagens (empresa_id, motorista_id, autor, autor_nome, mensagem)
     VALUES (
       r.empresa_id, r.motorista_id, 'operador', 'FleetPay',
-      '⏱️ A tua sessão de ' || v_tipo_txt || ' iniciada a ' || v_inicio_txt
-      || ' ficou aberta e foi fechada automaticamente (sem horas contadas). '
-      || 'Lembra-te de terminar a sessão quando acabas o serviço — o registo de tempos de condução '
-      || 'é da tua responsabilidade em caso de fiscalização.'
+      '⏱️ A sua sessão de ' || v_tipo_txt || ' iniciada a ' || v_inicio_txt
+      || ' ficou aberta e foi fechada automaticamente, sem horas contadas. '
+      || 'Acontece aos melhores — mas lembre-se de terminar a sessão quando acaba o serviço: '
+      || 'o registo dos tempos de condução é da sua responsabilidade em caso de fiscalização.'
     );
 
     v_n := v_n + 1;

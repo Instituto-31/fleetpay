@@ -594,7 +594,7 @@ async function sugerirDefinirPassword() {
       <div style="text-align:center;font-size:42px;margin-bottom:8px">🔐</div>
       <h2 style="font-family:var(--serif);font-weight:300;font-size:24px;margin:0 0 6px;text-align:center;color:var(--paper)">Define uma password</h2>
       <p style="text-align:center;font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:20px">
-        Da próxima vez podes entrar em <strong>5 segundos</strong> sem esperar email.<br>
+        Da próxima vez entra em <strong>5 segundos</strong>, sem esperar pelo email.<br>
         O telemóvel pode também usar <strong>Face ID ou impressão digital</strong> 🤳 para entrar automaticamente.
       </p>
       <form id="form-pwd" style="display:flex;flex-direction:column;gap:10px">
@@ -713,7 +713,7 @@ async function carregarAvisosECupoes() {
 async function verificarComplianceBloqueante() {
   if (!motorista?.empresa_id) {
     // Sem empresa definida → bloquear com mensagem
-    mostrarBloqueioErro('Conta não associada a frota', 'A tua conta não está ligada a nenhuma empresa. Contacta a operadora.');
+    mostrarBloqueioErro('Conta não associada a frota', 'A sua conta não está ligada a nenhuma empresa. Contacte a operadora.');
     return false;
   }
 
@@ -836,7 +836,7 @@ async function aceitarTermos(versaoId) {
   console.log('[termos] motorista.id:', motorista?.id, 'versaoId:', versaoId, 'auth.uid esperado:', motorista?.perfil_id);
 
   if (!motorista?.id) { restaurar('❌ Motorista não identificado. Volta a fazer login.'); return; }
-  if (!motorista?.perfil_id) { restaurar('❌ A tua conta não está ligada a uma frota. Contacta a operadora — diz o teu email.'); return; }
+  if (!motorista?.perfil_id) { restaurar('❌ A sua conta não está ligada a uma frota. Contacte a operadora e indique o seu email.'); return; }
   if (!versaoId) { restaurar('❌ Versão dos termos não disponível. Recarrega a página.'); return; }
 
   try {
@@ -853,7 +853,7 @@ async function aceitarTermos(versaoId) {
     if (data && data.ok === false) {
       console.warn('[termos] rpc devolveu', data);
       if (data.reason === 'sem_motorista') {
-        restaurar('⚠️ A tua conta não está ligada a uma frota. Contacta a operadora.');
+        restaurar('⚠️ A sua conta não está ligada a uma frota. Contacte a operadora.');
         return;
       }
       if (data.reason === 'versao_de_outra_empresa' || data.reason === 'versao_inexistente') {
@@ -886,7 +886,7 @@ function mostrarBannerChecklist() {
   banner.id = 'banner-checklist';
   banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--gold);color:#000;padding:14px 24px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 4px 16px rgba(0,0,0,0.2);font-family:var(--sans)';
   banner.innerHTML = `
-    <span style="font-size:14px;font-weight:600">⚠️ Faz o teu check diário antes de começares a conduzir</span>
+    <span style="font-size:14px;font-weight:600">☀️ Bom turno! Antes de arrancar, faça o check diário da viatura</span>
     <button onclick="abrirChecklistDiario()" style="padding:9px 18px;background:#000;color:var(--gold);border:none;border-radius:3px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--sans)">✅ Fazer agora</button>
   `;
   document.body.prepend(banner);
@@ -898,7 +898,7 @@ async function abrirChecklistDiario() {
     .select('*').eq('empresa_id', motorista.empresa_id).eq('ativo', true).order('ordem');
 
   if (!items || !items.length) {
-    alert('A tua empresa ainda não configurou um checklist. Fala com o operador.');
+    alert('A sua empresa ainda não definiu o checklist diário. Fale com o operador.');
     return;
   }
 
@@ -914,7 +914,7 @@ async function abrirChecklistDiario() {
         <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-top:2px">${new Date().toLocaleDateString('pt-PT',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</div>
       </div>
       <div style="padding:18px 24px;overflow-y:auto;flex:1">
-        <p style="font-size:12px;color:var(--sub2);margin-bottom:18px;line-height:1.6">Confirma que verificaste e tens cada um dos itens abaixo. <strong style="color:var(--paper)">Marca apenas os que tens efetivamente</strong> — se algum está em falta, não marques (mas a app deixa-te continuar; ficas responsável).</p>
+        <p style="font-size:12px;color:var(--sub2);margin-bottom:18px;line-height:1.6">Confirme que verificou e tem consigo cada um dos itens abaixo. <strong style="color:var(--paper)">Marque apenas o que tem mesmo</strong> — se faltar algum, deixe em branco. A app deixa continuar, mas a responsabilidade é sua.</p>
 
         ${docs.length ? `<div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">📋 Documentos</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
@@ -927,7 +927,7 @@ async function abrirChecklistDiario() {
         </div>` : ''}
 
         <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">📸 Fotos da viatura</div>
-        <p style="font-size:11px;color:var(--sub2);margin-bottom:8px;line-height:1.5">Tira as 4 fotos à volta do carro (ficam como prova do estado ao início do turno) e, se quiseres, o painel com os km.</p>
+        <p style="font-size:11px;color:var(--sub2);margin-bottom:8px;line-height:1.5">Quatro fotos à volta do carro ficam como prova do estado ao início do turno — e poupam discussões ao fim do dia. O painel com os km é opcional.</p>
         <div id="ck-fotos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
           ${['frente','tras','esquerda','direita','painel'].map(a => `
           <label style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1;background:rgba(255,255,255,0.03);border:1px dashed var(--line);border-radius:6px;cursor:pointer;overflow:hidden;font-size:11px;color:var(--sub2)">
@@ -1011,7 +1011,7 @@ async function confirmarChecklist(allItemIds) {
   const observacoes = document.getElementById('ck-obs').value.trim();
 
   if (!todosOk) {
-    if (!confirm(`Estás a confirmar que NÃO tens ${allItemIds.length-okCount} item(s). Conduzir nestas condições é por tua conta — em caso de fiscalização, és responsável. Continuar?`)) return;
+    if (!confirm(`Está a confirmar que NÃO tem ${allItemIds.length-okCount} item(s). Conduzir assim é por sua conta — numa fiscalização, a responsabilidade é sua. Continuar?`)) return;
   }
 
   // Fotos (opcionais) → Storage fotos/<empresa>/checklist/<motorista>/<data>/<angulo>.jpg
@@ -1042,7 +1042,7 @@ async function confirmarChecklist(allItemIds) {
 
   document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
   document.getElementById('banner-checklist')?.remove();
-  alert(todosOk ? '✅ Check diário registado — boa viagem!' : '⚠️ Check registado com itens em falta. Conduz com cuidado.');
+  alert(todosOk ? '✅ Check diário registado. Boa viagem e bons clientes!' : '⚠️ Check registado com itens em falta. Conduza com cuidado redobrado.');
 }
 
 function renderSemAcesso(nome) {
@@ -1051,8 +1051,8 @@ function renderSemAcesso(nome) {
       <div style="font-size:64px;margin-bottom:24px">🚗</div>
       <div style="font-family:var(--serif);font-size:28px;font-weight:300;margin-bottom:12px">Olá, ${nome}!</div>
       <p style="color:var(--sub2);font-size:14px;line-height:1.7;max-width:300px">
-        A tua conta ainda não foi associada a uma empresa.<br>
-        Tenta carregar em <strong>Ligar agora</strong> — se não resolver, fala com o teu operador.
+        A sua conta ainda não está associada a uma empresa.<br>
+        Experimente <strong>Ligar agora</strong> — se não resolver, fale com o seu operador.
       </p>
       <div id="sem-acesso-status" style="margin-top:18px;font-size:12px;color:var(--sub);font-family:var(--mono);min-height:18px"></div>
       <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;justify-content:center">
@@ -1614,7 +1614,7 @@ async function gerarDeclaracaoAnual(ano) {
     '<scr' + 'ipt>window.addEventListener("load", () => setTimeout(() => window.print(), 600));</scr' + 'ipt>' +
     '</body></html>';
   const win = window.open('', '_blank', 'width=900,height=1100');
-  if (!win) { alert('Popup bloqueado! Permite popups para este site e tenta de novo.'); return; }
+  if (!win) { alert('O browser bloqueou a janela. Permita popups para este site e tente de novo.'); return; }
   win.document.write(printHTML);
   win.document.close();
 }
@@ -1765,7 +1765,7 @@ async function gerarReciboPDF(idx) {
     '</body></html>';
 
   const win = window.open('', '_blank', 'width=900,height=1100');
-  if (!win) { alert('Popup bloqueado! Permite popups para este site e tenta de novo.'); return; }
+  if (!win) { alert('O browser bloqueou a janela. Permita popups para este site e tente de novo.'); return; }
   win.document.write(printHTML);
   win.document.close();
 }
@@ -1898,7 +1898,7 @@ async function gerarPDFSemanalMotorista() {
     '</body></html>';
 
   const win = window.open('', '_blank', 'width=900,height=1100');
-  if (!win) { alert('Popup bloqueado! Permite popups para este site e tenta de novo.'); return; }
+  if (!win) { alert('O browser bloqueou a janela. Permita popups para este site e tente de novo.'); return; }
   win.document.write(printHTML);
   win.document.close();
 }
@@ -1960,11 +1960,11 @@ function renderConducaoCard() {
   // Alerta
   let alerta = '';
   if (total >= LIMITE_LEGAL_SEG) {
-    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Termina o serviço para cumprir a Lei TVDE.</div>`;
+    alerta = `<div style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--red);line-height:1.5"><strong>⚠️ Limite legal de 10h atingido.</strong> Está na hora de terminar o serviço — a Lei TVDE não negoceia.</div>`;
   } else if (total >= ALERTA_LARANJA) {
-    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--orange);line-height:1.5">Estás a aproximar-te das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)}.</div>`;
+    alerta = `<div style="background:rgba(232,148,58,0.10);border:1px solid rgba(232,148,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:var(--orange);line-height:1.5">A aproximar-se das 10h. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} — planeie o fim do turno.</div>`;
   } else if (total >= ALERTA_AMARELO) {
-    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:#c8a020;line-height:1.5">Já conduziste ${fmtHMS(total).slice(0,5)}. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para o limite.</div>`;
+    alerta = `<div style="background:rgba(232,196,58,0.10);border:1px solid rgba(232,196,58,0.4);border-radius:4px;padding:10px 14px;margin-top:14px;font-size:12px;color:#c8a020;line-height:1.5">Já leva ${fmtHMS(total).slice(0,5)} de condução. Faltam ${fmtHMS(LIMITE_LEGAL_SEG - total).slice(0,5)} para o limite.</div>`;
   }
 
   return `
@@ -2014,7 +2014,7 @@ async function mudarEstado(novoTipo) {
     const d = await verificarDescanso();
     if (!d.ok) {
       const h = Math.floor(d.horas), m = Math.round((d.horas - h) * 60);
-      const seguir = confirm(`⚠️ Descansaste só ${h}h${String(m).padStart(2,'0')} desde a última condução.\n\nO mínimo recomendado entre períodos de serviço é ${DESCANSO_MIN_HORAS} h. Queres iniciar na mesma?\n\n(O aviso fica registado.)`);
+      const seguir = confirm(`⚠️ Descansou apenas ${h}h${String(m).padStart(2,'0')} desde a última condução.\n\nO mínimo recomendado entre períodos de serviço é ${DESCANSO_MIN_HORAS} h. Pretende iniciar na mesma?\n\n(O aviso fica registado.)`);
       if (!seguir) return;
       notaDescanso = `Aviso descanso: ${h}h${String(m).padStart(2,'0')} desde a última condução (< ${DESCANSO_MIN_HORAS}h)`;
     }
@@ -2151,9 +2151,9 @@ function verificarAlertaInicioServico() {
       box-shadow:0 20px 60px rgba(0,0,0,0.35);text-align:center;
     ">
       <div style="font-size:52px;margin-bottom:10px">🚕</div>
-      <h2 style="margin:0 0 8px;font-size:19px;color:#333;font-weight:700">Estás em serviço?</h2>
+      <h2 style="margin:0 0 8px;font-size:19px;color:#333;font-weight:700">Já está em serviço?</h2>
       <p style="margin:0 0 20px;color:#666;font-size:14px;line-height:1.5">
-        Se já começaste a trabalhar, não te esqueças de ligar os tempos de condução!
+        Se já começou a trabalhar, ligue os tempos de condução — o relógio não se liga sozinho.
       </p>
       <button onclick="fecharAlertaServico(true)" style="
         width:100%;padding:14px;background:var(--gold,#c8922a);color:#fff;border:none;
@@ -2162,7 +2162,7 @@ function verificarAlertaInicioServico() {
       <button onclick="fecharAlertaServico(false)" style="
         width:100%;padding:12px;background:#f0f0f0;color:#555;border:none;
         border-radius:10px;font-size:14px;cursor:pointer;
-      ">Ainda não estou em serviço</button>
+      ">Ainda não, obrigado</button>
     </div>
   `;
   document.body.appendChild(modal);
@@ -2222,15 +2222,15 @@ function mostrarAlertaSessaoEsquecida(inicio, horas) {
       <div style="font-size:56px;margin-bottom:12px">⚠️</div>
       <h2 style="margin:0 0 8px;font-size:20px;color:#c73e3e;font-weight:700">Sessão aberta há muito tempo</h2>
       <p style="margin:0 0 6px;color:#555;font-size:15px">
-        Tens uma sessão de condução em aberto desde
+        Tem uma sessão de condução aberta desde
       </p>
       <p style="margin:0 0 18px;color:#333;font-size:16px;font-weight:600">
         ${diaStr}, ${inicioStr}
       </p>
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:22px">
         <p style="margin:0;color:#856404;font-size:13px;line-height:1.5">
-          Esqueceste-te de terminar o serviço?<br>
-          Verifica e termina a sessão se já não estás a conduzir.
+          Esqueceu-se de terminar o serviço? Acontece aos melhores.<br>
+          Se já não está a conduzir, termine a sessão para os tempos ficarem certos.
         </p>
       </div>
       <button onclick="terminarServicoPorAlerta()" style="
@@ -2377,7 +2377,7 @@ function renderSemanaEmCurso() {
         ${uber ? `<div class="s-metric"><div class="s-metric-label">Uber</div><div class="s-metric-val">${fmt(uber)}</div></div>` : ''}
         <div class="s-metric"><div class="s-metric-label">Bolt${Number(s.bolt_gorjetas)>0?' <span style="opacity:.7">💝</span>':''}</div><div class="s-metric-val">${fmt(bolt)}</div></div>
       </div>
-      <div style="font-size:11px;color:var(--sub2);margin-top:8px">Faturação recebida das plataformas${quando ? ' · atualizado ' + quando : ''}. Despesas e valor a receber só depois de a empresa fechar a semana.</div>
+      <div style="font-size:11px;color:var(--sub2);margin-top:8px">Faturação já recebida das plataformas${quando ? ' · atualizado ' + quando : ''}. Despesas e valor a receber só depois de a empresa fechar a semana — sem surpresas.</div>
     </div>`;
 }
 
@@ -2530,7 +2530,7 @@ function renderValidacaoMotorista(p) {
   return `
     <div style="margin-top:14px;padding:12px;background:rgba(200,146,42,0.08);border:1px solid rgba(200,146,42,0.35);border-radius:6px">
       <div style="font-size:13px;color:var(--paper);margin-bottom:6px;font-weight:600">🔔 Valida o valor antes da transferência</div>
-      <div style="font-size:11px;color:var(--sub2);margin-bottom:12px;line-height:1.5">Confirma se concordas com o cálculo acima. A operadora só transfere depois da tua confirmação. Se algo estiver errado, podes contestar.</div>
+      <div style="font-size:11px;color:var(--sub2);margin-bottom:12px;line-height:1.5">Confirme se concorda com o cálculo acima — a operadora só transfere depois da sua confirmação. Se algo não bater certo, pode contestar.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="event.stopPropagation();confirmarValor('${p.id}')" style="flex:1;min-width:120px;padding:10px 14px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer">✓ Concordo com o valor</button>
         <button onclick="event.stopPropagation();contestarValor('${p.id}')" style="flex:1;min-width:120px;padding:10px 14px;background:transparent;color:#e85a5a;border:1px solid #e85a5a;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer">⚠️ Não concordo</button>
@@ -2554,7 +2554,7 @@ async function descarregarRecibo(pagamentoId) {
 }
 
 async function confirmarValor(id) {
-  if (!confirm('Confirmas que estás de acordo com este valor?\n\nA operadora vai transferir esta quantia. Fica registado o teu nome, data e dispositivo.')) return;
+  if (!confirm('Confirma que está de acordo com este valor?\n\nA operadora vai transferir esta quantia. Ficam registados o seu nome, a data e o dispositivo.')) return;
   const { error } = await db.from('pagamentos').update({
     confirmado_motorista_em: new Date().toISOString(),
     confirmado_motorista_ua: navigator.userAgent,
@@ -2575,7 +2575,7 @@ async function contestarValor(id) {
     confirmado_motorista_ua: null,
   }).eq('id', id);
   if (error) { alert('Erro: ' + error.message); console.error(error); return; }
-  alert('Reportaste o problema. A operadora vai analisar antes de transferir.');
+  alert('Contestação registada. A operadora vai analisar antes de transferir — obrigado pelo aviso.');
   location.reload();
 }
 
@@ -2584,7 +2584,7 @@ function renderEmpty() {
     <div class="empty">
       <div class="empty-icon">📋</div>
       <div class="empty-text">Sem pagamentos</div>
-      <p class="empty-sub">Os teus recibos aparecerão aqui quando forem processados.</p>
+      <p class="empty-sub">Os seus recibos aparecem aqui assim que a semana for fechada. Até lá, boas corridas.</p>
     </div>
   `;
 }
@@ -2827,7 +2827,7 @@ function modalMudarPassword() {
   overlay.innerHTML = `
     <div style="background:var(--ink);border:1px solid var(--gold);border-radius:8px;max-width:420px;width:100%;padding:28px">
       <h2 style="font-family:var(--serif);font-size:22px;font-weight:300;margin-bottom:6px;color:var(--paper)">🔑 Mudar password</h2>
-      <p style="color:var(--sub2);font-size:13px;margin-bottom:18px;line-height:1.6">Define uma nova password. Vais usar para entrar na app a partir de agora.</p>
+      <p style="color:var(--sub2);font-size:13px;margin-bottom:18px;line-height:1.6">Defina uma nova password. Passa a ser essa a chave de entrada na app.</p>
       <form id="form-mudar-pwd" style="display:flex;flex-direction:column;gap:10px">
         <input type="password" id="mpwd-new" autocomplete="new-password" placeholder="Nova password (mín. 6 caracteres)" minlength="6" required style="padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:14px">
         <input type="password" id="mpwd-confirm" autocomplete="new-password" placeholder="Repete a password" minlength="6" required style="padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:5px;color:var(--paper);font-family:var(--sans);font-size:14px">
@@ -2858,7 +2858,7 @@ function modalMudarPassword() {
       });
       if (error) throw error;
       overlay.remove();
-      alert('✅ Password actualizada. Vais entrar com a nova na próxima sessão.');
+      alert('✅ Password atualizada. Na próxima entrada, é com a nova.');
     } catch (e) {
       mostrarErro('Erro: ' + (e.message || 'desconhecido'));
       btn.disabled = false; btn.textContent = '✓ Guardar password';
@@ -3022,7 +3022,7 @@ async function uploadDocMotorista() {
   const file = fileEl.files[0];
   const btn = document.getElementById('mot-doc-upload-btn');
 
-  if (!file) { alert('Escolhe um ficheiro'); return; }
+  if (!file) { alert('Escolha um ficheiro'); return; }
   if (file.size > 10*1024*1024) { alert('Ficheiro acima de 10 MB'); return; }
   if (!motorista?.id || !motorista?.empresa_id) { alert('Erro: motorista não identificado'); return; }
 
@@ -3056,7 +3056,7 @@ async function uploadDocMotorista() {
     }
     await db.from('documentos').update({ ficheiro_path: path }).eq('id', doc.id);
 
-    alert('✅ Documento carregado. O operador vai validar.');
+    alert('✅ Documento carregado. O operador vai validar — obrigado.');
     document.querySelectorAll('[data-motorista-overlay]').forEach(o => o.remove());
     abrirPerfil();
   } catch (e) {
@@ -3121,7 +3121,7 @@ async function abrirViatura() {
         <div style="padding:48px 24px">
           <div style="font-size:48px;margin-bottom:16px">🚗</div>
           <div style="font-family:var(--serif);font-size:20px;color:var(--sub2);margin-bottom:8px">Sem viatura atribuída</div>
-          <p style="font-size:13px;color:var(--sub2);line-height:1.6">Fala com o teu operador para te atribuir uma viatura.</p>
+          <p style="font-size:13px;color:var(--sub2);line-height:1.6">Fale com o seu operador para lhe atribuir uma viatura.</p>
         </div>
       </div>
     `;
@@ -3325,37 +3325,37 @@ function mostrarOnboarding(forcar = false) {
     {
       icone: '👋',
       titulo: 'Bem-vindo ao FleetPay',
-      texto: `Olá, ${(motorista.nome||'').split(' ')[0]}! Em 5 ecrãs explico-te como a app funciona. Demora 1 minuto.`,
+      texto: `Olá, ${(motorista.nome||'').split(' ')[0]}! Em 5 ecrãs mostramos como a app funciona. Demora um minuto — menos do que uma corrida curta.`,
       cor: 'var(--gold)'
     },
     {
       icone: '💶',
-      titulo: 'Os teus pagamentos',
-      texto: 'Todas as semanas, a operadora carrega o teu Uber + Bolt. Vês o cálculo: ganhos – comissão – despesas (slot, aluguer, PRIO, portagens). Não te preocupes com contas — está tudo no recibo.',
+      titulo: 'Os seus pagamentos',
+      texto: 'Todas as semanas, a operadora carrega o seu Uber + Bolt. O cálculo é claro: ganhos – comissão – despesas (slot, aluguer, PRIO, portagens). As contas ficam connosco; o recibo fica consigo.',
       cor: 'var(--green)'
     },
     {
       icone: '✓',
       titulo: 'Validar o valor (importante!)',
-      texto: 'Quando vires um pagamento, clica nele para ver detalhe. <strong>Tens 2 botões: ✓ Concordo com o valor / ⚠️ Não concordo</strong>. Só depois de confirmares é que a operadora transfere. Se algo estiver errado, contesta com motivo.',
+      texto: 'Ao ver um pagamento, toque nele para o detalhe. <strong>Há 2 botões: ✓ Concordo com o valor / ⚠️ Não concordo</strong>. Só depois de confirmar é que a operadora transfere. Se algo estiver errado, conteste e indique o motivo.',
       cor: 'var(--gold)'
     },
     {
       icone: '⛽',
       titulo: 'Despesas (PRIO + Portagens)',
-      texto: 'No botão <strong>⛽ Despesas</strong> em baixo vês os teus carregamentos PRIO/MOBI.E e portagens Via Verde. Já estão descontadas no recibo — só para teres registo.',
+      texto: 'No botão <strong>⛽ Despesas</strong> vê os seus carregamentos PRIO/MOBI.E e portagens Via Verde. Já estão descontados no recibo — ficam ali só para registo.',
       cor: '#e85a5a'
     },
     {
       icone: '⏱️',
       titulo: 'Tempos de condução',
-      texto: 'No topo da app tens os 5 estados de tempos (Condução / Outros / Disponível / Pausa / Outro Empregador). Marca SEMPRE para cumprir a Lei 45/2018. Tens 10h máx de condução por dia.',
+      texto: 'No topo da app estão os 5 estados de tempos (Condução / Outros / Disponível / Pausa / Outro Empregador). Marque SEMPRE, para cumprir a Lei 45/2018. O limite é de 10h de condução por dia.',
       cor: 'var(--gold)'
     },
     {
       icone: '🎉',
       titulo: 'Pronto!',
-      texto: 'Se tiveres dúvidas, usa o botão <strong>💬 Chat</strong> em baixo para falar diretamente com a operadora.<br><br>Bom trabalho!',
+      texto: 'Em caso de dúvida, o botão <strong>💬 Chat</strong> em baixo fala diretamente com a operadora.<br><br>Bom trabalho e boas corridas!',
       cor: 'var(--green)'
     },
   ];
@@ -3442,7 +3442,7 @@ async function renderIncidentesSheet(overlay) {
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">🚨 Registar incidente</div>
       <button onclick="document.getElementById('inc-overlay').remove()" style="background:none;border:none;color:var(--sub2);font-size:20px;cursor:pointer">×</button>
     </div>
-    <div style="font-size:12px;color:var(--sub2);margin-bottom:10px;line-height:1.5">Em caso de acidente com feridos liga primeiro ao <strong style="color:var(--paper)">112</strong>. Depois regista aqui com fotos — fica com data, hora e localização.</div>
+    <div style="font-size:12px;color:var(--sub2);margin-bottom:10px;line-height:1.5">Em caso de acidente com feridos, ligue primeiro ao <strong style="color:var(--paper)">112</strong>. Depois registe aqui com fotos — fica com data, hora e localização.</div>
     <form onsubmit="return enviarIncidente(event)" style="display:grid;gap:10px;padding:14px;border:1px dashed var(--line);border-radius:8px;margin-bottom:16px">
       <select id="inc-tipo" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:14px">
         ${Object.entries(INC_TIPOS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
@@ -3456,7 +3456,7 @@ async function renderIncidentesSheet(overlay) {
       <button type="submit" class="btn-recibo" style="margin:0">Registar incidente</button>
     </form>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus registos</div>
-    ${incs.length ? incs.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Sem incidentes registados.</div>'}
+    ${incs.length ? incs.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Sem incidentes registados. Que continue assim.</div>'}
   `;
 }
 
@@ -3473,7 +3473,7 @@ async function enviarIncidente(ev) {
   const tipo = document.getElementById('inc-tipo').value;
   const local = document.getElementById('inc-local').value.trim() || null;
   const desc = document.getElementById('inc-desc').value.trim() || null;
-  if (!desc && !incFotos.length) { alert('Escreve o que aconteceu ou junta pelo menos uma foto.'); return false; }
+  if (!desc && !incFotos.length) { alert('Descreva o que aconteceu ou junte pelo menos uma foto.'); return false; }
   const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'A registar…';
   const pos = (typeof ultimaPosicao !== 'undefined' && ultimaPosicao) ? ultimaPosicao : null;
   const { data: inc, error } = await db.from('incidentes').insert({
@@ -3558,11 +3558,11 @@ async function renderPedidosSheet(overlay) {
         <label style="font-size:11px;color:var(--sub2)">Até<input type="date" id="ped-fim" style="display:block;width:100%;margin-top:4px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:8px"></label>
       </div>
       <label id="ped-valor-wrap" style="display:none;font-size:11px;color:var(--sub2)">Valor (€)<input type="number" step="0.01" min="0" id="ped-valor" style="display:block;width:100%;margin-top:4px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:8px"></label>
-      <textarea id="ped-desc" rows="3" placeholder="Explica em poucas palavras…" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <textarea id="ped-desc" rows="3" placeholder="Explique em poucas palavras…" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
       <button type="submit" class="btn-recibo" style="margin:0">Enviar pedido</button>
     </form>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus pedidos</div>
-    ${pedidos.length ? pedidos.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Ainda não fizeste pedidos.</div>'}
+    ${pedidos.length ? pedidos.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Ainda não há pedidos. Quando precisar, é aqui.</div>'}
   `;
   pedidoCamposTipo();
 }
@@ -3582,9 +3582,9 @@ async function enviarPedido(ev) {
   const ini = document.getElementById('ped-ini').value || null;
   const fim = document.getElementById('ped-fim').value || null;
   const valor = document.getElementById('ped-valor').value ? Number(document.getElementById('ped-valor').value) : null;
-  if (tipo === 'ferias' && !ini) { alert('Indica a data de início.'); return false; }
-  if (tipo === 'adiantamento' && !valor) { alert('Indica o valor.'); return false; }
-  if (tipo !== 'ferias' && tipo !== 'adiantamento' && !desc) { alert('Escreve uma pequena descrição.'); return false; }
+  if (tipo === 'ferias' && !ini) { alert('Indique a data de início.'); return false; }
+  if (tipo === 'adiantamento' && !valor) { alert('Indique o valor.'); return false; }
+  if (tipo !== 'ferias' && tipo !== 'adiantamento' && !desc) { alert('Escreva uma pequena descrição.'); return false; }
   const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'A enviar…';
   const { error } = await db.from('pedidos_motorista').insert({
     empresa_id: motorista.empresa_id, motorista_id: motorista.id, tipo,
@@ -3687,7 +3687,7 @@ async function abrirDespesas() {
           <div style="text-align:center;padding:40px 20px;color:var(--sub2)">
             <div style="font-size:42px;margin-bottom:12px;opacity:.5">⛽</div>
             <div style="font-size:14px">Sem despesas registadas</div>
-            <div style="font-size:11px;margin-top:6px">Os carregamentos PRIO e portagens Via Verde da tua viatura vão aparecer aqui assim que a operadora os carregar.</div>
+            <div style="font-size:11px;margin-top:6px">Os carregamentos PRIO e as portagens Via Verde da sua viatura aparecem aqui assim que a operadora os carregar.</div>
           </div>
         ` : semanas.map((sem,si) => `
           <div style="margin-bottom:18px;border:1px solid var(--line);border-radius:6px;overflow:hidden">
@@ -3742,7 +3742,7 @@ async function abrirDespesas() {
         `).join('')}
 
         <div style="margin-top:18px;padding:12px;background:rgba(255,255,255,0.03);border-radius:6px;font-size:11px;color:var(--sub2);line-height:1.5">
-          ℹ️ Estas despesas são descontadas no teu recibo semanal (vês na coluna "PRIO" e "Via Verde" do pagamento).
+          ℹ️ Estas despesas são descontadas no seu recibo semanal (colunas "PRIO" e "Via Verde" do pagamento).
         </div>
       </div>
     </div>`;
@@ -3947,7 +3947,7 @@ function mostrarModalPartilha(c, link, msg) {
       </div>
       <button onclick="navigator.clipboard.writeText('${link}').then(()=>{this.innerHTML='✓ COPIADO';this.style.color='#27c93f'})" style="width:100%;padding:13px;background:transparent;color:var(--gold);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:8px">📋 Copiar link</button>
       <button onclick="fecharOverlay(this)" style="width:100%;padding:11px;background:none;color:var(--sub);border:none;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:1px">Fechar</button>
-      <div style="margin-top:14px;font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px">${c.bonus_indicador?`★ Quando o teu amigo usar, ganhas ${c.bonus_indicador}${c.bonus_indicador_tipo==='percentagem'?'%':'€'} em créditos`:''}</div>
+      <div style="margin-top:14px;font-size:10px;color:var(--sub2);font-family:var(--mono);letter-spacing:.5px">${c.bonus_indicador?`★ Quando o seu amigo usar, ganha ${c.bonus_indicador}${c.bonus_indicador_tipo==='percentagem'?'%':'€'} em créditos`:''}</div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -3956,7 +3956,7 @@ function mostrarModalPartilha(c, link, msg) {
 async function reservarCupao(cupaoId) {
   const c = cupoesDisponiveis.find(x => x.id === cupaoId);
   if (!c) return;
-  if (!confirm(`Reservar "${c.titulo}"?\n\nVais receber um código que mostras ao parceiro para usar.`)) return;
+  if (!confirm(`Reservar "${c.titulo}"?\n\nVai receber um código para mostrar ao parceiro.`)) return;
   const { data, error } = await db.from('cupoes_redencoes').insert({
     cupao_id: cupaoId,
     motorista_id: motorista.id,

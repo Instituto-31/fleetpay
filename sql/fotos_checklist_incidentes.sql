@@ -99,8 +99,8 @@ BEGIN
   IF TG_OP = 'UPDATE' AND NEW.estado <> OLD.estado AND NEW.estado IN ('em_analise','resolvido') THEN
     INSERT INTO mensagens (empresa_id, motorista_id, autor, autor_nome, mensagem)
     VALUES (NEW.empresa_id, NEW.motorista_id, 'operador', 'FleetPay',
-      CASE WHEN NEW.estado = 'resolvido' THEN '✅ O teu registo de ' || v_tipo || ' foi marcado como resolvido.'
-           ELSE '🔎 O teu registo de ' || v_tipo || ' está em análise.' END
+      CASE WHEN NEW.estado = 'resolvido' THEN '✅ O seu registo de ' || v_tipo || ' foi marcado como resolvido. Obrigado por ter reportado.'
+           ELSE '🔎 O seu registo de ' || v_tipo || ' está em análise. Damos notícias em breve.' END
       || COALESCE(' ' || NULLIF(trim(NEW.resposta), ''), ''));
   END IF;
   NEW.atualizado_em := now();
