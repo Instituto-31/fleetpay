@@ -305,6 +305,8 @@ serve(async (req) => {
       pagamentos_created: 0,
       pagamentos_updated: 0,
       pagamentos_skipped_no_motorista: 0,
+      pagamentos_pagos_intocados: 0,
+      diferencas_pagos: [] as string[],
       errors: [] as string[],
     };
 
@@ -330,7 +332,7 @@ serve(async (req) => {
       // Procurar pagamento existente
       const { data: existing, error: selErr } = await supabase
         .from('pagamentos')
-        .select('id')
+        .select('id, estado, bolt_liquido, bolt_gorjetas, notas')
         .eq('empresa_id', empresaId)
         .eq('motorista_id', m.id)
         .eq('semana_inicio', b.semanaInicio)
@@ -350,6 +352,23 @@ serve(async (req) => {
         // bolt_campanha fica de fora de propósito: não vem na API, só no CSV
         origem: 'api',
       };
+
+      if (existing && existing.estado === 'pago') {
+        // Semana já paga: não reescrever. Se a Bolt agora devolve valores diferentes
+        // (gorjeta tardia, correcção), fica registado nas notas para acerto manual.
+        const difLiq = round2(bolt_liquido - Number(existing.bolt_liquido || 0));
+        const difGorj = round2(bolt_gorjetas - Number(existing.bolt_gorjetas || 0));
+        if (Math.abs(difLiq) >= 0.01 || Math.abs(difGorj) >= 0.01) {
+          const marca = `[API ${new Date().toISOString().slice(0, 10)}]`;
+          if (!(existing.notas || '').includes(marca)) {
+            const nota = `${marca} Bolt devolve líquido ${bolt_liquido.toFixed(2)} / gorjetas ${bolt_gorjetas.toFixed(2)} ≠ pago (${Number(existing.bolt_liquido || 0).toFixed(2)} / ${Number(existing.bolt_gorjetas || 0).toFixed(2)}) → acerto ${(difLiq + difGorj).toFixed(2)} €`;
+            await supabase.from('pagamentos').update({ notas: existing.notas ? existing.notas + ' | ' + nota : nota }).eq('id', existing.id);
+          }
+          summary.diferencas_pagos.push(`${b.semanaInicio} ${m.nome}: acerto ${(difLiq + difGorj).toFixed(2)} €`);
+        }
+        summary.pagamentos_pagos_intocados++;
+        continue;
+      }
 
       if (existing) {
         const { error: upErr } = await supabase.from('pagamentos').update(payload).eq('id', existing.id);
