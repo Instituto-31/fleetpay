@@ -2493,6 +2493,8 @@ async function renderMapa() {
     .mapa-marker-wrap{position:relative;width:14px;height:14px}
     .mapa-marker-label{position:absolute;left:20px;top:-3px;white-space:nowrap;font:500 11px/1 var(--mono, monospace);color:#fff;background:rgba(10,12,16,.78);padding:4px 7px;border-radius:3px;pointer-events:none;letter-spacing:.3px}
     .leaflet-container{font-family:inherit}
+    #mapa-live .mapa-tiles{filter:grayscale(.35) saturate(.75) contrast(1.02)}
+    #mapa-live.mapa-escuro .mapa-tiles{filter:invert(1) hue-rotate(180deg) brightness(.72) contrast(.95) saturate(.35) grayscale(.15)}
     .leaflet-popup-content-wrapper{background:#14161b;color:#f4f1ea;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
     .leaflet-popup-tip{background:#14161b}
     .leaflet-popup-content{font-size:12px;line-height:1.5;margin:10px 14px}
@@ -2526,14 +2528,17 @@ function mapaTemaClaro() {
 function mapaAplicarEstilo() {
   if (!mapaLeaflet || !window.L) return;
   const claro = mapaTemaClaro();
-  const estilo = claro ? 'rastertiles/voyager' : 'dark_all';
-  if (mapaTiles) mapaLeaflet.removeLayer(mapaTiles);
-  mapaTiles = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${estilo}/{z}/{x}/{y}{r}.png`, {
-    maxZoom: 20, subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  }).addTo(mapaLeaflet);
+  if (!mapaTiles) {
+    mapaTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, subdomains: 'abc', className: 'mapa-tiles',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(mapaLeaflet);
+  }
   const el = document.getElementById('mapa-live');
-  if (el) el.style.background = claro ? '#e9e5dc' : '#0b0d11';
+  if (el) {
+    el.classList.toggle('mapa-escuro', !claro);
+    el.style.background = claro ? '#e9e5dc' : '#0b0d11';
+  }
 }
 
 // Reaplica o estilo do mapa quando o tema muda
