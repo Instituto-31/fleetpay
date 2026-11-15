@@ -341,6 +341,8 @@ serve(async (req) => {
       }
 
       const payload: any = {
+        bolt_bruto: round2(b.agg.bruto),   // Σ ride_price (informativo; o dashboard soma Uber+Bolt bruto)
+        bolt_taxa: round2(b.agg.taxa),     // Σ commission Bolt (informativo)
         bolt_liquido,
         bolt_gorjetas,
         bolt_cancelamentos: 0,   // já incluído em bolt_liquido (Bolt comissiona-o como corrida)
