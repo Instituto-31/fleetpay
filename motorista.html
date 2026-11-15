@@ -1072,6 +1072,8 @@ function renderApp() {
         <span class="section-title-text">Histórico</span>
       </div>
 
+      ${renderDeclaracaoAnualCard()}
+
       ${meses.length > 1 ? `
       <div class="filtro-meses" id="filtro-meses">
         <button class="filtro-btn active" onclick="filtrar(null, this)">Todos</button>
@@ -1375,6 +1377,179 @@ async function imagemParaDataURL(url) {
       r.readAsDataURL(blob);
     });
   } catch (e) { return null; }
+}
+
+// ── Declaração anual de rendimentos (para IRS / contabilista) ──
+function anosComPagamentos() {
+  return [...new Set(pagamentos.map(p => (p.semana_inicio || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+}
+function renderDeclaracaoAnualCard() {
+  const anos = anosComPagamentos();
+  if (!anos.length) return '';
+  return `
+    <div class="semana-atual" style="padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="semana-tag" style="margin-bottom:2px">Declaração anual</div>
+        <div style="font-size:12px;color:var(--sub2)">Resumo do ano para o IRS / contabilista</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="decl-ano" style="background:var(--bg2,transparent);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 10px;font-size:13px">
+          ${anos.map(a => `<option value="${a}">${a}</option>`).join('')}
+        </select>
+        <button class="btn-recibo" style="margin:0;width:auto;padding:8px 14px" onclick="gerarDeclaracaoAnual(document.getElementById('decl-ano').value)">📄 Gerar PDF</button>
+      </div>
+    </div>`;
+}
+
+async function gerarDeclaracaoAnual(ano) {
+  const semanas = pagamentos
+    .filter(p => (p.semana_inicio || '').startsWith(String(ano)))
+    .sort((a, b) => a.semana_inicio.localeCompare(b.semana_inicio));
+  if (!semanas.length) { alert('Sem semanas publicadas em ' + ano + '.'); return; }
+
+  const emp = motorista.empresas || {};
+  const logoUrl = emp.logo_path ? `https://udqddasbfqbeeaxtnsoj.supabase.co/storage/v1/object/public/empresa-logos/${emp.logo_path}` : null;
+  const logoDataUrl = logoUrl ? await imagemParaDataURL(logoUrl) : null;
+  const n = v => Number(v) || 0;
+  const fmtEur = v => new Intl.NumberFormat('pt-PT', { style:'currency', currency:'EUR' }).format(n(v));
+  const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT') : '—';
+
+  const sum = k => semanas.reduce((s, p) => s + n(p[k]), 0);
+  const tot = {
+    uber: sum('uber_bruto'),
+    boltCorridas: sum('bolt_liquido'), boltGorj: sum('bolt_gorjetas'), boltCamp: sum('bolt_campanha'),
+    boltCanc: sum('bolt_cancelamentos'), boltReemb: sum('bolt_reembolsos'),
+    comissao: sum('iva_cobrar'), slot: sum('slot_valor'), aluguer: sum('aluguer_valor'),
+    prio: sum('prio_valor'), viaverde: sum('viaverde_valor'), outros: sum('outros_descontos'),
+    final: sum('valor_final'),
+  };
+  tot.boltTotal = tot.boltCorridas + tot.boltGorj + tot.boltCamp + tot.boltCanc + tot.boltReemb;
+  tot.rendimento = tot.uber + tot.boltTotal;
+  tot.despesas = tot.slot + tot.aluguer + tot.prio + tot.viaverde + tot.outros;
+  const pagos = semanas.filter(p => p.estado === 'pago').length;
+
+  // Totais por mês (mês da segunda-feira da semana)
+  const meses = {};
+  semanas.forEach(p => {
+    const m = p.semana_inicio.slice(0, 7);
+    meses[m] = meses[m] || { semanas: 0, uber: 0, bolt: 0, final: 0 };
+    meses[m].semanas++; meses[m].uber += n(p.uber_bruto);
+    meses[m].bolt += n(p.bolt_liquido) + n(p.bolt_gorjetas) + n(p.bolt_campanha) + n(p.bolt_cancelamentos) + n(p.bolt_reembolsos);
+    meses[m].final += n(p.valor_final);
+  });
+  const nomeMes = m => new Date(m + '-01T00:00:00').toLocaleDateString('pt-PT', { month: 'long' });
+
+  const linha = (lbl, val, opts = {}) => (n(val) || opts.sempre) ? `
+    <tr style="background:${opts.destaque ? 'rgba(200,146,42,0.08)' : '#fff'}">
+      <td style="padding:6pt 12pt;border:1px solid #ddd;${opts.bold ? 'font-weight:bold' : ''}">${lbl}</td>
+      <td style="padding:6pt 12pt;border:1px solid #ddd;text-align:right;font-family:monospace;${opts.bold ? 'font-weight:bold' : ''}${opts.neg ? ';color:#c73e3e' : ''}">${opts.neg ? '- ' : ''}${fmtEur(Math.abs(n(val)))}</td>
+    </tr>` : '';
+
+  const dataEmissao = new Date().toLocaleDateString('pt-PT');
+  const ref = `DA-${ano}-${(motorista.id || '').toString().slice(0, 6).toUpperCase()}`;
+
+  const conteudoHTML = `
+    <div style="padding:30pt 35pt 20pt;border-bottom:3px solid #c8922a">
+      <table style="width:100%"><tr>
+        <td style="vertical-align:middle">
+          <table><tr>
+            ${logoDataUrl ? `<td style="padding-right:14pt;vertical-align:middle"><img src="${logoDataUrl}" style="width:60pt;height:60pt;object-fit:contain"></td>` : ''}
+            <td style="vertical-align:middle">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:20pt;font-weight:600">${emp.nome || '—'}</div>
+              <div style="font-size:9pt;color:#666;margin-top:3pt">NIPC ${emp.nipc || '—'} · Lic. TVDE ${emp.licenca_tvde || '—'}</div>
+              ${emp.morada ? `<div style="font-size:9pt;color:#666;margin-top:1pt">${emp.morada}${emp.codigo_postal ? ` · ${emp.codigo_postal}` : ''}</div>` : ''}
+            </td>
+          </tr></table>
+        </td>
+        <td style="text-align:right;vertical-align:middle">
+          <div style="display:inline-block;font-size:8pt;color:#c8922a;letter-spacing:1.5pt;text-transform:uppercase;padding:4pt 10pt;background:rgba(200,146,42,0.08);border-radius:100px">${ref}</div><br>
+          <strong style="font-size:13pt">Declaração Anual de Rendimentos</strong><br>
+          <span style="font-size:10pt;color:#666">Ano ${ano} · emitida em ${dataEmissao}</span>
+        </td>
+      </tr></table>
+    </div>
+
+    <div style="padding:20pt 35pt">
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin-bottom:10pt">Motorista</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse"><tr>
+        <td style="width:25%;color:#666;padding:3pt 0">Nome</td><td style="font-weight:bold">${motorista.nome || '—'}</td>
+        <td style="width:25%;color:#666;padding:3pt 0">NIF</td><td>${motorista.nif || '—'}</td>
+      </tr><tr>
+        <td style="color:#666;padding:3pt 0">Email</td><td>${motorista.email || '—'}</td>
+        <td style="color:#666;padding:3pt 0">Lic. TVDE</td><td>${motorista.licenca_tvde || '—'}</td>
+      </tr>${motorista.morada ? `<tr><td style="color:#666;padding:3pt 0">Morada</td><td colspan="3">${motorista.morada}</td></tr>` : ''}</table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Período</h2>
+      <table style="width:100%;font-size:11pt;border-collapse:collapse;background:#fafaf3">
+        <tr><td style="padding:10pt 14pt;width:50%"><strong>De</strong>: ${fmtD(semanas[0].semana_inicio)}</td>
+        <td style="padding:10pt 14pt"><strong>Até</strong>: ${fmtD(semanas[semanas.length - 1].semana_fim)}</td></tr>
+        <tr><td colspan="2" style="padding:0 14pt 10pt;font-size:9pt;color:#666">${semanas.length} semanas processadas · ${pagos} pagas</td></tr>
+      </table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Rendimentos brutos das plataformas</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        ${linha('Uber', tot.uber)}
+        ${linha('Bolt — corridas', tot.boltCorridas)}
+        ${linha('Bolt — gorjetas', tot.boltGorj)}
+        ${linha('Bolt — campanhas / bónus', tot.boltCamp)}
+        ${linha('Bolt — taxas de cancelamento', tot.boltCanc)}
+        ${linha('Bolt — reembolsos (portagens)', tot.boltReemb)}
+        ${linha('Total rendimentos brutos', tot.rendimento, { bold: true, destaque: true, sempre: true })}
+      </table>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:20pt 0 10pt">Comissão e despesas retidas pela empresa</h2>
+      <table style="width:100%;font-size:10pt;border-collapse:collapse">
+        ${linha('Comissão da empresa', tot.comissao, { neg: true })}
+        ${linha('Slot', tot.slot, { neg: true })}
+        ${linha('Aluguer de viatura', tot.aluguer, { neg: true })}
+        ${linha('Combustível / energia (PRIO)', tot.prio, { neg: true })}
+        ${linha('Via Verde', tot.viaverde, { neg: true })}
+        ${linha('Outros descontos', tot.outros, { neg: true })}
+        ${linha('Total retido', tot.comissao + tot.despesas, { bold: true, destaque: true, neg: true, sempre: true })}
+      </table>
+
+      <div style="margin-top:20pt;padding:16pt 20pt;background:#1a1a1a;color:#fff;border-radius:4pt;display:table;width:100%;box-sizing:border-box">
+        <div style="display:table-cell;vertical-align:middle;font-size:11pt;letter-spacing:2pt;text-transform:uppercase;color:#c8922a">Total pago ao motorista em ${ano}</div>
+        <div style="display:table-cell;vertical-align:middle;text-align:right;font-family:'Cormorant Garamond',serif;font-size:28pt;color:#c8922a;font-weight:600">${fmtEur(tot.final)}</div>
+      </div>
+
+      <h2 style="font-size:13pt;color:#c8922a;border-bottom:1.5px solid #c8922a;padding-bottom:4pt;margin:22pt 0 10pt">Resumo mensal</h2>
+      <table style="width:100%;font-size:9.5pt;border-collapse:collapse">
+        <tr style="background:#fafaf3"><th style="text-align:left;padding:6pt 10pt;border:1px solid #ddd">Mês</th><th style="padding:6pt 10pt;border:1px solid #ddd">Semanas</th><th style="text-align:right;padding:6pt 10pt;border:1px solid #ddd">Uber</th><th style="text-align:right;padding:6pt 10pt;border:1px solid #ddd">Bolt</th><th style="text-align:right;padding:6pt 10pt;border:1px solid #ddd">Recebido</th></tr>
+        ${Object.keys(meses).sort().map(m => `<tr>
+          <td style="padding:5pt 10pt;border:1px solid #ddd;text-transform:capitalize">${nomeMes(m)}</td>
+          <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:center">${meses[m].semanas}</td>
+          <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace">${fmtEur(meses[m].uber)}</td>
+          <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace">${fmtEur(meses[m].bolt)}</td>
+          <td style="padding:5pt 10pt;border:1px solid #ddd;text-align:right;font-family:monospace;font-weight:bold">${fmtEur(meses[m].final)}</td>
+        </tr>`).join('')}
+      </table>
+    </div>
+
+    <div style="padding:20pt 35pt;margin-top:10pt;border-top:2px solid #c8922a">
+      <div style="padding:14pt 18pt;background:#fafaf3;border-left:3px solid #c8922a;font-size:9pt;color:#444;line-height:1.7">
+        <strong style="color:#000">🔒 Documento gerado eletronicamente · FleetPay</strong><br>
+        ${ref} · emitida em ${dataEmissao} · Motorista ${motorista.nome || ''} (${motorista.nif || 'sem NIF'})<br>
+        <em>Resumo informativo dos valores processados pela empresa operadora através do FleetPay, para apoio ao preenchimento da declaração de IRS (Categoria B) e à contabilidade do motorista. Não substitui as faturas-recibo emitidas pelo motorista nem os extratos oficiais das plataformas. Conservação: 10 anos.</em>
+      </div>
+    </div>`;
+
+  const fname = `Declaracao_Anual_${ano}_${(motorista.nome || 'motorista').split(' ')[0]}`;
+  const printHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + fname + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">' +
+    '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Calibri,Segoe UI,Arial,sans-serif;color:#1a1a1a;background:#fff}' +
+    '@media print{@page{size:A4;margin:0}body{margin:0}.no-print{display:none !important}}' +
+    '.actions{position:fixed;top:14px;right:14px;display:flex;gap:8px;z-index:99}' +
+    '.btn{padding:9px 18px;background:#c8922a;color:#000;border:none;border-radius:4px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:Calibri,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2)}' +
+    '.btn-ghost{background:#fff;color:#666;border:1px solid #ddd}</style></head><body>' +
+    '<div class="actions no-print"><button class="btn btn-ghost" onclick="window.close()">✕ Fechar</button><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>' +
+    '<div style="max-width:794px;margin:0 auto">' + conteudoHTML + '</div>' +
+    '<scr' + 'ipt>window.addEventListener("load", () => setTimeout(() => window.print(), 600));</scr' + 'ipt>' +
+    '</body></html>';
+  const win = window.open('', '_blank', 'width=900,height=1100');
+  if (!win) { alert('Popup bloqueado! Permite popups para este site e tenta de novo.'); return; }
+  win.document.write(printHTML);
+  win.document.close();
 }
 
 async function gerarReciboPDF(idx) {
