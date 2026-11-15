@@ -423,6 +423,7 @@ function boltExtrasPag(p) {
 }
 let pagamentos = [];
 let semanaEmCurso = null;   // ganhos provisórios da semana atual (RPC fp_semana_em_curso)
+let mediaFrota = null;      // média da frota na última semana publicada (RPC fp_media_frota_semana)
 let contratosMotorista = [];
 let filtroMes = null;
 let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
@@ -544,6 +545,10 @@ async function init() {
   ]);
   pagamentos = pagsRes.data || [];
   try { const { data: sec } = await db.rpc('fp_semana_em_curso'); semanaEmCurso = (sec && sec[0]) || null; } catch (_) { semanaEmCurso = null; }
+  mediaFrota = null;
+  if (pagamentos[0]) {
+    try { const { data: mf } = await db.rpc('fp_media_frota_semana', { p_semana_inicio: pagamentos[0].semana_inicio }); mediaFrota = (mf && mf[0]) || null; } catch (_) {}
+  }
   contratosMotorista = contRes.data || [];
   sessaoConducaoAtiva = sessaoRes.data || null;
   eventosHoje = eventosHojeRes.data || [];
@@ -2338,8 +2343,23 @@ function renderSemanaAtual(p) {
       <span class="semana-estado ${estadoClass}">
         <span class="estado-dot"></span>${estadoLabel}
       </span>
+      ${renderComparacaoFrota(p)}
     </div>
   `;
+}
+
+// "Esta semana ficaste X % acima/abaixo da média da frota" — só percentagem, só com ≥ 3 motoristas.
+function renderComparacaoFrota(p) {
+  const mf = mediaFrota;
+  if (!mf || mf.n_motoristas < 3 || !Number(mf.media_rendimento) || mf.meu_rendimento == null) return '';
+  const meu = Number(mf.meu_rendimento), media = Number(mf.media_rendimento);
+  if (meu <= 0) return '';
+  const pct = Math.round((meu - media) / media * 100);
+  let txt, cor, ico;
+  if (pct >= 5) { txt = `${pct}% acima da média da frota`; cor = '#27c93f'; ico = '🏆'; }
+  else if (pct <= -5) { txt = `${Math.abs(pct)}% abaixo da média da frota`; cor = 'var(--sub2)'; ico = '📈'; }
+  else { txt = 'na média da frota'; cor = 'var(--sub2)'; ico = '🎯'; }
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:${cor}">${ico} ${txt} <span style="color:var(--sub2)">· faturação bruta · ${mf.n_motoristas} motoristas</span></div>`;
 }
 
 function renderCard(p, i) {
