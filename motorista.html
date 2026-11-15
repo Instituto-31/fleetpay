@@ -1400,7 +1400,8 @@ async function gerarReciboPDF(idx) {
     { lbl:'Slot', val:p.slot_valor },
     { lbl:'Aluguer', val:p.aluguer_valor },
     { lbl:'PRIO Combustível', val:p.prio_valor },
-    { lbl:'Via Verde', val:p.viaverde_valor }
+    { lbl:'Via Verde', val:p.viaverde_valor },
+    { lbl:'Saldo negativo da semana anterior', val: Number(p.saldo_anterior) < 0 ? -Number(p.saldo_anterior) : 0 }
   ].filter(l => l.val != null && l.val !== '' && Number(l.val) !== 0);
 
   const reciboNum = `R-${(p.id || '').toString().substring(0,8).toUpperCase() || Date.now().toString().slice(-6)}`;
@@ -2156,6 +2157,7 @@ function renderCard(p, i) {
           ${p.aluguer_valor ? `<div class="detail-item"><div class="detail-label">Aluguer</div><div class="detail-val neg">-${fmt(p.aluguer_valor)}</div></div>` : ''}
           ${p.prio_valor ? `<div class="detail-item"><div class="detail-label">PRIO</div><div class="detail-val neg">-${fmt(p.prio_valor)}</div></div>` : ''}
           ${p.viaverde_valor ? `<div class="detail-item"><div class="detail-label">Via Verde</div><div class="detail-val neg">-${fmt(p.viaverde_valor)}</div></div>` : ''}
+          ${Number(p.saldo_anterior) < 0 ? `<div class="detail-item"><div class="detail-label">Saldo semana anterior</div><div class="detail-val neg">${fmt(p.saldo_anterior)}</div></div>` : ''}
         </div>
         <div class="detalhe-sep"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">

@@ -3150,6 +3150,7 @@ async function gerarReciboPagamento(pagamentoId) {
   if (Number(p.bolt_campanha) > 0) drawRow('Bolt ganhos de campanha', formatEuro(p.bolt_campanha));
   if (Number(p.bolt_cancelamentos) > 0) drawRow('Bolt taxas de cancelamento', formatEuro(p.bolt_cancelamentos));
   if (Number(p.bolt_gorjetas) > 0) drawRow('Bolt gorjetas (sem comissão)', formatEuro(p.bolt_gorjetas), { bold: true });
+  if (Number(p.saldo_anterior) < 0) drawRow('Saldo negativo da semana anterior', formatEuro(p.saldo_anterior), { bold: true });
   if (Number(p.bolt_reembolsos) > 0) drawRow('Bolt reembolsos de despesas', formatEuro(p.bolt_reembolsos));
 
   if (despesasPrio > 0) drawRow('Despesas combustível/energia', '-' + formatEuro(despesasPrio));
