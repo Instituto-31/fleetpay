@@ -2452,7 +2452,7 @@ async function carregarBoltOnline() {
   } catch (e) { console.warn('[mapa] Bolt online falhou', e); return []; }
 }
 
-const MAPA_CORES = { conducao:'#2e9e5b', pausa:'#d9a21b', sem_gps:'#c0392b', recente:'#8a8a8a', offline:'#555' };
+const MAPA_CORES = { conducao:'#34c26b', pausa:'#f0b429', sem_gps:'#e5484d', recente:'#9aa0a6', offline:'#5c6066' };
 const MAPA_LABEL = { conducao:'Em condução', pausa:'Em pausa', sem_gps:'Em serviço · sem GPS', recente:'Última posição (<1h)', offline:'Offline' };
 
 function mapaIdade(min) {
@@ -2487,19 +2487,28 @@ async function renderMapa() {
       </div>
     </div>
     <style>@media(max-width:900px){.mapa-grid{grid-template-columns:1fr !important}#mapa-live{height:55vh !important}}
-    .mapa-pin{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
-    .mapa-pin.pulsa{animation:mapaPulse 1.6s infinite}
-    @keyframes mapaPulse{0%{box-shadow:0 0 0 2px rgba(46,158,91,.5)}70%{box-shadow:0 0 0 10px rgba(46,158,91,0)}100%{box-shadow:0 0 0 2px rgba(46,158,91,0)}}
-    .leaflet-popup-content{font-family:inherit;font-size:12px;color:#222}
+    .mapa-pin{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)}
+    .mapa-pin.pulsa{animation:mapaPulse 1.8s ease-out infinite}
+    @keyframes mapaPulse{0%{box-shadow:0 0 0 0 rgba(46,158,91,.6),0 1px 6px rgba(0,0,0,.45)}100%{box-shadow:0 0 0 14px rgba(46,158,91,0),0 1px 6px rgba(0,0,0,.45)}}
+    .mapa-marker-wrap{position:relative;width:14px;height:14px}
+    .mapa-marker-label{position:absolute;left:20px;top:-3px;white-space:nowrap;font:500 11px/1 var(--mono, monospace);color:#fff;background:rgba(10,12,16,.78);padding:4px 7px;border-radius:3px;pointer-events:none;letter-spacing:.3px}
+    .leaflet-container{font-family:inherit}
+    .leaflet-popup-content-wrapper{background:#14161b;color:#f4f1ea;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
+    .leaflet-popup-tip{background:#14161b}
+    .leaflet-popup-content{font-size:12px;line-height:1.5;margin:10px 14px}
+    .leaflet-popup-close-button{color:#aaa !important}
+    .leaflet-control-zoom a{background:#14161b !important;color:#eee !important;border-color:rgba(255,255,255,.1) !important}
+    .leaflet-control-attribution{background:rgba(0,0,0,.35) !important;color:#999 !important;font-size:9px !important}
+    .leaflet-control-attribution a{color:#bbb !important}
     </style>
   `;
   try { await carregarLeaflet(); }
   catch (e) { document.getElementById('mapa-live').innerHTML = '<div style="padding:40px;text-align:center">Não foi possível carregar o mapa (sem ligação ao CDN).</div>'; return; }
 
-  mapaLeaflet = L.map('mapa-live', { zoomControl: true }).setView([38.74, -9.15], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  }).addTo(mapaLeaflet);
+  mapaLeaflet = L.map('mapa-live', { zoomControl: false, attributionControl: true }).setView([38.74, -9.15], 11);
+  L.control.zoom({ position: 'bottomright' }).addTo(mapaLeaflet);
+  mapaLeaflet.attributionControl.setPrefix('');
+  mapaAplicarEstilo();
   mapaMarkers = {};
   await atualizarMapa(true);
   if (mapaInterval) clearInterval(mapaInterval);
@@ -2508,6 +2517,28 @@ async function renderMapa() {
     atualizarMapa(false);
   }, 30000);
 }
+
+let mapaTiles = null;
+function mapaTemaClaro() {
+  const b = document.body.className || '';
+  return /\blight\b|-light\b|theme-sage\b|theme-warm\b/.test(b) && !/-dark\b/.test(b);
+}
+function mapaAplicarEstilo() {
+  if (!mapaLeaflet || !window.L) return;
+  const claro = mapaTemaClaro();
+  const estilo = claro ? 'rastertiles/voyager' : 'dark_all';
+  if (mapaTiles) mapaLeaflet.removeLayer(mapaTiles);
+  mapaTiles = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${estilo}/{z}/{x}/{y}{r}.png`, {
+    maxZoom: 20, subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(mapaLeaflet);
+  const el = document.getElementById('mapa-live');
+  if (el) el.style.background = claro ? '#e9e5dc' : '#0b0d11';
+}
+
+// Reaplica o estilo do mapa quando o tema muda
+new MutationObserver(() => { if (mapaLeaflet && document.getElementById('mapa-live')) mapaAplicarEstilo(); })
+  .observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
 async function atualizarMapa(ajustarZoom) {
   await carregarDadosMapa();
@@ -2520,7 +2551,8 @@ function pintarMapa(ajustarZoom) {
   const idsVis = new Set(visiveis.map(d => d.id));
   Object.keys(mapaMarkers).forEach(id => { if (!idsVis.has(id)) { mapaLeaflet.removeLayer(mapaMarkers[id]); delete mapaMarkers[id]; } });
   visiveis.forEach(d => {
-    const icon = L.divIcon({ className: '', html: `<div class="mapa-pin ${d.estado==='conducao'?'pulsa':''}" style="background:${MAPA_CORES[d.estado]}"></div>`, iconSize: [14,14], iconAnchor: [7,7] });
+    const primeiroNome = String(d.nome).split(' ')[0];
+    const icon = L.divIcon({ className: '', html: `<div class="mapa-marker-wrap"><div class="mapa-pin ${d.estado==='conducao'?'pulsa':''}" style="background:${MAPA_CORES[d.estado]}"></div><div class="mapa-marker-label">${primeiroNome}</div></div>`, iconSize: [14,14], iconAnchor: [7,7] });
     const boltInfo = d.bolt ? `<br>Bolt: ${({waiting:'à espera',on_ride:'em corrida',on_break:'em pausa'})[d.bolt.estado] || d.bolt.estado}${d.bolt.matricula ? ' · ' + d.bolt.matricula : ''}` : '';
     const popup = `<strong>${d.nome}</strong><br>${MAPA_LABEL[d.estado]}<br>GPS ${mapaIdade(d.idadeMin)} (${d.fonte === 'bolt' ? 'Bolt' : 'app'})${boltInfo}${d.sessao ? `<br>Desde ${new Date(d.sessao.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})} · hoje ${fmtHMSAdmin(d.totalHoje)}` : ''}`;
     if (mapaMarkers[d.id]) { mapaMarkers[d.id].setLatLng([d.lat, d.lng]).setIcon(icon).setPopupContent(popup); }
