@@ -715,6 +715,10 @@ body.theme-default-dark { /* já é o root, sem override */ }
           <span class="nav-icon">🎟️</span> Cupões
           <span class="nav-badge" id="badge-cupoes" style="display:none">0</span>
         </button>
+        <button class="nav-item" onclick="showPage('pedidos')" id="nav-pedidos">
+          <span class="nav-icon">📝</span> Pedidos
+          <span class="nav-badge" id="badge-pedidos" style="display:none">0</span>
+        </button>
       </div>
       <div class="nav-section">
         <div class="nav-label">Importação</div>
@@ -1137,6 +1141,7 @@ async function calcularAlertas() {
 
   // Badge de leads novos (Cupões → Indicações)
   await calcularBadgeCupoes();
+  await calcularBadgePedidos();
   // Badge de mensagens não-lidas (motorista → operador)
   await calcularBadgeMensagens();
   // Badge de documentos pendentes de validação (motorista carregou)
@@ -1159,6 +1164,70 @@ async function calcularBadgeDocumentos() {
       badge.style.display = 'none';
     }
   } catch (e) { /* ignore */ }
+}
+
+async function calcularBadgePedidos() {
+  try {
+    const { count } = await db.from('pedidos_motorista').select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresa.id).eq('estado', 'pendente');
+    const badge = document.getElementById('badge-pedidos');
+    if (!badge) return;
+    if (count > 0) { badge.textContent = count; badge.style.display = ''; } else badge.style.display = 'none';
+  } catch (_) {}
+}
+
+// ── PEDIDOS DOS MOTORISTAS ──
+const PEDIDO_TIPOS_ADM = { ferias:'🏖️ Férias', documento:'📄 Documento', adiantamento:'💶 Adiantamento', troca_carro:'🚗 Viatura', outro:'✉️ Outro' };
+const PEDIDO_ESTADOS_ADM = { pendente:['A aguardar','badge-orange'], aprovado:['Aprovado','badge-green'], recusado:['Recusado','badge-red'], cancelado:['Cancelado',''] };
+let pedidosFiltro = 'pendente';
+
+async function renderPedidos() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <select class="search-bar" style="width:auto" onchange="pedidosFiltro=this.value;renderPedidos()">
+      <option value="pendente" ${pedidosFiltro==='pendente'?'selected':''}>A aguardar</option>
+      <option value="todos" ${pedidosFiltro==='todos'?'selected':''}>Todos</option>
+    </select>`;
+  document.getElementById('content').innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  let q = db.from('pedidos_motorista').select('*, motoristas(nome, telefone)').eq('empresa_id', empresa.id).order('criado_em', { ascending: false }).limit(200);
+  if (pedidosFiltro === 'pendente') q = q.eq('estado', 'pendente');
+  const { data, error } = await q;
+  if (error) { document.getElementById('content').innerHTML = `<div class="empty-state"><div class="empty-state-text">Erro: ${error.message}</div></div>`; return; }
+  const lista = data || [];
+  const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT') : '';
+  const linhas = lista.map(p => {
+    const [lbl, cls] = PEDIDO_ESTADOS_ADM[p.estado] || ['—', ''];
+    const detalhe = [
+      p.data_inicio ? `${fmtD(p.data_inicio)}${p.data_fim && p.data_fim !== p.data_inicio ? ' → ' + fmtD(p.data_fim) : ''}` : '',
+      p.valor ? fmt(p.valor) : ''
+    ].filter(Boolean).join(' · ');
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--sub2)">${new Date(p.criado_em).toLocaleDateString('pt-PT')}</td>
+      <td><strong>${p.motoristas?.nome || '—'}</strong></td>
+      <td>${PEDIDO_TIPOS_ADM[p.tipo] || p.tipo}</td>
+      <td>${detalhe ? `<div style="font-family:var(--mono);font-size:12px">${detalhe}</div>` : ''}${p.descricao ? `<div style="font-size:12px;color:var(--sub2)">${p.descricao}</div>` : ''}${p.resposta ? `<div style="font-size:11px;color:var(--gold);margin-top:4px">↳ ${p.resposta}</div>` : ''}</td>
+      <td><span class="badge ${cls}"><span class="badge-dot"></span>${lbl}</span></td>
+      <td style="text-align:right;white-space:nowrap">${p.estado === 'pendente' ? `
+        <button class="btn btn-gold btn-sm" onclick="responderPedido('${p.id}','aprovado')">✓ Aprovar</button>
+        <button class="btn btn-ghost btn-sm" onclick="responderPedido('${p.id}','recusado')">✕ Recusar</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="table-wrap">
+      <div class="table-header"><div><div class="table-title">📝 Pedidos dos motoristas</div><div class="table-sub">${lista.length} ${pedidosFiltro==='pendente'?'a aguardar resposta':'no total'}</div></div></div>
+      ${lista.length ? `<table><thead><tr><th>Data</th><th>Motorista</th><th>Tipo</th><th>Detalhe</th><th>Estado</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`
+        : `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Sem pedidos ${pedidosFiltro==='pendente'?'a aguardar':''}</div><div class="empty-state-sub">Os motoristas fazem pedidos na app (menu + → Fazer um pedido).</div></div>`}
+    </div>`;
+}
+
+async function responderPedido(id, estado) {
+  const resposta = prompt(estado === 'aprovado' ? 'Mensagem para o motorista (opcional):' : 'Motivo (vai para o motorista):', '');
+  if (resposta === null) return;
+  if (estado === 'recusado' && !resposta.trim()) { toast('Indica um motivo', 'error'); return; }
+  const { error } = await db.from('pedidos_motorista').update({ estado, resposta: resposta.trim() || null, respondido_por: currentUser.id }).eq('id', id);
+  if (error) { toast('Erro: ' + error.message, 'error'); return; }
+  toast(estado === 'aprovado' ? '✅ Pedido aprovado — motorista avisado' : 'Pedido recusado — motorista avisado');
+  await calcularBadgePedidos();
+  renderPedidos();
 }
 
 async function calcularBadgeCupoes() {
@@ -1492,7 +1561,7 @@ function showPage(page) {
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
     comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação',
     mensagens:'Mensagens', operadores:'🏢 Operadores · Painel SaaS',
-    mapa:'Mapa ao vivo'
+    mapa:'Mapa ao vivo', pedidos:'Pedidos dos motoristas'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -1512,6 +1581,7 @@ function showPage(page) {
     compliance: renderCompliance,
     tempos: renderTempos,
     mapa: renderMapa,
+    pedidos: renderPedidos,
     cupoes: renderCupoes,
     comunicacoes: renderComunicacoes,
     ajuda: renderAjuda,

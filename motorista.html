@@ -1112,6 +1112,10 @@ function renderApp() {
         <span class="fab-action-label">Os meus documentos</span>
         <span class="fab-action-btn">📑</span>
       </button>
+      <button class="fab-action" onclick="fabAction('pedido')">
+        <span class="fab-action-label">Fazer um pedido</span>
+        <span class="fab-action-btn">📝</span>
+      </button>
     </div>
     <button class="fab" id="fab-main" onclick="toggleFab()" aria-label="Menu rápido">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2611,6 +2615,9 @@ function fabAction(action) {
     case 'chat':
       if (typeof abrirChat === 'function') abrirChat();
       break;
+    case 'pedido':
+      abrirPedidos();
+      break;
     case 'docs':
       if (typeof abrirPerfil === 'function') abrirPerfil();
       // Auto-scroll para secção docs após abrir perfil
@@ -3335,6 +3342,117 @@ function mostrarOnboarding(forcar = false) {
 
   render();
   document.body.appendChild(overlay);
+}
+
+// ── PEDIDOS AO OPERADOR ──
+const PEDIDO_TIPOS = {
+  ferias:       { ico:'🏖️', lbl:'Férias / dias de folga' },
+  documento:    { ico:'📄', lbl:'Documento (declaração, recibo, contrato…)' },
+  adiantamento: { ico:'💶', lbl:'Adiantamento' },
+  troca_carro:  { ico:'🚗', lbl:'Troca / problema com a viatura' },
+  outro:        { ico:'✉️', lbl:'Outro assunto' },
+};
+const PEDIDO_ESTADO = {
+  pendente:  { lbl:'A aguardar', cor:'#c8922a' },
+  aprovado:  { lbl:'Aprovado',   cor:'#27c93f' },
+  recusado:  { lbl:'Recusado',   cor:'#e85a5a' },
+  cancelado: { lbl:'Cancelado',  cor:'#888' },
+};
+
+async function abrirPedidos() {
+  const overlay = document.createElement('div');
+  overlay.id = 'pedidos-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;padding:20px;width:100%;max-width:560px;max-height:90vh;overflow:auto"><div class="spinner-lg" style="margin:30px auto"></div></div>`;
+  document.body.appendChild(overlay);
+  await renderPedidosSheet(overlay);
+}
+
+async function renderPedidosSheet(overlay) {
+  const { data: lista } = await db.from('pedidos_motorista').select('*').eq('motorista_id', motorista.id).order('criado_em', { ascending: false }).limit(30);
+  const pedidos = lista || [];
+  const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day:'2-digit', month:'short' }) : '';
+  const item = p => {
+    const t = PEDIDO_TIPOS[p.tipo] || PEDIDO_TIPOS.outro, e = PEDIDO_ESTADO[p.estado] || PEDIDO_ESTADO.pendente;
+    const detalhe = [
+      p.data_inicio ? `${fmtD(p.data_inicio)}${p.data_fim && p.data_fim !== p.data_inicio ? ' → ' + fmtD(p.data_fim) : ''}` : '',
+      p.valor ? fmt(p.valor) : '',
+      p.descricao || ''
+    ].filter(Boolean).join(' · ');
+    return `
+      <div style="padding:12px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="font-size:13px;color:var(--ink-text,inherit)">${t.ico} ${t.lbl.split(' (')[0]}</div>
+          <span style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:${e.cor};border:1px solid ${e.cor};border-radius:100px;padding:2px 8px">${e.lbl}</span>
+        </div>
+        ${detalhe ? `<div style="font-size:12px;color:var(--sub2);margin-top:4px">${detalhe}</div>` : ''}
+        ${p.resposta ? `<div style="font-size:12px;margin-top:6px;padding:8px 10px;background:rgba(255,255,255,0.03);border-left:2px solid ${e.cor};border-radius:3px">${p.resposta}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+          <span style="font-size:10px;color:var(--sub2);font-family:var(--mono)">${new Date(p.criado_em).toLocaleDateString('pt-PT')}</span>
+          ${p.estado === 'pendente' ? `<button onclick="cancelarPedido('${p.id}')" style="background:none;border:none;color:var(--sub2);font-size:11px;cursor:pointer;text-decoration:underline">cancelar</button>` : ''}
+        </div>
+      </div>`;
+  };
+  overlay.firstElementChild.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">📝 Pedidos ao operador</div>
+      <button onclick="document.getElementById('pedidos-overlay').remove()" style="background:none;border:none;color:var(--sub2);font-size:20px;cursor:pointer">×</button>
+    </div>
+    <form id="form-pedido" onsubmit="return enviarPedido(event)" style="display:grid;gap:10px;padding:14px;border:1px dashed var(--line);border-radius:8px;margin-bottom:16px">
+      <select id="ped-tipo" onchange="pedidoCamposTipo()" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:14px">
+        ${Object.entries(PEDIDO_TIPOS).map(([k,v]) => `<option value="${k}">${v.ico} ${v.lbl}</option>`).join('')}
+      </select>
+      <div id="ped-datas" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label style="font-size:11px;color:var(--sub2)">De<input type="date" id="ped-ini" style="display:block;width:100%;margin-top:4px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:8px"></label>
+        <label style="font-size:11px;color:var(--sub2)">Até<input type="date" id="ped-fim" style="display:block;width:100%;margin-top:4px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:8px"></label>
+      </div>
+      <label id="ped-valor-wrap" style="display:none;font-size:11px;color:var(--sub2)">Valor (€)<input type="number" step="0.01" min="0" id="ped-valor" style="display:block;width:100%;margin-top:4px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:8px"></label>
+      <textarea id="ped-desc" rows="3" placeholder="Explica em poucas palavras…" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <button type="submit" class="btn-recibo" style="margin:0">Enviar pedido</button>
+    </form>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus pedidos</div>
+    ${pedidos.length ? pedidos.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Ainda não fizeste pedidos.</div>'}
+  `;
+  pedidoCamposTipo();
+}
+
+function pedidoCamposTipo() {
+  const tipo = document.getElementById('ped-tipo')?.value;
+  const datas = document.getElementById('ped-datas'), valor = document.getElementById('ped-valor-wrap');
+  if (!datas || !valor) return;
+  datas.style.display = (tipo === 'ferias') ? 'grid' : 'none';
+  valor.style.display = (tipo === 'adiantamento') ? 'block' : 'none';
+}
+
+async function enviarPedido(ev) {
+  ev.preventDefault();
+  const tipo = document.getElementById('ped-tipo').value;
+  const desc = document.getElementById('ped-desc').value.trim();
+  const ini = document.getElementById('ped-ini').value || null;
+  const fim = document.getElementById('ped-fim').value || null;
+  const valor = document.getElementById('ped-valor').value ? Number(document.getElementById('ped-valor').value) : null;
+  if (tipo === 'ferias' && !ini) { alert('Indica a data de início.'); return false; }
+  if (tipo === 'adiantamento' && !valor) { alert('Indica o valor.'); return false; }
+  if (tipo !== 'ferias' && tipo !== 'adiantamento' && !desc) { alert('Escreve uma pequena descrição.'); return false; }
+  const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'A enviar…';
+  const { error } = await db.from('pedidos_motorista').insert({
+    empresa_id: motorista.empresa_id, motorista_id: motorista.id, tipo,
+    descricao: desc || null, data_inicio: tipo === 'ferias' ? ini : null, data_fim: tipo === 'ferias' ? (fim || ini) : null,
+    valor: tipo === 'adiantamento' ? valor : null,
+  });
+  if (error) { alert('Não foi possível enviar: ' + error.message); btn.disabled = false; btn.textContent = 'Enviar pedido'; return false; }
+  const ov = document.getElementById('pedidos-overlay');
+  if (ov) await renderPedidosSheet(ov);
+  return false;
+}
+
+async function cancelarPedido(id) {
+  if (!confirm('Cancelar este pedido?')) return;
+  const { error } = await db.from('pedidos_motorista').update({ estado: 'cancelado' }).eq('id', id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  const ov = document.getElementById('pedidos-overlay');
+  if (ov) await renderPedidosSheet(ov);
 }
 
 async function abrirDespesas() {
