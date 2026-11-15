@@ -406,6 +406,21 @@ body.theme-default-dark { /* root - sem override */ }
 
 let currentUser = null;
 let motorista = null;
+
+// Bolt como a app da Bolt mostra: corridas (líquido) + gorjetas + campanhas + cancelamentos + reembolsos
+function boltTotalPag(p) {
+  const n = v => Number(v) || 0;
+  return n(p.bolt_liquido) + n(p.bolt_gorjetas) + n(p.bolt_campanha) + n(p.bolt_cancelamentos) + n(p.bolt_reembolsos);
+}
+function boltExtrasPag(p) {
+  const n = v => Number(v) || 0;
+  const partes = [];
+  if (n(p.bolt_gorjetas)) partes.push(`gorjetas ${fmt(p.bolt_gorjetas)}`);
+  if (n(p.bolt_campanha)) partes.push(`campanha ${fmt(p.bolt_campanha)}`);
+  if (n(p.bolt_cancelamentos)) partes.push(`cancelamentos ${fmt(p.bolt_cancelamentos)}`);
+  if (n(p.bolt_reembolsos)) partes.push(`reembolsos ${fmt(p.bolt_reembolsos)}`);
+  return partes.length ? 'inclui ' + partes.join(' · ') : '';
+}
 let pagamentos = [];
 let contratosMotorista = [];
 let filtroMes = null;
@@ -1370,9 +1385,14 @@ async function gerarReciboPDF(idx) {
   const fmtD = (s) => s ? new Date(s).toLocaleDateString('pt-PT') : '—';
 
   // Linhas brutas (faturação por plataforma)
+  // Bolt: líquido + extras (gorjetas, campanhas, cancelamentos, reembolsos) = valor que a app Bolt mostra
   const linhasBruto = [
     { lbl:'Faturação Uber', val:p.uber_bruto },
-    { lbl:'Faturação Bolt', val:p.bolt_liquido }
+    { lbl:'Faturação Bolt (corridas)', val:p.bolt_liquido },
+    { lbl:'Gorjetas Bolt (sem comissão)', val:p.bolt_gorjetas },
+    { lbl:'Campanhas / bónus Bolt', val:p.bolt_campanha },
+    { lbl:'Taxas de cancelamento Bolt', val:p.bolt_cancelamentos },
+    { lbl:'Reembolsos Bolt (portagens)', val:p.bolt_reembolsos }
   ].filter(l => l.val != null && l.val !== '' && Number(l.val) !== 0);
 
   // Linhas deduções
@@ -2083,8 +2103,8 @@ function renderSemanaAtual(p) {
           <div class="s-metric-val">${fmt(p.uber_liquido)}</div>
         </div>
         <div class="s-metric">
-          <div class="s-metric-label">Bolt</div>
-          <div class="s-metric-val">${fmt(p.bolt_liquido)}</div>
+          <div class="s-metric-label">Bolt${Number(p.bolt_gorjetas)>0?' <span style="opacity:.7">💝</span>':''}</div>
+          <div class="s-metric-val">${fmt(boltTotalPag(p))}</div>
         </div>
         <div class="s-metric">
           <div class="s-metric-label">A receber</div>
@@ -2125,7 +2145,8 @@ function renderCard(p, i) {
           </div>
           <div class="detail-item">
             <div class="detail-label">Bolt</div>
-            <div class="detail-val">${fmt(p.bolt_liquido)}</div>
+            <div class="detail-val">${fmt(boltTotalPag(p))}</div>
+            ${boltExtrasPag(p) ? `<div style="font-size:10px;color:var(--sub);margin-top:2px">${boltExtrasPag(p)}</div>` : ''}
           </div>
         </div>
         <div class="detalhe-sep"></div>
