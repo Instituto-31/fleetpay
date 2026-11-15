@@ -109,22 +109,35 @@ serve(async (req) => {
       });
     }
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: errUser } = await supabase.auth.getUser(token);
-    if (errUser || !user) {
-      return new Response(JSON.stringify({ error: 'Sessão inválida' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { data: perfil } = await supabase
-      .from('perfis').select('role, empresa_id').eq('id', user.id).single();
-    if (!perfil || !['operador', 'superadmin'].includes(perfil.role)) {
-      return new Response(JSON.stringify({ error: 'Sem permissão' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const body = await req.json().catch(() => ({}));
+
+    // Chamada interna (pg_cron → fp_chamar_bolt_sync) com a service role key: age como sistema.
+    const isSistema = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    let perfil: { role: string; empresa_id: string | null } | null = null;
+    if (isSistema) {
+      if (!body.empresa_id) {
+        return new Response(JSON.stringify({ error: 'empresa_id obrigatório em chamada de sistema' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      perfil = { role: 'superadmin', empresa_id: body.empresa_id };
+      console.log('[bolt-earnings] chamada de sistema (cron) para empresa', body.empresa_id);
+    } else {
+      const { data: { user }, error: errUser } = await supabase.auth.getUser(token);
+      if (errUser || !user) {
+        return new Response(JSON.stringify({ error: 'Sessão inválida' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: p } = await supabase.from('perfis').select('role, empresa_id').eq('id', user.id).single();
+      perfil = p;
+      if (!perfil || !['operador', 'superadmin'].includes(perfil.role)) {
+        return new Response(JSON.stringify({ error: 'Sem permissão' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const empresaId = perfil.role === 'superadmin' && body.empresa_id ? body.empresa_id : perfil.empresa_id;
     const monthsBack = Math.max(1, Math.min(6, body.months || 2));  // default 2 meses
 
