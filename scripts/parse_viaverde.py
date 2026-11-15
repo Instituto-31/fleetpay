@@ -72,8 +72,10 @@ def parse_hora(*cands):
 
 def read_rows(path):
     if path.lower().endswith(('.xlsx', '.xls', '.xlsm')):
-        import openpyxl
-        ws = openpyxl.load_workbook(path, read_only=True, data_only=True).worksheets[0]
+        import openpyxl, warnings
+        warnings.filterwarnings('ignore')
+        # sem read_only: o xlsx da Via Verde não declara dimensões e em read_only só devolve a 1.ª célula
+        ws = openpyxl.load_workbook(path, data_only=True).worksheets[0]
         table = [[('' if c is None else (c.strftime('%Y-%m-%d %H:%M:%S') if hasattr(c, 'strftime') else str(c))) for c in r] for r in ws.iter_rows(values_only=True)]
     else:
         raw = open(path, 'rb').read()
