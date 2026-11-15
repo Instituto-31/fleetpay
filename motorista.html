@@ -422,6 +422,7 @@ function boltExtrasPag(p) {
   return partes.length ? 'inclui ' + partes.join(' · ') : '';
 }
 let pagamentos = [];
+let semanaEmCurso = null;   // ganhos provisórios da semana atual (RPC fp_semana_em_curso)
 let contratosMotorista = [];
 let filtroMes = null;
 let sessaoConducaoAtiva = null;       // { id, tipo, inicio } — registo aberto
@@ -542,6 +543,7 @@ async function init() {
     db.from('registos_conducao').select('*').eq('motorista_id', motorista.id).gte('inicio', segunda.toISOString()).lte('inicio', domingoFim.toISOString()).order('inicio')
   ]);
   pagamentos = pagsRes.data || [];
+  try { const { data: sec } = await db.rpc('fp_semana_em_curso'); semanaEmCurso = (sec && sec[0]) || null; } catch (_) { semanaEmCurso = null; }
   contratosMotorista = contRes.data || [];
   sessaoConducaoAtiva = sessaoRes.data || null;
   eventosHoje = eventosHojeRes.data || [];
@@ -1058,6 +1060,8 @@ function renderApp() {
       ${renderSemanaCard()}
 
       ${renderGraficoGanhosCard()}
+
+      ${renderSemanaEmCurso()}
 
       ${ultimo ? renderSemanaAtual(ultimo) : ''}
 
@@ -1746,9 +1750,33 @@ function renderConducaoCard() {
 }
 
 // Função genérica: muda para qualquer dos 5 tipos
+const DESCANSO_MIN_HORAS = 11;
+// Ao começar uma nova sessão (sem nenhuma aberta), verifica o descanso desde a última condução.
+async function verificarDescanso() {
+  try {
+    const { data } = await db.from('registos_conducao').select('fim')
+      .eq('motorista_id', motorista.id).eq('tipo', 'conducao').not('fim', 'is', null)
+      .order('fim', { ascending: false }).limit(1).maybeSingle();
+    if (!data?.fim) return { ok: true };
+    const horas = (Date.now() - new Date(data.fim).getTime()) / 3600000;
+    if (horas >= DESCANSO_MIN_HORAS) return { ok: true };
+    return { ok: false, horas };
+  } catch (_) { return { ok: true }; }
+}
+
 async function mudarEstado(novoTipo) {
   if (!TIPOS_CONFIG[novoTipo]) return;
   if (sessaoConducaoAtiva && sessaoConducaoAtiva.tipo === novoTipo) return;
+  let notaDescanso = null;
+  if (!sessaoConducaoAtiva && novoTipo === 'conducao') {
+    const d = await verificarDescanso();
+    if (!d.ok) {
+      const h = Math.floor(d.horas), m = Math.round((d.horas - h) * 60);
+      const seguir = confirm(`⚠️ Descansaste só ${h}h${String(m).padStart(2,'0')} desde a última condução.\n\nO mínimo recomendado entre períodos de serviço é ${DESCANSO_MIN_HORAS} h. Queres iniciar na mesma?\n\n(O aviso fica registado.)`);
+      if (!seguir) return;
+      notaDescanso = `Aviso descanso: ${h}h${String(m).padStart(2,'0')} desde a última condução (< ${DESCANSO_MIN_HORAS}h)`;
+    }
+  }
   // Fechar registo atual + guardar GPS de fim
   if (sessaoConducaoAtiva) {
     const idAnterior = sessaoConducaoAtiva.id;
@@ -1760,7 +1788,8 @@ async function mudarEstado(novoTipo) {
   }
   // Abrir novo registo
   const { data, error } = await db.from('registos_conducao').insert({
-    motorista_id: motorista.id, empresa_id: motorista.empresa_id, tipo: novoTipo
+    motorista_id: motorista.id, empresa_id: motorista.empresa_id, tipo: novoTipo,
+    ...(notaDescanso ? { notas: notaDescanso } : {})
   }).select().single();
   if (error) { alert('Erro: '+error.message); return; }
   sessaoConducaoAtiva = data;
@@ -2089,6 +2118,25 @@ async function abrirContratoVisualizar(path, nome) {
     overlay.remove();
     alert('Erro ao abrir: ' + (e.message||'desconhecido'));
   }
+}
+
+// Cartão "esta semana até agora": só faturação por plataforma, provisório.
+function renderSemanaEmCurso() {
+  const s = semanaEmCurso;
+  if (!s || s.publicado) return '';
+  const bolt = Number(s.bolt_total) || 0, uber = Number(s.uber_bruto) || 0;
+  if (!bolt && !uber) return '';
+  const quando = s.atualizado_em ? new Date(s.atualizado_em).toLocaleString('pt-PT', { weekday:'short', hour:'2-digit', minute:'2-digit' }) : '';
+  return `
+    <div class="semana-atual" style="border-style:dashed;opacity:.95">
+      <div class="semana-tag">Esta semana até agora · provisório</div>
+      <div class="semana-periodo">${fmtData(s.semana_inicio)} — ${fmtData(s.semana_fim)}</div>
+      <div class="semana-metrics">
+        ${uber ? `<div class="s-metric"><div class="s-metric-label">Uber</div><div class="s-metric-val">${fmt(uber)}</div></div>` : ''}
+        <div class="s-metric"><div class="s-metric-label">Bolt${Number(s.bolt_gorjetas)>0?' <span style="opacity:.7">💝</span>':''}</div><div class="s-metric-val">${fmt(bolt)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--sub2);margin-top:8px">Faturação recebida das plataformas${quando ? ' · atualizado ' + quando : ''}. Despesas e valor a receber só depois de a empresa fechar a semana.</div>
+    </div>`;
 }
 
 function renderSemanaAtual(p) {
