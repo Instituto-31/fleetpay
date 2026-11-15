@@ -7299,7 +7299,13 @@ function renderConfig() {
           <div class="field"><label>Bolt Client ID</label><input id="cfg-bolt-id" value="${empresa?.bolt_client_id||''}" placeholder="Client ID do portal Bolt"></div>
           <div class="field"><label>Bolt Client Secret</label><input type="password" id="cfg-bolt-secret" value="${empresa?.bolt_client_secret||''}" placeholder="Secret do portal Bolt"></div>
           <div class="field"><label>Bolt Company ID (numérico)</label><input id="cfg-bolt-company" value="${empresa?.bolt_company_id||''}" placeholder="ex: 12345 (vê em fleets.bolt.eu → Settings)"></div>
-          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Obtém em fleets.bolt.eu → Settings → API → Generate credentials. Company ID está visível no URL ou em Settings → Company.</p>
+          <p style="font-size:12px;color:var(--sub2);margin-bottom:16px">Chave <strong>v1</strong> (pagamentos/corridas). Obtém em fleets.bolt.eu → Definições → API. Company ID está visível no URL ou em Settings → Company.</p>
+          <div style="padding:14px;border:1px dashed var(--line);border-radius:4px;margin-bottom:16px">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:10px">Chave API v2 (motoristas, viaturas, mapa ao vivo)</div>
+            <div class="field"><label>Client ID v2</label><input id="cfg-bolt-id-v2" value="${empresa?.bolt_client_id_v2||''}" placeholder="ID de cliente da chave v2"></div>
+            <div class="field"><label>Client Secret v2</label><input type="password" id="cfg-bolt-secret-v2" value="${empresa?.bolt_client_secret_v2||''}" placeholder="Segredo da chave v2"></div>
+            <p style="font-size:12px;color:var(--sub2);margin:0">Cria em fleets.bolt.eu → Definições → <strong>Chaves API da frota (v2)</strong> → Criar chaves API (todas as empresas, todos os pontos de acesso). Se ficar vazio, usa a chave v1.</p>
+          </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-gold" onclick="guardarConfigBolt()">💾 Guardar credenciais</button>
             <button class="btn btn-ghost" onclick="sincronizarBolt()" ${!empresa?.bolt_client_id?'disabled':''}>🔄 Motoristas + Viaturas</button>
@@ -8099,6 +8105,8 @@ async function guardarConfigBolt() {
     bolt_client_id: document.getElementById('cfg-bolt-id').value.trim(),
     bolt_client_secret: document.getElementById('cfg-bolt-secret').value.trim(),
     bolt_company_id: document.getElementById('cfg-bolt-company').value.trim() || null,
+    bolt_client_id_v2: document.getElementById('cfg-bolt-id-v2').value.trim() || null,
+    bolt_client_secret_v2: document.getElementById('cfg-bolt-secret-v2').value.trim() || null,
     bolt_api_ativo: !!document.getElementById('cfg-bolt-id').value.trim(),
   };
   const { error } = await db.from('empresas').update(payload).eq('id', empresa.id);

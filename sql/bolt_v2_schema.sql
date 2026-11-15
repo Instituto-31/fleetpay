@@ -15,3 +15,7 @@ ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS numero_quadro TEXT;
 CREATE INDEX IF NOT EXISTS idx_veiculos_bolt_uuid ON veiculos(empresa_id, bolt_uuid) WHERE bolt_uuid IS NOT NULL;
 
 SELECT 'Schema bolt v2 pronto' AS resultado;
+
+-- Chave API v2 separada da v1 (bolt-earnings continua a usar a v1)
+ALTER TABLE empresas ADD COLUMN IF NOT EXISTS bolt_client_id_v2 TEXT;
+ALTER TABLE empresas ADD COLUMN IF NOT EXISTS bolt_client_secret_v2 TEXT;

@@ -89,7 +89,8 @@ async function boltCall(endpoint: string, token: string, body: unknown): Promise
   try { resp = JSON.parse(txt); } catch { throw new Error(`Bolt ${endpoint} JSON inválido: ${txt.slice(0, 300)}`); }
   if (resp?.code !== 0) {
     const val = resp?.validation_errors?.map((v: any) => `${v.property ?? v.field ?? '?'}: ${v.error ?? v.message ?? ''}`).join('; ');
-    throw new Error(`Bolt ${endpoint}: ${resp?.message || 'erro'} (code ${resp?.code})${resp?.error_hint ? ' hint=' + resp.error_hint : ''}${val ? ' | ' + val : ''}`);
+    const dica = resp?.code === 498811 ? ' — a chave não está ativa na API v2: cria uma chave em fleets.bolt.eu → Definições → Chaves API da frota (v2) e grava-a em Configurações → Chave API v2' : '';
+    throw new Error(`Bolt ${endpoint}: ${resp?.message || 'erro'} (code ${resp?.code})${resp?.error_hint ? ' hint=' + resp.error_hint : ''}${val ? ' | ' + val : ''}${dica}`);
   }
   return resp.data ?? {};
 }
@@ -140,7 +141,7 @@ serve(async (req) => {
     // 2) Credenciais
     const { data: emp, error: errEmp } = await supabase
       .from('empresas')
-      .select('id, nome, bolt_client_id, bolt_client_secret, bolt_company_id')
+      .select('id, nome, bolt_client_id, bolt_client_secret, bolt_company_id, bolt_client_id_v2, bolt_client_secret_v2')
       .eq('id', empresaId)
       .single();
     if (errEmp || !emp) throw new Error('Empresa não encontrada');
@@ -155,8 +156,16 @@ serve(async (req) => {
       throw new Error(`Bolt Company ID inválido: "${emp.bolt_company_id}" (tem que ser um número).`);
     }
 
-    // 3) Token
-    const accessToken = await getBoltToken(emp.bolt_client_id, emp.bolt_client_secret);
+    // 3) Token — chave v2 se existir, senão a v1
+    const clientId = emp.bolt_client_id_v2 || emp.bolt_client_id;
+    const clientSecret = emp.bolt_client_id_v2 ? (emp.bolt_client_secret_v2 || '') : emp.bolt_client_secret;
+    if (!clientSecret) throw new Error('Chave Bolt v2: falta o Client Secret (Configurações → Integração Bolt API)');
+    let accessToken: string;
+    try {
+      accessToken = await getBoltToken(clientId, clientSecret);
+    } catch (e) {
+      throw new Error(`${(e as Error).message} — confirma as credenciais ${emp.bolt_client_id_v2 ? 'v2' : 'v1'} em Configurações`);
+    }
 
     // ── MODO ONLINE (mapa ao vivo) ──
     if (modoOnline) {
