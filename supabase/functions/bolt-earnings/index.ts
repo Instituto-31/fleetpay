@@ -54,12 +54,19 @@ async function getBoltToken(clientId: string, clientSecret: string): Promise<str
   return data.access_token;
 }
 
-async function boltCall(endpoint: string, token: string, body: any): Promise<any> {
+async function boltCall(endpoint: string, token: string, body: any, tentativa = 1): Promise<any> {
   const r = await fetch(`${BOLT_API_BASE}/${endpoint}`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // 429 TOO_MANY_REQUESTS: a Bolt diz quanto esperar (Retry-After, segundos). Até 3 tentativas.
+  if (r.status === 429 && tentativa < 3) {
+    const espera = Math.min(Number(r.headers.get('retry-after') || 5) || 5, 30);
+    console.log(`[bolt-earnings] ${endpoint} 429 — a esperar ${espera}s (tentativa ${tentativa})`);
+    await new Promise(res => setTimeout(res, espera * 1000));
+    return boltCall(endpoint, token, body, tentativa + 1);
+  }
   const txt = await r.text();
   if (!r.ok) throw new Error(`Bolt ${endpoint} ${r.status}: ${txt}`);
   return JSON.parse(txt);
