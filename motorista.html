@@ -926,6 +926,18 @@ async function abrirChecklistDiario() {
           ${itensEq.map(it => renderCheckItem(it)).join('')}
         </div>` : ''}
 
+        <div style="font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">📸 Fotos da viatura</div>
+        <p style="font-size:11px;color:var(--sub2);margin-bottom:8px;line-height:1.5">Tira as 4 fotos à volta do carro (ficam como prova do estado ao início do turno) e, se quiseres, o painel com os km.</p>
+        <div id="ck-fotos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+          ${['frente','tras','esquerda','direita','painel'].map(a => `
+          <label style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1;background:rgba(255,255,255,0.03);border:1px dashed var(--line);border-radius:6px;cursor:pointer;overflow:hidden;font-size:11px;color:var(--sub2)">
+            <input type="file" accept="image/*" capture="environment" data-angulo="${a}" onchange="ckFotoEscolhida(this)" style="display:none">
+            <img data-prev="${a}" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+            <span data-lbl="${a}" style="position:relative;z-index:1;text-align:center">📷<br>${({frente:'Frente',tras:'Trás',esquerda:'Esquerda',direita:'Direita',painel:'Painel / km'})[a]}</span>
+          </label>`).join('')}
+          <label style="display:flex;flex-direction:column;justify-content:center;font-size:11px;color:var(--sub2)">Km atuais<input type="number" id="ck-km" placeholder="ex: 123456" style="margin-top:4px;width:100%;padding:8px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:3px;color:var(--paper);font-size:13px"></label>
+        </div>
+
         <div style="margin-top:14px">
           <label style="display:block;font-family:var(--mono);font-size:10px;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Observações (opcional)</label>
           <textarea id="ck-obs" placeholder="Ex: Extintor a expirar em 15 dias..." style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:3px;color:var(--paper);font-family:var(--sans);font-size:13px;min-height:60px;resize:vertical"></textarea>
@@ -962,6 +974,32 @@ function renderCheckItem(it) {
   `;
 }
 
+// ── Fotos: redimensiona no telemóvel (máx 1280px, JPEG 0.8) antes de enviar ──
+const ckFotos = {};
+function ckFotoEscolhida(input) {
+  const f = input.files && input.files[0]; if (!f) return;
+  const a = input.dataset.angulo;
+  ckFotos[a] = f;
+  const img = document.querySelector(`img[data-prev="${a}"]`), lbl = document.querySelector(`span[data-lbl="${a}"]`);
+  if (img) { img.src = URL.createObjectURL(f); img.style.display = 'block'; }
+  if (lbl) lbl.innerHTML = '✅';
+}
+async function comprimirImagem(file, max = 1280, q = 0.8) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const esc = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * esc); c.height = Math.round(bmp.height * esc);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', q));
+  } catch (_) { return file; }
+}
+async function enviarFoto(path, file) {
+  const blob = await comprimirImagem(file);
+  const { error } = await db.storage.from('fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw error;
+  return path;
+}
+
 async function confirmarChecklist(allItemIds) {
   const itens = {};
   let okCount = 0;
@@ -976,15 +1014,31 @@ async function confirmarChecklist(allItemIds) {
     if (!confirm(`Estás a confirmar que NÃO tens ${allItemIds.length-okCount} item(s). Conduzir nestas condições é por tua conta — em caso de fiscalização, és responsável. Continuar?`)) return;
   }
 
+  // Fotos (opcionais) → Storage fotos/<empresa>/checklist/<motorista>/<data>/<angulo>.jpg
+  const fotos = {};
+  const angulos = Object.keys(ckFotos);
+  if (angulos.length) {
+    const st = document.getElementById('ck-status'); if (st) st.textContent = 'A enviar fotos…';
+    const hoje = new Date().toISOString().slice(0, 10);
+    for (const a of angulos) {
+      try { fotos[a] = await enviarFoto(`${motorista.empresa_id}/checklist/${motorista.id}/${hoje}/${a}.jpg`, ckFotos[a]); }
+      catch (e) { console.warn('[checklist] foto', a, e); }
+    }
+  }
+  const kmTxt = document.getElementById('ck-km')?.value;
+
   const { error } = await db.from('checklists_diarios').insert({
     motorista_id: motorista.id,
     empresa_id: motorista.empresa_id,
     itens,
     todos_ok: todosOk,
     observacoes,
+    fotos: Object.keys(fotos).length ? fotos : null,
+    km: kmTxt ? parseInt(kmTxt, 10) : null,
     user_agent: navigator.userAgent
   });
   if (error) { alert('Erro: '+error.message); return; }
+  Object.keys(ckFotos).forEach(k => delete ckFotos[k]);
 
   document.querySelectorAll('[style*="z-index:400"]').forEach(el => el.remove());
   document.getElementById('banner-checklist')?.remove();
@@ -1115,6 +1169,10 @@ function renderApp() {
       <button class="fab-action" onclick="fabAction('pedido')">
         <span class="fab-action-label">Fazer um pedido</span>
         <span class="fab-action-btn">📝</span>
+      </button>
+      <button class="fab-action" onclick="fabAction('incidente')">
+        <span class="fab-action-label">Registar incidente</span>
+        <span class="fab-action-btn">🚨</span>
       </button>
     </div>
     <button class="fab" id="fab-main" onclick="toggleFab()" aria-label="Menu rápido">
@@ -2618,6 +2676,9 @@ function fabAction(action) {
     case 'pedido':
       abrirPedidos();
       break;
+    case 'incidente':
+      abrirIncidentes();
+      break;
     case 'docs':
       if (typeof abrirPerfil === 'function') abrirPerfil();
       // Auto-scroll para secção docs após abrir perfil
@@ -3342,6 +3403,95 @@ function mostrarOnboarding(forcar = false) {
 
   render();
   document.body.appendChild(overlay);
+}
+
+// ── INCIDENTES (acidente, multa, avaria, dano, passageiro) ──
+const INC_TIPOS = { acidente:'🚨 Acidente', multa:'📋 Multa / coima', avaria:'🔧 Avaria', dano:'🚗 Dano na viatura', passageiro:'🧍 Incidente com passageiro', outro:'✉️ Outro' };
+const INC_ESTADO = { aberto:['Aberto','#c8922a'], em_analise:['Em análise','#4fb3d9'], resolvido:['Resolvido','#27c93f'] };
+const incFotos = [];
+
+async function abrirIncidentes() {
+  const overlay = document.createElement('div');
+  overlay.id = 'inc-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div style="background:var(--ink);border:1px solid var(--line);border-radius:12px 12px 0 0;padding:20px;width:100%;max-width:560px;max-height:92vh;overflow:auto"><div class="spinner-lg" style="margin:30px auto"></div></div>`;
+  document.body.appendChild(overlay);
+  incFotos.length = 0;
+  await renderIncidentesSheet(overlay);
+}
+
+async function renderIncidentesSheet(overlay) {
+  const { data: lista } = await db.from('incidentes').select('*').eq('motorista_id', motorista.id).order('criado_em', { ascending: false }).limit(20);
+  const incs = lista || [];
+  const item = i => {
+    const [lbl, cor] = INC_ESTADO[i.estado] || INC_ESTADO.aberto;
+    const n = (i.fotos || []).length;
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="font-size:13px">${INC_TIPOS[i.tipo] || i.tipo}</div>
+        <span style="font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:${cor};border:1px solid ${cor};border-radius:100px;padding:2px 8px">${lbl}</span>
+      </div>
+      <div style="font-size:12px;color:var(--sub2);margin-top:4px">${new Date(i.ocorrido_em).toLocaleString('pt-PT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}${i.local ? ' · ' + i.local : ''}${n ? ` · 📷 ${n}` : ''}</div>
+      ${i.descricao ? `<div style="font-size:12px;margin-top:4px">${i.descricao}</div>` : ''}
+      ${i.resposta ? `<div style="font-size:12px;margin-top:6px;padding:8px 10px;background:rgba(255,255,255,0.03);border-left:2px solid ${cor};border-radius:3px">${i.resposta}</div>` : ''}
+    </div>`;
+  };
+  overlay.firstElementChild.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold)">🚨 Registar incidente</div>
+      <button onclick="document.getElementById('inc-overlay').remove()" style="background:none;border:none;color:var(--sub2);font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div style="font-size:12px;color:var(--sub2);margin-bottom:10px;line-height:1.5">Em caso de acidente com feridos liga primeiro ao <strong style="color:var(--paper)">112</strong>. Depois regista aqui com fotos — fica com data, hora e localização.</div>
+    <form onsubmit="return enviarIncidente(event)" style="display:grid;gap:10px;padding:14px;border:1px dashed var(--line);border-radius:8px;margin-bottom:16px">
+      <select id="inc-tipo" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:14px">
+        ${Object.entries(INC_TIPOS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+      </select>
+      <input id="inc-local" placeholder="Local (rua, cidade)" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:13px">
+      <textarea id="inc-desc" rows="3" placeholder="O que aconteceu? Outros envolvidos, matrícula, seguradora…" style="background:transparent;color:inherit;border:1px solid var(--line);border-radius:4px;padding:10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px dashed var(--line);border-radius:6px;cursor:pointer;font-size:13px">
+        <input type="file" accept="image/*" capture="environment" multiple onchange="incFotoEscolhida(this)" style="display:none">📷 Adicionar fotos <span id="inc-fotos-n" style="color:var(--sub2);font-size:11px">(nenhuma)</span>
+      </label>
+      <div id="inc-prev" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <button type="submit" class="btn-recibo" style="margin:0">Registar incidente</button>
+    </form>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sub2);margin-bottom:4px">Os meus registos</div>
+    ${incs.length ? incs.map(item).join('') : '<div style="padding:20px;text-align:center;font-size:12px;color:var(--sub2)">Sem incidentes registados.</div>'}
+  `;
+}
+
+function incFotoEscolhida(input) {
+  Array.from(input.files || []).forEach(f => { if (incFotos.length < 8) incFotos.push(f); });
+  const n = document.getElementById('inc-fotos-n'); if (n) n.textContent = incFotos.length ? `(${incFotos.length})` : '(nenhuma)';
+  const prev = document.getElementById('inc-prev');
+  if (prev) prev.innerHTML = incFotos.map(f => `<img src="${URL.createObjectURL(f)}" style="width:56px;height:56px;object-fit:cover;border-radius:4px;border:1px solid var(--line)">`).join('');
+  input.value = '';
+}
+
+async function enviarIncidente(ev) {
+  ev.preventDefault();
+  const tipo = document.getElementById('inc-tipo').value;
+  const local = document.getElementById('inc-local').value.trim() || null;
+  const desc = document.getElementById('inc-desc').value.trim() || null;
+  if (!desc && !incFotos.length) { alert('Escreve o que aconteceu ou junta pelo menos uma foto.'); return false; }
+  const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'A registar…';
+  const pos = (typeof ultimaPosicao !== 'undefined' && ultimaPosicao) ? ultimaPosicao : null;
+  const { data: inc, error } = await db.from('incidentes').insert({
+    empresa_id: motorista.empresa_id, motorista_id: motorista.id, tipo, local, descricao: desc,
+    gps_lat: pos?.lat ?? null, gps_lng: pos?.lng ?? null,
+  }).select().single();
+  if (error) { alert('Não foi possível registar: ' + error.message); btn.disabled = false; btn.textContent = 'Registar incidente'; return false; }
+  const paths = [];
+  for (let i = 0; i < incFotos.length; i++) {
+    btn.textContent = `A enviar foto ${i + 1}/${incFotos.length}…`;
+    try { paths.push(await enviarFoto(`${motorista.empresa_id}/incidentes/${inc.id}/${i + 1}.jpg`, incFotos[i])); }
+    catch (e) { console.warn('[incidente] foto', e); }
+  }
+  if (paths.length) await db.from('incidentes').update({ fotos: paths }).eq('id', inc.id);
+  incFotos.length = 0;
+  const ov = document.getElementById('inc-overlay');
+  if (ov) await renderIncidentesSheet(ov);
+  return false;
 }
 
 // ── PEDIDOS AO OPERADOR ──
