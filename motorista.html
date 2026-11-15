@@ -1775,7 +1775,7 @@ async function terminarSessao() {
   pararWatchGPS();
   // Limpar posição do perfil (motorista offline)
   if (motorista) {
-    await db.from('perfis').update({ gps_lat: null, gps_lng: null, gps_at: null }).eq('id', motorista.id);
+    await db.from('perfis').update({ gps_lat: null, gps_lng: null, gps_at: null }).eq('id', currentUser.id);
   }
   await carregarEventosHoje();
   renderApp();
@@ -1817,7 +1817,7 @@ function iniciarWatchGPS() {
           gps_lat: ultimaPosicao.lat,
           gps_lng: ultimaPosicao.lng,
           gps_at: new Date().toISOString()
-        }).eq('id', motorista.id);
+        }).eq('id', currentUser.id);
       }
     },
     () => {},

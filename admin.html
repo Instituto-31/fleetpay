@@ -708,6 +708,9 @@ body.theme-default-dark { /* já é o root, sem override */ }
         <button class="nav-item" onclick="showPage('tempos')">
           <span class="nav-icon">⏱️</span> Tempos
         </button>
+        <button class="nav-item" onclick="showPage('mapa')">
+          <span class="nav-icon">🗺️</span> Mapa ao vivo
+        </button>
         <button class="nav-item" onclick="showPage('cupoes')" id="nav-cupoes">
           <span class="nav-icon">🎟️</span> Cupões
           <span class="nav-badge" id="badge-cupoes" style="display:none">0</span>
@@ -1488,7 +1491,8 @@ function showPage(page) {
     documentos:'Documentos', csv:'Carregar CSV', prio:'Combustível & Energia', viaverde:'Via Verde',
     alertas:'Alertas', config:'Configurações', cupoes:'Cupões',
     comunicacoes:'Comunicações', ajuda:'Ajuda & Documentação',
-    mensagens:'Mensagens', operadores:'🏢 Operadores · Painel SaaS'
+    mensagens:'Mensagens', operadores:'🏢 Operadores · Painel SaaS',
+    mapa:'Mapa ao vivo'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -1507,6 +1511,7 @@ function showPage(page) {
     documentos: renderDocumentos,
     compliance: renderCompliance,
     tempos: renderTempos,
+    mapa: renderMapa,
     cupoes: renderCupoes,
     comunicacoes: renderComunicacoes,
     ajuda: renderAjuda,
@@ -2358,6 +2363,157 @@ function iniciarLiveTickAdmin() {
 }
 function pararLiveTickAdmin() {
   if (conducaoLiveInterval) { clearInterval(conducaoLiveInterval); conducaoLiveInterval = null; }
+}
+
+// ── MAPA AO VIVO ──
+let mapaLeaflet = null, mapaMarkers = {}, mapaInterval = null, mapaLeafletPromise = null;
+let mapaFiltro = 'todos';
+let mapaDados = [];
+
+function carregarLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (mapaLeafletPromise) return mapaLeafletPromise;
+  mapaLeafletPromise = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onload = resolve; js.onerror = () => reject(new Error('Leaflet não carregou'));
+    document.head.appendChild(js);
+  });
+  return mapaLeafletPromise;
+}
+
+async function carregarDadosMapa() {
+  await carregarConducaoLive();
+  const ativos = motoristas.filter(m => m.ativo !== false && m.perfil_id);
+  const ids = [...new Set(ativos.map(m => m.perfil_id))];
+  let perfisGps = [];
+  if (ids.length) {
+    const { data, error } = await db.from('perfis').select('id, gps_lat, gps_lng, gps_at').in('id', ids);
+    if (error) console.warn('[mapa] perfis', error);
+    perfisGps = data || [];
+  }
+  const porPerfil = {}; perfisGps.forEach(p => porPerfil[p.id] = p);
+  const sessaoPor = {}; conducaoSessoesLive.forEach(r => sessaoPor[r.motorista_id] = r);
+  const agora = Date.now();
+  mapaDados = ativos.map(m => {
+    const p = porPerfil[m.perfil_id] || {};
+    const sessao = sessaoPor[m.id] || null;
+    const temPos = p.gps_lat != null && p.gps_lng != null;
+    const idadeMin = p.gps_at ? (agora - new Date(p.gps_at).getTime()) / 60000 : null;
+    let estado = 'offline';
+    if (sessao && temPos && idadeMin !== null && idadeMin <= 10) estado = sessao.tipo === 'conducao' ? 'conducao' : 'pausa';
+    else if (sessao) estado = 'sem_gps';
+    else if (temPos && idadeMin !== null && idadeMin <= 60) estado = 'recente';
+    const ja = conducaoTotaisHoje[m.id] || 0;
+    const seg = sessao && sessao.tipo === 'conducao' ? Math.floor((agora - new Date(sessao.inicio).getTime())/1000) : 0;
+    return { id: m.id, nome: m.nome, lat: p.gps_lat, lng: p.gps_lng, gps_at: p.gps_at, idadeMin, sessao, estado, totalHoje: ja + seg, temPos };
+  });
+}
+
+const MAPA_CORES = { conducao:'#2e9e5b', pausa:'#d9a21b', sem_gps:'#c0392b', recente:'#8a8a8a', offline:'#555' };
+const MAPA_LABEL = { conducao:'Em condução', pausa:'Em pausa', sem_gps:'Em serviço · sem GPS', recente:'Última posição (<1h)', offline:'Offline' };
+
+function mapaIdade(min) {
+  if (min === null || min === undefined) return 'sem posição';
+  if (min < 1) return 'agora mesmo';
+  if (min < 60) return `há ${Math.round(min)} min`;
+  const h = Math.floor(min/60); return `há ${h}h${String(Math.round(min%60)).padStart(2,'0')}`;
+}
+
+async function renderMapa() {
+  document.getElementById('topbar-actions').innerHTML = `
+    <select id="mapa-filtro" class="search-bar" style="width:auto" onchange="mapaFiltro=this.value;pintarMapa()">
+      <option value="todos" ${mapaFiltro==='todos'?'selected':''}>Todos com posição</option>
+      <option value="servico" ${mapaFiltro==='servico'?'selected':''}>Só em serviço</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="atualizarMapa(true)">🔄 Atualizar</button>
+  `;
+  document.getElementById('content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start" class="mapa-grid">
+      <div class="table-wrap" style="padding:0;overflow:hidden">
+        <div id="mapa-live" style="height:calc(100vh - 190px);min-height:420px;width:100%;background:#e9e5dc"></div>
+      </div>
+      <div class="table-wrap" style="padding:0">
+        <div class="table-header">
+          <div>
+            <div class="table-title">Motoristas</div>
+            <div class="table-sub" id="mapa-resumo">a carregar…</div>
+          </div>
+          <span class="badge badge-green" style="font-size:9px"><span class="badge-dot"></span>30s</span>
+        </div>
+        <div id="mapa-lista" style="max-height:calc(100vh - 260px);overflow:auto"></div>
+      </div>
+    </div>
+    <style>@media(max-width:900px){.mapa-grid{grid-template-columns:1fr !important}#mapa-live{height:55vh !important}}
+    .mapa-pin{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+    .mapa-pin.pulsa{animation:mapaPulse 1.6s infinite}
+    @keyframes mapaPulse{0%{box-shadow:0 0 0 2px rgba(46,158,91,.5)}70%{box-shadow:0 0 0 10px rgba(46,158,91,0)}100%{box-shadow:0 0 0 2px rgba(46,158,91,0)}}
+    .leaflet-popup-content{font-family:inherit;font-size:12px;color:#222}
+    </style>
+  `;
+  try { await carregarLeaflet(); }
+  catch (e) { document.getElementById('mapa-live').innerHTML = '<div style="padding:40px;text-align:center">Não foi possível carregar o mapa (sem ligação ao CDN).</div>'; return; }
+
+  mapaLeaflet = L.map('mapa-live', { zoomControl: true }).setView([38.74, -9.15], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  }).addTo(mapaLeaflet);
+  mapaMarkers = {};
+  await atualizarMapa(true);
+  if (mapaInterval) clearInterval(mapaInterval);
+  mapaInterval = setInterval(() => {
+    if (currentPage !== 'mapa' || !document.getElementById('mapa-live')) { clearInterval(mapaInterval); mapaInterval = null; mapaLeaflet = null; return; }
+    atualizarMapa(false);
+  }, 30000);
+}
+
+async function atualizarMapa(ajustarZoom) {
+  await carregarDadosMapa();
+  pintarMapa(ajustarZoom);
+}
+
+function pintarMapa(ajustarZoom) {
+  if (!mapaLeaflet || !window.L) return;
+  const visiveis = mapaDados.filter(d => d.temPos && (mapaFiltro === 'todos' ? d.estado !== 'offline' : !!d.sessao));
+  const idsVis = new Set(visiveis.map(d => d.id));
+  Object.keys(mapaMarkers).forEach(id => { if (!idsVis.has(id)) { mapaLeaflet.removeLayer(mapaMarkers[id]); delete mapaMarkers[id]; } });
+  visiveis.forEach(d => {
+    const icon = L.divIcon({ className: '', html: `<div class="mapa-pin ${d.estado==='conducao'?'pulsa':''}" style="background:${MAPA_CORES[d.estado]}"></div>`, iconSize: [14,14], iconAnchor: [7,7] });
+    const popup = `<strong>${d.nome}</strong><br>${MAPA_LABEL[d.estado]}<br>GPS ${mapaIdade(d.idadeMin)}${d.sessao ? `<br>Desde ${new Date(d.sessao.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})} · hoje ${fmtHMSAdmin(d.totalHoje)}` : ''}`;
+    if (mapaMarkers[d.id]) { mapaMarkers[d.id].setLatLng([d.lat, d.lng]).setIcon(icon).setPopupContent(popup); }
+    else { mapaMarkers[d.id] = L.marker([d.lat, d.lng], { icon }).addTo(mapaLeaflet).bindPopup(popup); }
+  });
+  if (ajustarZoom && visiveis.length) {
+    const b = L.latLngBounds(visiveis.map(d => [d.lat, d.lng]));
+    mapaLeaflet.fitBounds(b.pad(0.25), { maxZoom: 14 });
+  }
+  // lista lateral
+  const emServico = mapaDados.filter(d => d.sessao).length;
+  const comGps = mapaDados.filter(d => d.sessao && d.temPos && d.idadeMin <= 10).length;
+  const resumo = document.getElementById('mapa-resumo');
+  if (resumo) resumo.textContent = `${emServico} em serviço · ${comGps} com GPS · ${mapaDados.length} ativos`;
+  const ordem = { conducao:0, pausa:1, sem_gps:2, recente:3, offline:4 };
+  const lista = [...mapaDados].sort((a,b) => (ordem[a.estado]-ordem[b.estado]) || a.nome.localeCompare(b.nome));
+  const el = document.getElementById('mapa-lista');
+  if (el) el.innerHTML = lista.map(d => `
+    <div onclick="focarMotoristaMapa('${d.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);cursor:${d.temPos?'pointer':'default'};opacity:${d.estado==='offline'?.55:1}">
+      <div class="mapa-pin" style="background:${MAPA_CORES[d.estado]};flex:none"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--paper);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nome}</div>
+        <div style="font-size:11px;color:var(--sub2);font-family:var(--mono)">${MAPA_LABEL[d.estado]} · ${mapaIdade(d.idadeMin)}</div>
+      </div>
+      ${d.sessao ? `<div style="font-family:var(--mono);font-size:12px;color:${corSemaforo(d.totalHoje)}">${fmtHMSAdmin(d.totalHoje)}</div>` : ''}
+    </div>`).join('') || '<div style="padding:30px;text-align:center;color:var(--sub2);font-size:13px">Sem motoristas ativos.</div>';
+}
+
+function focarMotoristaMapa(id) {
+  const d = mapaDados.find(x => x.id === id);
+  if (!d || !d.temPos || !mapaLeaflet) return;
+  mapaLeaflet.setView([d.lat, d.lng], 15);
+  if (mapaMarkers[id]) mapaMarkers[id].openPopup();
 }
 
 // ── DASHBOARD ──
@@ -6480,37 +6636,19 @@ async function processarUploadTemplate(file) {
     // 4. Atualizar path no registo
     await db.from('contratos_templates').update({ ficheiro_path: path }).eq('id', tpl.id);
 
-    // 5. Auto-replicar nas outras empresas (superadmin com multi-empresa)
-    let replicadas = 0, falhas = 0;
-    const outras = (perfil?.role === 'superadmin')
-      ? empresasDisponiveis.filter(e => e.id !== empresa.id)
-      : [];
-    for (const outra of outras) {
-      try {
-        const { data: novo, error: insE } = await db.from('contratos_templates').insert({
-          empresa_id: outra.id, tipo, nome, placeholders, ficheiro_path: 'pending'
-        }).select().single();
-        if (insE) throw insE;
-        const novoPath = `${outra.id}/${novo.id}.docx`;
-        const { error: upE } = await db.storage.from('contratos-templates').upload(novoPath, file, {
-          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          upsert: true
-        });
-        if (upE) {
-          await db.from('contratos_templates').delete().eq('id', novo.id);
-          throw upE;
-        }
-        await db.from('contratos_templates').update({ ficheiro_path: novoPath }).eq('id', novo.id);
-        replicadas++;
-      } catch (eRep) {
-        console.error('Auto-replicar para empresa '+outra.id, eRep);
-        falhas++;
+    // 5. Superadmin: em vez de replicar cópias físicas em cada empresa,
+    //    promove a matriz — fica um único registo, visível por todas via is_matriz.
+    let msgRep = '';
+    if (perfil?.role === 'superadmin' && empresasDisponiveis.length > 1) {
+      const partilhar = confirm(`Disponibilizar "${nome}" como matriz para todas as empresas?\n\n(Fica um único modelo partilhado — sem cópias por empresa.)`);
+      if (partilhar) {
+        const { error: eM } = await db.from('contratos_templates').update({
+          is_matriz: true, promovido_em: new Date().toISOString(), promovido_por: currentUser.id
+        }).eq('id', tpl.id);
+        msgRep = eM ? ' · ⚠️ não foi possível promover a matriz' : ' · 🌐 matriz (todas as empresas)';
       }
     }
 
-    const msgRep = replicadas > 0
-      ? ` · replicado em ${replicadas} empresa(s)${falhas?' (falhas: '+falhas+')':''}`
-      : (falhas ? ` · ⚠️ falha em ${falhas} empresa(s)` : '');
     toast(`✅ Template "${nome}" carregado com ${placeholders.length} placeholders${msgRep}`);
     await carregarTemplates();
     renderContratosTab();
