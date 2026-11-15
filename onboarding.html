@@ -701,10 +701,16 @@ async function concluirOnboarding() {
 
 async function saltarOnboarding() {
   if (!confirm('Saltar o onboarding? Podes reabrir depois em Configurações → Reabrir onboarding.')) return;
-  await db.from('empresas').update({
+  const { error } = await db.from('empresas').update({
     onboarding_completed: true,
     onboarding_completed_at: new Date().toISOString(),
   }).eq('id', empresa.id);
+  if (error) {
+    // Não deixar o utilizador preso em loop: avisa e segue na mesma com uma marca local
+    console.error('[onboarding] saltar:', error);
+    alert('Não consegui gravar o estado do onboarding (' + error.message + ').\nVou abrir o painel na mesma — se voltares a cair aqui, avisa o suporte.');
+    try { localStorage.setItem('fp_onboarding_skip_' + empresa.id, '1'); } catch (_) {}
+  }
   window.location.href = 'admin.html';
 }
 

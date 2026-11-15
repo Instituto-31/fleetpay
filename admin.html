@@ -882,8 +882,10 @@ async function init() {
     empresa = p.empresas;
   }
 
-  // Onboarding: se ainda não concluído, redirecionar para wizard
-  if (empresa && empresa.onboarding_completed === false) {
+  // Onboarding: se ainda não concluído, redirecionar para wizard.
+  // Superadmin nunca é redirecionado (gere várias empresas; pode reabrir o wizard em Config).
+  let skipLocal = false; try { skipLocal = !!localStorage.getItem('fp_onboarding_skip_' + empresa?.id); } catch (_) {}
+  if (empresa && empresa.onboarding_completed === false && perfil?.role !== 'superadmin' && !skipLocal) {
     window.location.href = 'onboarding.html';
     return;
   }
@@ -5743,7 +5745,7 @@ function modalCarregarAssinado() {
     <div class="field"><label>Template usado</label>
       <select id="ass-template">
         <option value="">— selecionar —</option>
-        ${contratosTemplates.filter(t => t.ativo).map(t => {
+        ${templatesUtilizaveis().map(t => {
           const isMatrizExtern = t.is_matriz && t.empresa_id !== empresa.id;
           const sufixo = isMatrizExtern ? ' (matriz)' : '';
           return `<option value="${t.id}">${t.nome}${sufixo}</option>`;
@@ -5838,8 +5840,16 @@ async function eliminarAssinado(id) {
   renderContratosTab();
 }
 
-function renderGerarContrato() {
+// Templates utilizáveis: ativos; se a empresa tem um modelo próprio com o mesmo nome
+// que uma matriz externa, mostra só o próprio (evita "Comodato Bolt" em duplicado).
+function templatesUtilizaveis() {
   const ativos = contratosTemplates.filter(t => t.ativo);
+  const nomesProprios = new Set(ativos.filter(t => t.empresa_id === empresa.id).map(t => t.nome.trim().toLowerCase()));
+  return ativos.filter(t => t.empresa_id === empresa.id || !nomesProprios.has(t.nome.trim().toLowerCase()));
+}
+
+function renderGerarContrato() {
+  const ativos = templatesUtilizaveis();
   if (!ativos.length) {
     return `<div class="empty-state">
       <div class="empty-state-icon">📄</div>
