@@ -2398,19 +2398,58 @@ async function carregarDadosMapa() {
   const porPerfil = {}; perfisGps.forEach(p => porPerfil[p.id] = p);
   const sessaoPor = {}; conducaoSessoesLive.forEach(r => sessaoPor[r.motorista_id] = r);
   const agora = Date.now();
+
+  // Bolt: motoristas online agora (posição vem da Bolt, mesmo sem a app FleetPay)
+  mapaBoltOnline = await carregarBoltOnline();
+  const boltPor = {}; mapaBoltOnline.forEach(b => { if (b.motorista_id) boltPor[b.motorista_id] = b; });
+
   mapaDados = ativos.map(m => {
     const p = porPerfil[m.perfil_id] || {};
     const sessao = sessaoPor[m.id] || null;
-    const temPos = p.gps_lat != null && p.gps_lng != null;
-    const idadeMin = p.gps_at ? (agora - new Date(p.gps_at).getTime()) / 60000 : null;
+    const bolt = boltPor[m.id] || null;
+    let lat = p.gps_lat, lng = p.gps_lng, gps_at = p.gps_at, fonte = 'app';
+    let idadeMin = gps_at ? (agora - new Date(gps_at).getTime()) / 60000 : null;
+    // Se a app não tem posição fresca (<10 min) e a Bolt tem, usa a da Bolt
+    if (bolt && bolt.lat != null && (idadeMin === null || idadeMin > 10)) {
+      lat = bolt.lat; lng = bolt.lng; gps_at = mapaBoltOnline.obtido_em; idadeMin = 0; fonte = 'bolt';
+    }
+    const temPos = lat != null && lng != null;
     let estado = 'offline';
     if (sessao && temPos && idadeMin !== null && idadeMin <= 10) estado = sessao.tipo === 'conducao' ? 'conducao' : 'pausa';
+    else if (bolt && temPos) estado = bolt.estado === 'on_break' ? 'pausa' : 'conducao';
     else if (sessao) estado = 'sem_gps';
     else if (temPos && idadeMin !== null && idadeMin <= 60) estado = 'recente';
     const ja = conducaoTotaisHoje[m.id] || 0;
     const seg = sessao && sessao.tipo === 'conducao' ? Math.floor((agora - new Date(sessao.inicio).getTime())/1000) : 0;
-    return { id: m.id, nome: m.nome, lat: p.gps_lat, lng: p.gps_lng, gps_at: p.gps_at, idadeMin, sessao, estado, totalHoje: ja + seg, temPos };
+    return { id: m.id, nome: m.nome, lat, lng, gps_at, idadeMin, sessao, bolt, fonte, estado, totalHoje: ja + seg, temPos };
   });
+  // Motoristas online na Bolt que não existem no FleetPay (ainda não sincronizados)
+  mapaBoltOnline.filter(b => !b.motorista_id && b.lat != null).forEach(b => {
+    mapaDados.push({ id: 'bolt-' + b.uuid, nome: b.nome + ' (Bolt)', lat: b.lat, lng: b.lng, gps_at: mapaBoltOnline.obtido_em, idadeMin: 0, sessao: null, bolt: b, fonte: 'bolt', estado: b.estado === 'on_break' ? 'pausa' : 'conducao', totalHoje: 0, temPos: true });
+  });
+}
+
+let mapaBoltOnline = [];
+let mapaBoltErroAvisado = false;
+async function carregarBoltOnline() {
+  if (!empresa?.bolt_client_id || !empresa?.bolt_company_id) return [];
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) return [];
+    const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/bolt-sync`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': FLEETPAY_CONFIG.supabase.anonKey },
+      body: JSON.stringify({ empresa_id: empresa.id, online: true }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) {
+      if (!mapaBoltErroAvisado) { console.warn('[mapa] Bolt online:', data.error || data); mapaBoltErroAvisado = true; }
+      return [];
+    }
+    const lista = data.online || [];
+    lista.obtido_em = data.obtido_em || new Date().toISOString();
+    return lista;
+  } catch (e) { console.warn('[mapa] Bolt online falhou', e); return []; }
 }
 
 const MAPA_CORES = { conducao:'#2e9e5b', pausa:'#d9a21b', sem_gps:'#c0392b', recente:'#8a8a8a', offline:'#555' };
@@ -2477,12 +2516,13 @@ async function atualizarMapa(ajustarZoom) {
 
 function pintarMapa(ajustarZoom) {
   if (!mapaLeaflet || !window.L) return;
-  const visiveis = mapaDados.filter(d => d.temPos && (mapaFiltro === 'todos' ? d.estado !== 'offline' : !!d.sessao));
+  const visiveis = mapaDados.filter(d => d.temPos && (mapaFiltro === 'todos' ? d.estado !== 'offline' : !!(d.sessao || d.bolt)));
   const idsVis = new Set(visiveis.map(d => d.id));
   Object.keys(mapaMarkers).forEach(id => { if (!idsVis.has(id)) { mapaLeaflet.removeLayer(mapaMarkers[id]); delete mapaMarkers[id]; } });
   visiveis.forEach(d => {
     const icon = L.divIcon({ className: '', html: `<div class="mapa-pin ${d.estado==='conducao'?'pulsa':''}" style="background:${MAPA_CORES[d.estado]}"></div>`, iconSize: [14,14], iconAnchor: [7,7] });
-    const popup = `<strong>${d.nome}</strong><br>${MAPA_LABEL[d.estado]}<br>GPS ${mapaIdade(d.idadeMin)}${d.sessao ? `<br>Desde ${new Date(d.sessao.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})} · hoje ${fmtHMSAdmin(d.totalHoje)}` : ''}`;
+    const boltInfo = d.bolt ? `<br>Bolt: ${({waiting:'à espera',on_ride:'em corrida',on_break:'em pausa'})[d.bolt.estado] || d.bolt.estado}${d.bolt.matricula ? ' · ' + d.bolt.matricula : ''}` : '';
+    const popup = `<strong>${d.nome}</strong><br>${MAPA_LABEL[d.estado]}<br>GPS ${mapaIdade(d.idadeMin)} (${d.fonte === 'bolt' ? 'Bolt' : 'app'})${boltInfo}${d.sessao ? `<br>Desde ${new Date(d.sessao.inicio).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})} · hoje ${fmtHMSAdmin(d.totalHoje)}` : ''}`;
     if (mapaMarkers[d.id]) { mapaMarkers[d.id].setLatLng([d.lat, d.lng]).setIcon(icon).setPopupContent(popup); }
     else { mapaMarkers[d.id] = L.marker([d.lat, d.lng], { icon }).addTo(mapaLeaflet).bindPopup(popup); }
   });
@@ -2492,9 +2532,10 @@ function pintarMapa(ajustarZoom) {
   }
   // lista lateral
   const emServico = mapaDados.filter(d => d.sessao).length;
-  const comGps = mapaDados.filter(d => d.sessao && d.temPos && d.idadeMin <= 10).length;
+  const naBolt = mapaDados.filter(d => d.bolt).length;
+  const comGps = mapaDados.filter(d => (d.sessao || d.bolt) && d.temPos && d.idadeMin <= 10).length;
   const resumo = document.getElementById('mapa-resumo');
-  if (resumo) resumo.textContent = `${emServico} em serviço · ${comGps} com GPS · ${mapaDados.length} ativos`;
+  if (resumo) resumo.textContent = `${emServico} em serviço · ${naBolt} online na Bolt · ${comGps} com GPS`;
   const ordem = { conducao:0, pausa:1, sem_gps:2, recente:3, offline:4 };
   const lista = [...mapaDados].sort((a,b) => (ordem[a.estado]-ordem[b.estado]) || a.nome.localeCompare(b.nome));
   const el = document.getElementById('mapa-lista');
@@ -2503,7 +2544,7 @@ function pintarMapa(ajustarZoom) {
       <div class="mapa-pin" style="background:${MAPA_CORES[d.estado]};flex:none"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;color:var(--paper);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.nome}</div>
-        <div style="font-size:11px;color:var(--sub2);font-family:var(--mono)">${MAPA_LABEL[d.estado]} · ${mapaIdade(d.idadeMin)}</div>
+        <div style="font-size:11px;color:var(--sub2);font-family:var(--mono)">${MAPA_LABEL[d.estado]} · ${mapaIdade(d.idadeMin)}${d.bolt ? ' · Bolt ' + (({waiting:'à espera',on_ride:'em corrida',on_break:'pausa'})[d.bolt.estado] || '') : ''}</div>
       </div>
       ${d.sessao ? `<div style="font-family:var(--mono);font-size:12px;color:${corSemaforo(d.totalHoje)}">${fmtHMSAdmin(d.totalHoje)}</div>` : ''}
     </div>`).join('') || '<div style="padding:30px;text-align:center;color:var(--sub2);font-size:13px">Sem motoristas ativos.</div>';
@@ -9245,7 +9286,7 @@ function renderAjudaBolt() {
   return `
     <div class="aj-card">
       <h2>🚗 Integração Bolt Fleet API ${ativo?'<span class="aj-status aj-status-ok">Configurada</span>':'<span class="aj-status aj-status-pending">Por configurar</span>'}</h2>
-      <div class="aj-sub">Sincroniza automaticamente motoristas e viaturas da tua frota Bolt. <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/bolt_sync_schema.sql" target="_blank">Schema BD</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/supabase/functions/bolt-sync/index.ts" target="_blank">Edge Function</a></div>
+      <div class="aj-sub">Sincroniza automaticamente motoristas e viaturas da tua frota Bolt. <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/bolt_sync_schema.sql" target="_blank">Schema BD</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/sql/bolt_v2_schema.sql" target="_blank">Schema v2</a> · <a href="https://github.com/Instituto-31/fleetpay/blob/master/supabase/functions/bolt-sync/index.ts" target="_blank">Edge Function</a></div>
 
       <div class="aj-ok">
         🔒 <strong>FleetPay nunca pede a tua password do portal Bolt.</strong> Usamos a <strong>API oficial</strong> com Client ID + Secret que tu geras em fleets.bolt.eu — credenciais que podes revogar a qualquer momento sem afectar o teu login. Isto é mais seguro que outros sistemas que pedem login+password (que fazem scraping, viola TOS Bolt e arrisca banimento da conta).
@@ -9314,7 +9355,7 @@ function renderAjudaBolt() {
           <li><strong>"Bolt OAuth 401"</strong> → credenciais erradas. Renova no portal Bolt e cola novas.</li>
           <li><strong>"INVALID_DATE_RANGE"</strong> → bug do FleetPay (já corrigido com janelas de 30 dias).</li>
           <li><strong>"Failed to fetch"</strong> → Edge Function timeout. Confirma que o último deploy tem o código actual (com <code>fetchPaginated</code>).</li>
-          <li><strong>"0 motoristas mas portal Bolt mostra N"</strong> → janela temporal demasiado curta. Vê os logs em Supabase → Edge Functions → bolt-sync → Logs.</li>
+          <li><strong>"0 motoristas mas portal Bolt mostra N"</strong> → confirma o Company ID (v2 usa <code>getCompanies</code>). Vê os logs em Supabase → Edge Functions → bolt-sync → Logs.</li>
         </ul>
       ` : ''}
     </div>
