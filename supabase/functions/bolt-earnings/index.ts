@@ -111,8 +111,14 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const body = await req.json().catch(() => ({}));
 
-    // Chamada interna (pg_cron → fp_chamar_bolt_sync) com a service role key: age como sistema.
-    const isSistema = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    // Chamada interna (pg_cron → fp_chamar_bolt_sync): service role key OU token interno de cron
+    // guardado no Vault (validado por fp_verificar_cron_token; a função corre com verify_jwt=false
+    // e autentica aqui). Age como sistema.
+    let isSistema = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!isSistema && token.startsWith('fpcron_')) {
+      const { data: okTok } = await supabase.rpc('fp_verificar_cron_token', { p_token: token });
+      isSistema = okTok === true;
+    }
     let perfil: { role: string; empresa_id: string | null } | null = null;
     if (isSistema) {
       if (!body.empresa_id) {
@@ -404,6 +410,12 @@ serve(async (req) => {
         }
       }
     }
+
+    // Marca da última sincronização (visível no admin e na tarefa de segunda)
+    await supabase.from('empresas').update({
+      bolt_last_sync_at: new Date().toISOString(),
+      bolt_last_sync_summary: { via: isSistema ? 'cron' : 'manual', orders: summary.orders_received, criados: summary.pagamentos_created, atualizados: summary.pagamentos_updated, pagos_intocados: summary.pagamentos_pagos_intocados, erros: summary.errors.length },
+    }).eq('id', empresaId);
 
     return new Response(JSON.stringify({ ok: true, summary }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
