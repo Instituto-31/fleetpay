@@ -4153,7 +4153,8 @@ function renderMotoristas() {
   document.getElementById('topbar-actions').innerHTML = `
     <input class="search-bar" placeholder="🔍 Pesquisar motorista..." oninput="motoristasFiltro.q=this.value;atualizarTabelaMotoristas()">
     <button class="btn btn-ghost btn-sm" onclick="modalConvidarMotorista()">📧 Convidar</button>
-    <button class="btn btn-gold btn-sm" onclick="modalMotorista()">+ Motorista</button>
+    <button class="btn btn-ghost btn-sm" onclick="modalMotorista()">+ Motorista</button>
+    <button class="btn btn-gold btn-sm" onclick="modalOnboardingRapido()">🚀 Onboarding em 5 min</button>
   `;
 
   const nAtivos = motoristas.filter(m => m.ativo !== false).length;
@@ -4827,6 +4828,201 @@ async function guardarMotorista(id) {
   closeModal();
   await carregarDados();
   renderMotoristas();
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// ONBOARDING RÁPIDO — ficha + viatura + acesso à app + contrato + pedido de documentos
+// num só formulário. Resultado: uma mensagem de boas-vindas pronta a enviar por WhatsApp.
+// ═══════════════════════════════════════════════════════════════════
+const ONB_DOCS = [
+  ['cc', 'Cartão de Cidadão (frente e verso)'],
+  ['carta', 'Carta de condução'],
+  ['tvde', 'Certificado de motorista TVDE'],
+  ['rc', 'Registo criminal'],
+  ['iban', 'Comprovativo de IBAN'],
+  ['morada', 'Comprovativo de morada'],
+];
+
+async function modalOnboardingRapido() {
+  if (!contratosTemplates.length) { try { await carregarTemplates(); } catch (_) {} }
+  const tpls = templatesUtilizaveis();
+  const tplDefault = tpls.find(t => /comodato/i.test(t.nome)) || tpls[0];
+  const livres = veiculos.filter(v => !v.motorista_id && v.estado !== 'inativo');
+  openModal('🚀 Onboarding em 5 minutos', `
+    <p style="font-size:12px;color:var(--sub2);margin-bottom:16px;line-height:1.6">
+      Preenche uma vez. No fim crio a ficha, ligo a viatura, dou acesso à app, preparo o contrato para assinar
+      e deixo-te a mensagem de boas-vindas pronta para o WhatsApp.
+    </p>
+    <div class="field-row">
+      <div class="field"><label>Nome completo *</label><input id="ob-nome" placeholder="ex: João Pedro Silva"></div>
+      <div class="field"><label>Email *</label><input type="email" id="ob-email" placeholder="motorista@exemplo.com"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>WhatsApp *</label><input id="ob-wa" placeholder="912345678"></div>
+      <div class="field"><label>NIF</label><input id="ob-nif" placeholder="123456789"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Nº Cartão de Cidadão</label><input id="ob-doc" placeholder="12345678 9 ZZ1"></div>
+      <div class="field"><label>IBAN</label><input id="ob-iban" placeholder="PT50…"></div>
+    </div>
+    <div class="field"><label>Morada</label><input id="ob-morada" placeholder="Rua …, nº …, 4800-000 Guimarães"></div>
+    <div class="field-row">
+      <div class="field"><label>Slot semanal (€)</label><input type="number" step="0.01" id="ob-slot" value="35"></div>
+      <div class="field"><label>Aluguer semanal (€)</label><input type="number" step="0.01" id="ob-aluguer" value="0"></div>
+      <div class="field"><label>Comissão (%)</label><input type="number" step="0.5" id="ob-comissao" value="6"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Viatura</label>
+        <select id="ob-veiculo">
+          <option value="">— sem viatura por agora —</option>
+          ${livres.map(v => `<option value="${v.id}">${v.matricula} · ${v.marca||''} ${v.modelo||''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Contrato para assinatura</label>
+        <select id="ob-template">
+          <option value="">— sem contrato —</option>
+          ${tpls.map(t => `<option value="${t.id}" ${tplDefault && t.id===tplDefault.id?'selected':''}>${t.nome}${t.is_matriz && t.empresa_id!==empresa.id?' (matriz)':''}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Acesso à app</label>
+      <select id="ob-acesso">
+        <option value="password">Password sugerida (vai na mensagem de WhatsApp)</option>
+        <option value="convite">Convite por email (magic link)</option>
+      </select>
+    </div>
+    <div class="field"><label>Documentos a pedir</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;color:var(--paper)">
+        ${ONB_DOCS.map(([k,l]) => `<label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="ob-doc-${k}" checked style="width:auto"> ${l}</label>`).join('')}
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-gold" id="ob-go" onclick="executarOnboarding()">🚀 Criar tudo</button>
+  `);
+}
+
+async function executarOnboarding() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  const nome = g('ob-nome'), email = g('ob-email').toLowerCase(), wa = g('ob-wa').replace(/\D/g,'');
+  if (!nome || !email || !wa) { toast('Nome, email e WhatsApp são obrigatórios','error'); return; }
+  const btn = document.getElementById('ob-go'); if (btn) { btn.disabled = true; btn.textContent = '⏳ A criar…'; }
+  const passos = [];   // relatório do que correu / falhou
+  const acesso = g('ob-acesso');
+  const veiculoId = g('ob-veiculo'), tplId = g('ob-template');
+  const docsPedidos = ONB_DOCS.filter(([k]) => document.getElementById('ob-doc-'+k)?.checked).map(([,l]) => l);
+  const headers = async () => {
+    const { data: { session } } = await db.auth.getSession();
+    return { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': FLEETPAY_CONFIG.supabase.anonKey };
+  };
+
+  try {
+    // 1) Ficha do motorista (+ conta, se convite)
+    const ficha = {
+      empresa_id: empresa.id, nome, email, telefone: wa, whatsapp: wa,
+      nif: g('ob-nif') || null, doc_id: g('ob-doc') || null, iban: g('ob-iban') || null, morada: g('ob-morada') || null,
+      slot_semanal: parseFloat(g('ob-slot')) || 0, aluguer_semanal: parseFloat(g('ob-aluguer')) || 0,
+      comissao_pct: isNaN(parseFloat(g('ob-comissao'))) ? 6 : parseFloat(g('ob-comissao')),
+    };
+    let mot = motoristas.find(m => (m.email||'').toLowerCase() === email);
+    if (mot) {
+      passos.push('ℹ️ Já existia ficha com este email — atualizei os dados.');
+      const { error } = await db.from('motoristas').update(ficha).eq('id', mot.id);
+      if (error) throw new Error('ficha: ' + error.message);
+    } else if (acesso === 'convite') {
+      const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/convidar-motorista`, {
+        method: 'POST', headers: await headers(),
+        body: JSON.stringify({ nome, email, telefone: wa, nif: ficha.nif, empresa_id: empresa.id }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error('convite: ' + (d.error || 'falhou'));
+      passos.push('✅ Conta criada e convite enviado por email.');
+      const { data: m2 } = await db.from('motoristas').select('*').eq('empresa_id', empresa.id).ilike('email', email).limit(1).maybeSingle();
+      mot = m2;
+      if (mot) { const { error } = await db.from('motoristas').update(ficha).eq('id', mot.id); if (error) passos.push('⚠️ Alguns dados da ficha não ficaram: ' + error.message); }
+    } else {
+      const { data: m2, error } = await db.from('motoristas').insert(ficha).select().single();
+      if (error) throw new Error('ficha: ' + error.message);
+      mot = m2;
+    }
+    if (!mot) throw new Error('não consegui obter a ficha criada');
+    passos.push('✅ Ficha criada: ' + nome);
+
+    // 2) Password (se escolhido)
+    let password = null;
+    if (acesso === 'password') {
+      password = gerarPasswordSegura();
+      const r = await fetch(`${FLEETPAY_CONFIG.supabase.url}/functions/v1/definir-password-motorista`, {
+        method: 'POST', headers: await headers(), body: JSON.stringify({ motorista_id: mot.id, password }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d?.error) { password = null; passos.push('⚠️ Não consegui criar a password: ' + (d?.error || r.status) + ' — usa "Definir password" na ficha.'); }
+      else passos.push('✅ Acesso à app criado (password na mensagem).');
+    }
+
+    // 3) Viatura
+    let veic = null;
+    if (veiculoId) {
+      const { error } = await db.from('veiculos').update({ motorista_id: mot.id }).eq('id', veiculoId);
+      if (error) passos.push('⚠️ Viatura não ligada: ' + error.message);
+      else { veic = veiculos.find(v => v.id === veiculoId); passos.push('✅ Viatura ' + (veic?.matricula||'') + ' ligada.'); }
+    }
+
+    // 4) Contrato → link de assinatura
+    let urlAssinar = null, tplNome = null;
+    if (tplId) {
+      const tpl = contratosTemplates.find(t => t.id === tplId);
+      const motFull = { ...mot, ...ficha };
+      const { auto, placeholders } = calcularPlaceholdersContrato(tpl, motFull, 'empresa', veic ? { ...veic, motorista_id: mot.id } : null);
+      const valores = {}; placeholders.forEach(p => { valores[p] = auto[p] || ''; });
+      const token = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); });
+      const { error } = await db.from('contratos_assinados').insert({
+        empresa_id: empresa.id, motorista_id: mot.id, template_id: tplId, template_nome: tpl.nome,
+        estado: 'enviado_assinatura', dados_substituidos: valores, link_token: token, enviado_em: new Date().toISOString(),
+      });
+      if (error) passos.push('⚠️ Contrato não preparado: ' + error.message);
+      else { urlAssinar = new URL('assinar.html', window.location.href).href + '?t=' + token; tplNome = tpl.nome; passos.push('✅ Contrato "' + tpl.nome + '" pré-preenchido, pronto a assinar.'); }
+    }
+
+    // 5) Email de boas-vindas + pedido de documentos
+    const appUrl = new URL('motorista.html', window.location.href).href;
+    const primeiro = nome.split(' ')[0];
+    const linhasDocs = docsPedidos.length ? `\n\n📑 Documentos para carregares na app (Perfil → Os meus documentos):\n` + docsPedidos.map(d => '• ' + d).join('\n') : '';
+    const linhaAcesso = password
+      ? `\n\n📱 A tua app: ${appUrl}\nEmail: ${email}\nPassword: ${password}\n(podes mudá-la no Perfil)`
+      : `\n\n📱 A tua app: ${appUrl}\nVais receber um email com o link de acesso — abre-o no telemóvel.`;
+    const linhaContrato = urlAssinar ? `\n\n🖊️ Contrato "${tplNome}" para assinares (1 minuto, com o dedo):\n${urlAssinar}` : '';
+    const msg = `Olá ${primeiro}! 👋 Bem-vindo à ${empresa.nome || 'equipa'}.${linhaAcesso}${linhaContrato}${linhasDocs}\n\nQualquer dúvida, é só dizer. Boas corridas! 🚗`;
+    try {
+      const htmlMsg = msg.replace(/\n/g, '<br>');
+      const { error } = await db.functions.invoke('enviar-email-motorista', {
+        body: { motorista_id: mot.id, tipo: 'personalizado', forcar: true,
+          dados: { assunto: `[${empresa.nome || 'FleetPay'}] Bem-vindo — acesso, contrato e documentos`, titulo: 'Bem-vindo à equipa', mensagem: htmlMsg } },
+      });
+      passos.push(error ? '⚠️ Email de boas-vindas falhou: ' + error.message : '✅ Email de boas-vindas enviado.');
+    } catch (e) { passos.push('⚠️ Email de boas-vindas falhou: ' + e.message); }
+
+    await carregarDados();
+    renderMotoristas();
+
+    openModal('🎉 Onboarding feito — ' + nome, `
+      <div style="font-size:12px;line-height:1.8;margin-bottom:14px">${passos.map(p => `<div>${p}</div>`).join('')}</div>
+      <div class="field"><label>Mensagem de boas-vindas (WhatsApp)</label>
+        <textarea id="ob-msg" rows="10" style="width:100%;font-size:12px;line-height:1.5">${msg.replace(/</g,'&lt;')}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="https://wa.me/${wa.startsWith('351')?wa:'351'+wa}?text=${encodeURIComponent(msg)}" target="_blank" class="btn btn-gold" style="flex:1;text-align:center;text-decoration:none">💬 Enviar por WhatsApp</a>
+        <button class="btn btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('ob-msg').value).then(()=>toast('✅ Mensagem copiada'))">📋 Copiar</button>
+      </div>
+      ${password ? `<p style="font-size:11px;color:var(--sub2);margin-top:12px">A password só aparece aqui — se fechares sem enviar, define outra na ficha do motorista.</p>` : ''}
+    `, `<button class="btn btn-ghost" onclick="closeModal()">Fechar</button>`);
+  } catch (e) {
+    console.error('[onboarding]', e);
+    toast('Erro: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Criar tudo'; }
+    if (passos.length) alert('O que já ficou feito:\n' + passos.join('\n') + '\n\nErro: ' + e.message);
+  }
 }
 
 function modalConvidarMotorista() {
@@ -6292,15 +6488,9 @@ function preencherDadosMotorista() {
 // Estado do seletor de proprietário: 'empresa' (default) ou ID de um motorista
 let contProprietarioRef = 'empresa';
 
-function atualizarFormPlaceholders() {
-  const tplId = document.getElementById('cont-template').value;
-  const motId = document.getElementById('cont-motorista').value;
-  const wrap = document.getElementById('cont-placeholders-wrap');
-  if (!tplId || !motId) { wrap.style.display = 'none'; return; }
-
-  const tpl = contratosTemplates.find(t => t.id === tplId);
-  const mot = motoristas.find(m => m.id === motId);
-  if (!tpl || !mot) return;
+// Mapeamento puro dos placeholders de um template para um motorista (usado pelo gerador
+// de contratos e pelo onboarding rápido). propRef = 'empresa' | id de motorista proprietário.
+function calcularPlaceholdersContrato(tpl, mot, propRef = 'empresa', veiculoForcado = null) {
 
   // Detectar placeholders do template (UPPERCASE_UNDERSCORE)
   const placeholders = (tpl.placeholders||[])
@@ -6310,7 +6500,7 @@ function atualizarFormPlaceholders() {
 
   // Resolver dados do proprietário consoante a escolha
   let propData;
-  if (contProprietarioRef === 'empresa' || !temProprietario) {
+  if (propRef === 'empresa' || !temProprietario) {
     propData = {
       nome: empresa.nome || '',
       nif: empresa.nipc || '',
@@ -6326,7 +6516,7 @@ function atualizarFormPlaceholders() {
       _tipo: 'Empresa'
     };
   } else {
-    const motProp = motoristas.find(m => m.id === contProprietarioRef);
+    const motProp = motoristas.find(m => m.id === propRef);
     if (motProp) {
       propData = {
         nome: motProp.nome || '',
@@ -6344,13 +6534,12 @@ function atualizarFormPlaceholders() {
         _ref: motProp
       };
     } else {
-      contProprietarioRef = 'empresa';
-      return atualizarFormPlaceholders();
+      return calcularPlaceholdersContrato(tpl, mot, 'empresa');
     }
   }
 
   // Buscar veículo do motorista (assume primeiro veículo ativo)
-  const veiculo = veiculos.find(v => v.motorista_id === mot.id && v.estado !== 'inativo') || {};
+  const veiculo = veiculoForcado || veiculos.find(v => v.motorista_id === mot.id && v.estado !== 'inativo') || {};
 
   // Helpers
   const fmtDate = (d) => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-PT') : '';
@@ -6474,6 +6663,20 @@ function atualizarFormPlaceholders() {
     'LIMITE_KM_SEMANAL': '',
   };
 
+  return { placeholders, temProprietario, propData, veiculo, auto };
+}
+
+function atualizarFormPlaceholders() {
+  const tplId = document.getElementById('cont-template').value;
+  const motId = document.getElementById('cont-motorista').value;
+  const wrap = document.getElementById('cont-placeholders-wrap');
+  if (!tplId || !motId) { wrap.style.display = 'none'; return; }
+
+  const tpl = contratosTemplates.find(t => t.id === tplId);
+  const mot = motoristas.find(m => m.id === motId);
+  if (!tpl || !mot) return;
+  const { placeholders, temProprietario, propData, auto } = calcularPlaceholdersContrato(tpl, mot, contProprietarioRef);
+  if (temProprietario && contProprietarioRef !== 'empresa' && propData._tipo === 'Empresa') contProprietarioRef = 'empresa';
   // Bloco do Proprietário (dropdown + breakdown) — só aparece se template tiver PROPRIETARIO_*
   const blocoProprietario = !temProprietario ? '' : `
     <div style="margin-bottom:18px;padding:14px;background:rgba(200,146,42,0.04);border:1px solid var(--line);border-radius:4px">
