@@ -183,3 +183,10 @@ REVOKE ALL ON FUNCTION public.fp_aplicar_prio_semana(uuid, date) FROM public, an
 GRANT EXECUTE ON FUNCTION public.fp_aplicar_prio_semana(uuid, date) TO authenticated, service_role;
 
 SELECT 'fp_importar_prio + fp_aplicar_prio_semana criadas; trigger herda PRIO' AS resultado;
+
+-- 2026-11-16: pagamento NOVO sem slot/aluguer (ex.: criado pela sincronização Bolt) herda
+-- slot_semanal/aluguer_semanal da ficha do motorista (no trigger fp_pagamento_auto_calcular, ramo INSERT):
+--   IF COALESCE(NEW.slot_valor,0)=0 AND COALESCE(NEW.aluguer_valor,0)=0 THEN
+--     SELECT COALESCE(slot_semanal,0), COALESCE(aluguer_semanal,0) INTO NEW.slot_valor, NEW.aluguer_valor FROM motoristas WHERE id = NEW.motorista_id;
+--   END IF;
+-- (versão aplicada como migração pagamento_novo_herda_slot_aluguer)
