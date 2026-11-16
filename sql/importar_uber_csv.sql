@@ -139,3 +139,8 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'semana', v_seg, 'criados', v_criados, 'atualizados', v_atualizados,
                             'pagos_intocados', v_pagos, 'ignorados', v_ignorados, 'sem_motorista', to_jsonb(v_sem_mot));
 END $$;
+
+-- 2026-11-16: a importação falhava com "pagamentos_origem_check" quando o pagamento
+-- já tinha origem 'api' (Bolt) e a Uber o actualizava para 'api+csv'. Constraint alargada.
+ALTER TABLE pagamentos DROP CONSTRAINT IF EXISTS pagamentos_origem_check;
+ALTER TABLE pagamentos ADD CONSTRAINT pagamentos_origem_check CHECK (origem = ANY (ARRAY['csv','api','manual','api+csv']));
